@@ -1,7 +1,7 @@
 // PowerProfile.tsx — solar inverter "Power Profile" multi-line chart (light theme).
 // Pure inline SVG, no chart libraries. React 19 + TypeScript + Tailwind v4.
 
-export interface PowerPoint {
+interface PowerPoint {
   ts: number; // unix SECONDS
   gen_power: number; // watts
   use_power: number; // watts

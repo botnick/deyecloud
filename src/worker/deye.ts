@@ -38,7 +38,7 @@ async function metaSet(env: Env, k: string, v: string | number) {
 }
 
 // Obtain (and cache) an access token. Deye tokens last ~60 days; refresh when <1 day remains.
-export async function getToken(env: Env, force = false): Promise<string> {
+async function getToken(env: Env, force = false): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   if (!force) {
     const cached = await metaGet(env, "deye_token");
@@ -97,19 +97,12 @@ async function apiPost(env: Env, path: string, payload: any): Promise<any> {
   return data;
 }
 
-export async function getStationId(env: Env): Promise<string> {
+async function getStationId(env: Env): Promise<string> {
   const cached = await metaGet(env, "station_id");
   if (cached) return cached;
   const s = await getStationMeta(env);
   if (s && s.id) { await metaSet(env, "station_id", String(s.id)); return String(s.id); }
   return env.DEYE_STATION_ID ? String(env.DEYE_STATION_ID) : "";
-}
-
-function pick(obj: any, ...keys: string[]): any {
-  for (const k of keys) {
-    if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
-  }
-  return null;
 }
 
 export interface Latest {
@@ -128,7 +121,7 @@ export async function internalGet(env: Env, path: string): Promise<any> {
   });
   return r.json();
 }
-export async function internalPost(env: Env, path: string, body: any): Promise<any> {
+async function internalPost(env: Env, path: string, body: any): Promise<any> {
   const base = env.DEYE_INTERNAL_BASE || "https://eu1.deyecloud.com";
   const r = await fetch(base + path, {
     method: "POST",
@@ -192,7 +185,7 @@ async function getLatestInternal(env: Env, stationId?: string): Promise<Latest> 
   };
 }
 
-export function passwordReady(env: Env): boolean {
+function passwordReady(env: Env): boolean {
   return !!env.DEYE_PASSWORD && !env.DEYE_PASSWORD.startsWith("PUT_YOUR");
 }
 
