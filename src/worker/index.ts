@@ -60,15 +60,14 @@ async function geoPlace(env: Env, lat: string, lng: string): Promise<string> {
   if (row && (row as any).v) return (row as any).v;
   let place = "";
   try {
-    const j: any = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=jsonv2&addressdetails=1&accept-language=th&layer=address`,
-      { headers: { "User-Agent": "deyecloud-solar-pwa/1.0" } }
-    ).then((r) => r.json());
-    const a = j.address || {};
-    const strip = (s: any) => String(s || "").replace(/^(จังหวัด|อำเภอ|เขต)\s?/, "");
-    const tambon = a.suburb || a.quarter || a.neighbourhood || a.village || a.municipality || a.town || a.city;
-    const amphoe = a.county || a.city_district || a.state_district; // อำเภอ
-    const prov = a.province || a.state; // จังหวัด
+    // BigDataCloud is edge-friendly (no key, no UA policy, not IP-blocked like Nominatim).
+    const j: any = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=th`).then((r) => r.json());
+    const admins: string[] = (j.localityInfo && j.localityInfo.administrative ? j.localityInfo.administrative : []).map((a: any) => String(a.name || "")).filter(Boolean);
+    const find = (re: RegExp) => admins.find((n) => re.test(n));
+    const strip = (s: any) => String(s || "").replace(/^(จังหวัด|อำเภอ|เขต|ตำบล)\s?/, "").trim();
+    const prov = j.principalSubdivision || find(/^จังหวัด/);
+    const amphoe = find(/^อำเภอ|^เขต/); // อำเภอ (county)
+    const tambon = find(/^ตำบล|^แขวง/) || find(/^เมือง/) || j.locality || j.city;
     place = [tambon, amphoe, prov].map(strip).filter((v: string, i: number, arr: string[]) => v && arr.indexOf(v) === i).join(" · ");
   } catch {}
   if (place) await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(k, place).run();
