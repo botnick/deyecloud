@@ -60,10 +60,16 @@ async function geoPlace(env: Env, lat: string, lng: string): Promise<string> {
   if (row && (row as any).v) return (row as any).v;
   let place = "";
   try {
-    const j: any = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=th`).then((r) => r.json());
-    const loc = j.locality || j.city;
-    const prov = String(j.principalSubdivision || "").replace(/^จังหวัด/, "");
-    place = [loc, prov].filter(Boolean).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(" · ");
+    const j: any = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=jsonv2&addressdetails=1&accept-language=th&layer=address`,
+      { headers: { "User-Agent": "deyecloud-solar-pwa/1.0" } }
+    ).then((r) => r.json());
+    const a = j.address || {};
+    const strip = (s: any) => String(s || "").replace(/^(จังหวัด|อำเภอ|เขต)\s?/, "");
+    const tambon = a.suburb || a.quarter || a.neighbourhood || a.village || a.municipality || a.town || a.city;
+    const amphoe = a.county || a.city_district || a.state_district; // อำเภอ
+    const prov = a.province || a.state; // จังหวัด
+    place = [tambon, amphoe, prov].map(strip).filter((v: string, i: number, arr: string[]) => v && arr.indexOf(v) === i).join(" · ");
   } catch {}
   if (place) await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(k, place).run();
   return place;
