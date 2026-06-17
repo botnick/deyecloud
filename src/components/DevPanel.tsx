@@ -7,6 +7,13 @@ export function DevPanel({ current, onPick }: { current: string | null; onPick: 
   const [open, setOpen] = useState(false);
   const cur = scenarioByKey(current);
 
+  // Leave test mode for good: forget the sticky flag and reload onto a clean URL
+  // (drops ?dev/?sim so it won't re-arm). Works on phones with no devtools.
+  const exitDevMode = () => {
+    try { localStorage.removeItem("deye_dev"); } catch {}
+    location.href = location.pathname;
+  };
+
   return (
     <>
       <button
@@ -40,6 +47,13 @@ export function DevPanel({ current, onPick }: { current: string | null; onPick: 
                 {s.name}
               </button>
             ))}
+            <button
+              onClick={exitDevMode}
+              className="w-full mt-2 px-4 py-3 rounded-2xl font-bold text-rose-600 bg-rose-50 active:scale-[.99] transition-transform"
+            >
+              ออกจากโหมดทดสอบ
+            </button>
+            <div className="text-center text-[11px] text-muted mt-1.5">กลับสู่แอปปกติ · banner ติดตั้งจะกลับมา</div>
           </div>
         </div>
       )}
