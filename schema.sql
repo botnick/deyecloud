@@ -30,4 +30,6 @@ CREATE TABLE IF NOT EXISTS daily (
   discharge   REAL    -- battery discharged (kWh)
 );
 
-CREATE INDEX IF NOT EXISTS idx_samples_ts ON samples(ts);
+-- No extra index on samples(ts): ts is INTEGER PRIMARY KEY (rowid alias) and is
+-- already indexed; a separate index would only slow inserts. Old frames are
+-- pruned to ~35 days by the cron, while the daily rollups are kept forever.

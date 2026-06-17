@@ -16,7 +16,7 @@ const TABS: { k: Range; label: string }[] = [
 const pad = (n: number) => String(n).padStart(2, "0");
 const isoLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-export function HistoryView({ active, stationId }: { active: boolean; stationId?: number | null }) {
+export function HistoryView({ active, stationId, capacity }: { active: boolean; stationId?: number | null; capacity?: number }) {
   const [range, setRange] = useState<Range>("day");
   const [ref, setRef] = useState(() => new Date());
   const [points, setPoints] = useState<any[] | null>(null);
@@ -28,6 +28,21 @@ export function HistoryView({ active, stationId }: { active: boolean; stationId?
     getHistory(range, isoLocal(ref), stationId).then((r) => { if (alive) setPoints(r.points || []); }).catch(() => { if (alive) setPoints([]); });
     return () => { alive = false; };
   }, [range, ref, active, stationId]);
+
+  // Auto-refresh the CURRENT period every 60s (เสมือน realtime) — past periods are
+  // immutable so we skip them. Server cache makes this cheap.
+  useEffect(() => {
+    if (!active) return;
+    const now = new Date();
+    const cur = range === "day" ? isoLocal(ref) === isoLocal(now)
+      : range === "month" ? (ref.getFullYear() === now.getFullYear() && ref.getMonth() === now.getMonth())
+        : ref.getFullYear() === now.getFullYear();
+    if (!cur) return;
+    const id = setInterval(() => {
+      getHistory(range, isoLocal(ref), stationId).then((r) => setPoints(r.points || [])).catch(() => {});
+    }, 60000);
+    return () => clearInterval(id);
+  }, [active, range, ref, stationId]);
 
   // Clear points on tab change so we never render the previous range's data
   // shape against the new range (e.g. day frames have no .day/.month → crash).
@@ -104,10 +119,10 @@ export function HistoryView({ active, stationId }: { active: boolean; stationId?
         </div>
       )}
 
-      {points && points.length > 0 && analyzeHistory(range, points).length > 0 && (
+      {points && points.length > 0 && analyzeHistory(range, points, capacity).length > 0 && (
         <>
           <h2 className={h2Mid}>วิเคราะห์</h2>
-          <InsightList items={analyzeHistory(range, points)} />
+          <InsightList items={analyzeHistory(range, points, capacity)} />
         </>
       )}
     </>
