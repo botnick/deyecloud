@@ -68,6 +68,7 @@ async function getWeather(env: Env): Promise<any> {
     if (fb && fb.temp != null) data = fb;
   }
   if (!data) data = { error: "weather unavailable" };
+  if (data && data.temp != null && data.uv == null) data.uv = await fetchUV(lat, lng).catch(() => null);
   if (data && data.temp != null) data.sun = sunInfo(Number(lat), Number(lng));
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('weather_cache2',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();
   return data;
@@ -97,7 +98,7 @@ const wmoToCond = (w: number): number =>
 async function fetchOpenMeteo(env: Env, lat: string, lng: string, place: string): Promise<any> {
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
-    `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m` +
+    `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,uv_index` +
     `&hourly=temperature_2m,weather_code,precipitation` +
     `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,shortwave_radiation_sum` +
     `&timezone=Asia%2FBangkok&forecast_days=7`;
@@ -117,8 +118,16 @@ async function fetchOpenMeteo(env: Env, lat: string, lng: string, place: string)
   return {
     source: "open-meteo", place: place || "พื้นที่ของคุณ",
     temp: c.temperature_2m, humidity: c.relative_humidity_2m, cond: wmoToCond(c.weather_code), rain: 0,
-    wind: c.wind_speed_10m != null ? Math.round(c.wind_speed_10m) : null, hourly, daily,
+    wind: c.wind_speed_10m != null ? Math.round(c.wind_speed_10m) : null,
+    uv: c.uv_index != null ? Math.round(c.uv_index) : null, hourly, daily,
   };
+}
+// TMD has no UV field — pull the live UV index from Open-Meteo (free, no key).
+async function fetchUV(lat: string, lng: string): Promise<number | null> {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=uv_index&timezone=Asia%2FBangkok&forecast_days=1`;
+  const j: any = await fetch(url).then((r) => r.json());
+  const uv = j.current && j.current.uv_index;
+  return uv != null ? Math.round(uv) : null;
 }
 
 // ===================== Hono app =====================
@@ -151,11 +160,15 @@ app.get("/api/station", async (c) => c.json(await getStationMeta(c.env)));
 
 app.get("/api/latest", async (c) => {
   const env = c.env;
-  const cached = await env.DB.prepare("SELECT v FROM meta WHERE k='latest_cache'").first();
+  const sid = c.req.query("station");
+  const ck = "latest_cache" + (sid ? "_" + sid : ""); // per-station cache key (cron fills the default/unsuffixed one)
+  const cached = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first();
   if (cached) { try { const cc = JSON.parse((cached as any).v); if (Date.now() - cc._at < 60 * 1000) return c.json(cc.data); } catch {} }
-  const l = await getLatest(env);
+  let l;
+  try { l = await getLatest(env, sid); }
+  catch { return c.json({ error: "unreachable", offline: true }, 503); } // Deye down → let the UI show the offline banner
   delete (l as any).raw;
-  await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('latest_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data: l })).run();
+  await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data: l })).run();
   return c.json(l);
 });
 
@@ -163,9 +176,11 @@ app.get("/api/weather", async (c) => c.json(await getWeather(c.env)));
 
 app.get("/api/device", async (c) => {
   const env = c.env;
-  const cached = await env.DB.prepare("SELECT v FROM meta WHERE k='device_cache'").first();
+  const sid = c.req.query("station");
+  const ck = "device_cache" + (sid ? "_" + sid : "");
+  const cached = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first();
   if (cached) { try { const cc = JSON.parse((cached as any).v); if (Date.now() - cc._at < 60 * 1000) return c.json(cc.data); } catch {} }
-  const devs = await listDevices(env);
+  const devs = await listDevices(env, sid);
   const inv = devs.find((x: any) => /INVERTER|HYBRID|STORAGE/i.test(x.deviceType || "")) || devs.find((x: any) => x.deviceType !== "COLLECTOR") || devs[0];
   if (!inv) return c.json({ error: "no device" }, 404);
   const sn = inv.deviceSn || inv.sn;
@@ -179,7 +194,7 @@ app.get("/api/device", async (c) => {
     collectorSn: collector && collector.deviceSn,
     dataList: dd.dataList || [],
   };
-  await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('device_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();
+  await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
   return c.json(data);
 });
 
@@ -189,7 +204,7 @@ app.get("/api/device", async (c) => {
 async function histFromD1(env: Env, range: string) {
   if (range === "day") {
     const start = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
-    const { results } = await env.DB.prepare("SELECT ts, gen_power, use_power, soc FROM samples WHERE ts>=? ORDER BY ts").bind(start).all();
+    const { results } = await env.DB.prepare("SELECT ts, gen_power, use_power, grid_power, batt_power, soc FROM samples WHERE ts>=? ORDER BY ts").bind(start).all();
     return { range, points: results, source: "d1" };
   }
   if (range === "month") {
@@ -214,14 +229,15 @@ app.get("/api/history", async (c) => {
   const ref = new Date(dateStr + "T00:00:00Z");
   const y = ref.getUTCFullYear(), mo = ref.getUTCMonth() + 1;
 
-  const ck = `hist_${range}_${dateStr}`;
+  const sid = c.req.query("station");
+  const ck = `hist_${range}_${dateStr}${sid ? "_" + sid : ""}`;
   const row = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first();
   if (row) { try { const cc = JSON.parse((row as any).v); if (Date.now() - cc._at < 5 * 60 * 1000) return c.json(cc.data); } catch {} }
 
   let data: any;
   try {
     if (range === "day") {
-      const res = await getHistory(env, 1, dateStr, dateStr);
+      const res = await getHistory(env, 1, dateStr, dateStr, sid);
       const points = (res.stationDataItems || []).filter((x: any) => x.timeStamp).map((x: any) => ({
         ts: x.timeStamp, gen_power: x.generationPower ?? 0, use_power: x.consumptionPower ?? 0,
         grid_power: x.wirePower ?? x.gridPower ?? 0, batt_power: x.batteryPower ?? 0, soc: x.batterySOC ?? null,
@@ -229,21 +245,23 @@ app.get("/api/history", async (c) => {
       data = { range, date: dateStr, points, source: "deye" };
     } else if (range === "month") {
       const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
-      const res = await getHistory(env, 2, `${y}-${p2(mo)}-01`, `${y}-${p2(mo)}-${p2(last)}`);
+      const res = await getHistory(env, 2, `${y}-${p2(mo)}-01`, `${y}-${p2(mo)}-${p2(last)}`, sid);
       const points = (res.stationDataItems || []).map((x: any) => ({
         day: `${x.year}-${p2(x.month)}-${p2(x.day)}`, gen: x.generationValue ?? 0, use: x.consumptionValue ?? 0, buy: x.purchaseValue ?? 0, sell: x.gridValue ?? 0,
       }));
       data = { range, date: dateStr, points, source: "deye" };
     } else {
-      const res = await getHistory(env, 3, `${y}-01`, `${y}-12`);
+      const res = await getHistory(env, 3, `${y}-01`, `${y}-12`, sid);
       const points = (res.stationDataItems || []).map((x: any) => ({
         month: `${x.year}-${p2(x.month)}`, gen: x.generationValue ?? 0, use: x.consumptionValue ?? 0, buy: x.purchaseValue ?? 0, sell: x.gridValue ?? 0,
       }));
       data = { range, date: dateStr, points, source: "deye" };
     }
-    if (!data.points || !data.points.length) { const fb = await histFromD1(env, range); if (fb.points && fb.points.length) data = fb; }
+    // D1 fallback holds only the primary (cron) station's samples — use it for
+    // the default station, not when a specific other station is requested.
+    if ((!data.points || !data.points.length) && !sid) { const fb = await histFromD1(env, range); if (fb.points && fb.points.length) data = fb; }
   } catch {
-    data = await histFromD1(env, range);
+    data = sid ? { range, date: dateStr, points: [], source: "deye" } : await histFromD1(env, range);
   }
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
   return c.json(data);

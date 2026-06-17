@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { getDevice, type Device, type DeviceData, type Latest } from "../lib/api";
 import { groupDevice, INVERTER_TYPE_TH } from "../lib/device";
 import { timeStr } from "../lib/format";
@@ -63,20 +63,47 @@ function Section({ title, count, open, onToggle, children }: { title: string; co
   );
 }
 
-export function DeviceView({ latest, active, onBack }: { latest: Latest | null; active: boolean; onBack: () => void }) {
+export function DeviceView({ latest, active, stationId, onBack }: { latest: Latest | null; active: boolean; stationId?: number | null; onBack: () => void }) {
   const [dev, setDev] = useState<Device | null>(null);
+  const [err, setErr] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({ pv: true, ac: true, grid: true, load: true });
+
+  const load = useCallback(async () => {
+    try { const d = await getDevice(stationId); setDev(d); setErr(!!d.error); }
+    catch { setErr(true); }
+  }, [stationId]);
 
   useEffect(() => {
     if (!active) return;
     let alive = true;
-    getDevice().then((d) => { if (alive) setDev(d); }).catch(() => {});
-    const id = setInterval(() => getDevice().then((d) => alive && setDev(d)).catch(() => {}), 60000);
+    setDev(null); setErr(false); // reset when (re)opened or station changes
+    const run = () => getDevice(stationId).then((d) => { if (alive) { setDev(d); setErr(!!d.error); } }).catch(() => { if (alive) setErr(true); });
+    run();
+    const id = setInterval(run, 60000);
     return () => { alive = false; clearInterval(id); };
-  }, [active]);
+  }, [active, stationId]);
 
-  if (!dev || dev.error) {
-    return <div className="h-48 rounded-[20px] bg-white/70 animate-pulse mt-2" />;
+  if (!dev || dev.error || err) {
+    const failed = err || !!dev?.error;
+    return (
+      <>
+        <div className="flex items-center gap-1.5 mt-1 mb-3.5">
+          <button onClick={onBack} aria-label="กลับหน้าหลัก" className="w-10 h-10 -ml-1.5 rounded-full grid place-items-center text-title active:bg-line transition-colors">
+            <IconBack className="w-6 h-6" />
+          </button>
+          <h2 className={h2}>เครื่องแปลงไฟ (Inverter)</h2>
+        </div>
+        {failed ? (
+          <div className={`${cardP} text-center py-8`}>
+            <div className="text-[16px] font-bold text-title">ดึงข้อมูลเครื่องไม่ได้</div>
+            <div className="text-[14px] text-body mt-1">เชื่อมต่อระบบไม่ได้ในขณะนี้</div>
+            <button onClick={load} className="mt-4 h-11 px-5 rounded-xl bg-primary text-ink font-bold active:scale-95 transition-transform">ลองใหม่</button>
+          </div>
+        ) : (
+          <div className="h-48 rounded-[20px] bg-white/70 animate-pulse" />
+        )}
+      </>
+    );
   }
 
   const byKey = (k: string) => dev.dataList.find((d) => d.key === k);

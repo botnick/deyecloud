@@ -9,6 +9,11 @@ export const card = "glass-card";
 export const cardP = card + " p-5";
 /** Small/secondary glass surface (toolbars, pills). */
 export const cardSm = "glass-sm";
+/** Opaque plate (radius 20, no translucency) — for charts + giant hero numbers
+ *  where contrast must not drop. Same shadow family as `card`. */
+export const plate = "metric-plate";
+/** Plate with standard inner padding. */
+export const plateP = plate + " p-5";
 /** Section heading. */
 export const h2 = "text-[22px] font-bold tracking-tight text-title";
 /** Section heading + first-in-page top margin. */

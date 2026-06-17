@@ -34,8 +34,12 @@ function Node({ x, y, color, icon, value, valueColor, label, badge, badgeWarn }:
 export function FlowDiagram({ latest }: { latest: Latest }) {
   const bs = (latest.battStatus || "").toUpperCase();
   const buying = (latest.gridPower || 0) >= 0;
-  const charging = bs.includes("CHARGE");
-  const discharging = bs.includes("DIS");
+  // Prefer the status string; fall back to battPower sign (+discharge / −charge)
+  // when the inverter reports STATIC/blank but power is actually flowing.
+  const bp = Number(latest.battPower) || 0;
+  let charging = bs.includes("CHARGE");
+  let discharging = bs.includes("DIS");
+  if (!charging && !discharging) { if (bp < -20) charging = true; else if (bp > 20) discharging = true; }
   const soc = Math.round(latest.soc || 0);
   const gridOff = /OFF|ISLAND|DISCONNECT/i.test(latest.gridStatus || "");
   const gridFlow = !gridOff && Math.abs(latest.gridPower) > 2;

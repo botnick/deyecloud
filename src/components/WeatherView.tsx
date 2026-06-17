@@ -1,16 +1,27 @@
 import type { Weather } from "../lib/api";
 import { condText, solarInfo, DAYLBL, shortDate, isNightAt, isNightNow } from "../lib/weather";
 import { WxIcon } from "../lib/wxicon";
-import { card, cardP, h2First, h2Mid } from "../lib/ui";
+import { card, cardP, plateP, h2First, h2Mid } from "../lib/ui";
 import { SunPath } from "./SunPath";
 
 const amber = "linear-gradient(90deg,#ffd84d,#ff9d00)";
 
-function Stat({ label, value }: { label: string; value: string }) {
+// UV index → Thai level + color (WHO scale).
+function uvInfo(uv: number): { level: string; color: string } {
+  if (uv < 3) return { level: "ต่ำ", color: "#18a673" };
+  if (uv < 6) return { level: "ปานกลาง", color: "#c79100" };
+  if (uv < 8) return { level: "สูง", color: "#ef7d1a" };
+  if (uv < 11) return { level: "สูงมาก", color: "#e8603c" };
+  return { level: "อันตราย", color: "#8b5cf6" };
+}
+
+function Stat({ label, value, color, sub }: { label: string; value: string; color?: string; sub?: string }) {
   return (
     <div className={`${card} px-3 py-3 text-center`}>
       <div className="text-[12px] text-body">{label}</div>
-      <div className="text-[15px] font-bold mt-0.5">{value}</div>
+      <div className="text-[15px] font-bold mt-0.5" style={color ? { color } : undefined}>
+        {value}{sub && <span className="text-[12px] font-bold ml-1">{sub}</span>}
+      </div>
     </div>
   );
 }
@@ -35,7 +46,7 @@ export function WeatherView({ weather }: { weather: Weather | null }) {
       <h2 className={h2First}>พยากรณ์อากาศ</h2>
 
       {/* hero */}
-      <div className={cardP}>
+      <div className={plateP}>
         <div className="flex items-center gap-3">
           <div className="flex-1 min-w-0">
             <div className="text-[15px] font-bold text-body truncate">{w.place} · {night ? "กลางคืน" : "กลางวัน"}</div>
@@ -59,15 +70,24 @@ export function WeatherView({ weather }: { weather: Weather | null }) {
       {/* sun & solar reception */}
       {sun && (
         <>
-          <h2 className={h2Mid}>ดวงอาทิตย์ · การรับแดด</h2>
+          <h2 className={h2Mid}>ดวงอาทิตย์และการรับแสง</h2>
           <div className={cardP}>
             <SunPath sun={sun} />
 
             <div className="mt-3 bg-pv-soft rounded-2xl px-4 py-3">
-              <div className="font-bold text-[15px] text-[#9a6500]">ช่วงแดดดีที่สุด {sun.peakStart} – {sun.peakEnd} น.</div>
-              <div className="text-[13px] text-[#9a6500] mt-1 leading-snug">เปิดแอร์ เครื่องซักผ้า ปั๊มน้ำ ช่วงนี้ ได้ใช้ไฟจากแดดเต็มที่ ประหยัดสุด</div>
+              <div className="font-bold text-[15px] text-[#9a6500]">ช่วงรับพลังงานแสงสูงสุด {sun.peakStart} – {sun.peakEnd} น.</div>
+              <div className="text-[13px] text-[#9a6500] mt-1 leading-snug">แนะนำให้ใช้เครื่องใช้ไฟฟ้าขนาดใหญ่ เช่น เครื่องปรับอากาศและเครื่องซักผ้า ในช่วงเวลานี้ เพื่อใช้พลังงานจากแสงอาทิตย์ได้อย่างคุ้มค่าที่สุด</div>
             </div>
-            <div className="text-center text-[13px] text-body mt-3">วันนี้ได้แดดเต็มที่ ≈ {sun.psh} ชม. · กลางวันยาว {sun.dayHours} ชม.</div>
+            <div className="grid grid-cols-2 gap-2.5 mt-3">
+              <div className="bg-canvas rounded-2xl px-4 py-3 text-center">
+                <div className="text-[12px] text-body leading-snug">พลังงานแสงที่ใช้ได้วันนี้</div>
+                <div className="text-[19px] font-extrabold tabnum mt-1 text-pv-high">≈ {sun.psh}<span className="text-[12px] font-semibold text-body ml-1">ชั่วโมง</span></div>
+              </div>
+              <div className="bg-canvas rounded-2xl px-4 py-3 text-center">
+                <div className="text-[12px] text-body leading-snug">ระยะเวลากลางวัน</div>
+                <div className="text-[19px] font-extrabold tabnum mt-1">{sun.dayHours}<span className="text-[12px] font-semibold text-body ml-1">ชั่วโมง</span></div>
+              </div>
+            </div>
           </div>
         </>
       )}
@@ -76,7 +96,7 @@ export function WeatherView({ weather }: { weather: Weather | null }) {
       <h2 className={h2Mid}>ราย 1 ชั่วโมง</h2>
       <div className="flex gap-2.5 overflow-x-auto no-scrollbar snap-x pb-1">
         {(w.hourly || []).slice(0, 12).map((h, i) => (
-          <div key={i} className="bg-white rounded-[18px] shadow-[0_2px_8px_rgba(17,17,17,0.04)] shrink-0 snap-start w-[76px] p-3 text-center">
+          <div key={i} className="glass-sm shrink-0 snap-start w-[76px] p-3 text-center">
             <div className="text-[13px] font-bold text-body">{i === 0 ? "ตอนนี้" : new Date(h.time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</div>
             <WxIcon cond={h.cond} night={isNightAt(h.time)} className="w-11 h-11 mx-auto my-1.5" />
             <div className="text-[17px] font-extrabold">{Math.round(h.tc)}°</div>
@@ -108,10 +128,13 @@ export function WeatherView({ weather }: { weather: Weather | null }) {
       </div>
 
       {/* stats */}
-      <div className="grid grid-cols-3 gap-2.5 mt-3.5">
+      <div className="grid grid-cols-2 gap-2.5 mt-3.5">
         <Stat label="ความชื้น" value={`${Math.round(w.humidity)}%`} />
         <Stat label="ลม" value={w.wind != null ? `${w.wind} กม/ชม` : "—"} />
         <Stat label="ฝน" value={w.rain != null ? `${(+w.rain).toFixed(1)} มม` : "—"} />
+        {w.uv != null
+          ? <Stat label="ดัชนียูวี (UV)" value={String(w.uv)} color={uvInfo(w.uv).color} sub={uvInfo(w.uv).level} />
+          : <Stat label="ดัชนียูวี (UV)" value="—" />}
       </div>
 
       <p className="text-center text-muted text-[13px] mt-4">ข้อมูล: {w.source === "tmd" ? "กรมอุตุนิยมวิทยา (TMD)" : "Open-Meteo (สำรอง)"}</p>
