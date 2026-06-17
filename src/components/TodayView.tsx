@@ -9,7 +9,7 @@ import { SelfConsumption } from "./SelfConsumption";
 const C = 2 * Math.PI * 54;
 
 export function TodayView({ latest, capacity }: { latest: Latest | null; capacity?: number }) {
-  if (!latest) return <div className="h-40 rounded-[20px] bg-white/70 animate-pulse" />;
+  if (!latest) return <div className="skeleton h-40 rounded-[20px]" />;
   const self = Math.round(latest.selfSufficiency || 0);
   const fromGrid = Math.max(0, 100 - self);
 
