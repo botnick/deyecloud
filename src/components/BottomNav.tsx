@@ -12,7 +12,7 @@ const items: { k: View; label: string; Icon: (p: { className?: string }) => Reac
 
 export function BottomNav({ view, onGo }: { view: View; onGo: (v: View) => void }) {
   return (
-    <nav className="glass fixed left-1/2 -translate-x-1/2 bottom-[calc(14px+env(safe-area-inset-bottom))] w-[calc(100%-28px)] max-w-[452px] rounded-[26px] flex p-2 z-30">
+    <nav className="bg-[#ffffffec] border border-white/70 shadow-[0_12px_30px_-8px_rgba(17,17,17,0.3)] fixed left-1/2 -translate-x-1/2 bottom-[calc(14px+env(safe-area-inset-bottom))] w-[calc(100%-28px)] max-w-[452px] rounded-[26px] flex p-2 z-30">
       {items.map((it) => {
         const active = view === it.k;
         return (

@@ -11,7 +11,7 @@ export function Header({ stationName, stations, selectedId, onSwitch, onRefresh,
   const [open, setOpen] = useState(false);
   const multi = !!(stations && stations.length > 1);
   return (
-    <header className="glass-bar sticky top-0 z-20 flex items-center justify-between px-[18px] pt-[calc(20px+env(safe-area-inset-top))] pb-4">
+    <header className="bg-[#fffdf6f5] border-b border-black/[0.05] sticky top-0 z-20 flex items-center justify-between px-[18px] pt-[calc(20px+env(safe-area-inset-top))] pb-4">
       <div className="min-w-0">
         <div className="text-[26px] font-bold leading-tight tracking-tight text-title">{greeting()}</div>
         {multi ? (
