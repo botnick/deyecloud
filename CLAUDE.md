@@ -27,6 +27,7 @@ Everything lives in one Worker (`src/worker/index.ts`).
 npm run dev          # vite dev server → http://localhost:5174  (runs the Worker too)
 npm run build        # vite build → dist/
 npm run typecheck    # tsc --noEmit
+npm run setup        # FIRST-TIME: create D1 + write id + set secrets + deploy (scripts/setup.mjs)
 npm run deploy       # build + wrangler deploy
 npm run db:create    # create D1 'deye-monitor'
 npm run db:init      # apply schema.sql to remote D1
@@ -78,19 +79,20 @@ src/
   lib/   api.ts  ui.ts(tokens)  icons.tsx  wxicon.tsx(Meteocons)  weather.ts
          analysis.ts  device.ts(key→Thai + grouping)  format.ts  haptics.ts  scenarios.ts
   components/
-    Splash  PinGate  Header  BottomNav  PullToRefresh
+    Splash  PinGate  Header  BottomNav  PullToRefresh  StationSwitcher
     HomeView  TodayView  WeatherView  HistoryView  DeviceView
     RingFlow  FlowDiagram  ProductionRing  SunPath  PowerProfile  SelfConsumption
     Chart  Tile  AnalysisCard  AnimatedNumber  DevPanel
 ```
 
 - **Nav = 4 tabs**: หน้าหลัก / วันนี้ / อากาศ / ย้อนหลัง. The technical **DeviceView** is reached via the yellow button on Home (has a back button), not a 5th tab.
+- **Multi-station**: `StationSwitcher` (header bottom-sheet, shown only when >1 station) switches realtime/device/history via `?station=`; single-station sends no param (unchanged). Weather (incl. **UV index** from Open-Meteo) + the app-wide **offline banner** (Deye unreachable → keep last-known + retry every 20s) are resilience features.
 - App mounts once and patches values (count-up/transition) — no flicker.
 - `?dev=1` (or `?sim=<key>`) opens `DevPanel` to drive the UI with `src/lib/scenarios.ts` fixtures (peak/charging/discharge/offgrid/buy/lowbatt/fullbatt/fault/idle).
 
 ## Design system (keep everything one direction)
 
-- Theme **Solurna**: yellow `#FFCC00` (buttons, dark text on them) + purple `#A20DDD` (nav active/accent); white cards `rounded-[20px]`, soft shadow; canvas `#f5f5f6`. Tokens in `src/lib/ui.ts` (`card`, `cardP`, `cardSm`, `h2/h2First/h2Mid`) — change once, whole app follows. Don't hand-roll shadows/radii.
+- Theme **Solurna**: yellow `#FFCC00` (buttons) + purple `#A20DDD` (nav active) on a **"sunrise wash"** gradient. Surfaces are **iOS glass-lite** — `.glass-card`/`.glass-sm` (recipe in `index.css`) + **`.metric-plate`** (opaque, behind charts + big numbers for legibility). Tokens in `src/lib/ui.ts` (`card`/`cardP`/`cardSm`/`plate`/`plateP`/`h2…`) — change once, whole app follows. **Energy colors (unified everywhere):** solar `#f5a623` · home `#0d4add` · grid `#8b5cf6` · battery `#18a673`. Don't hand-roll shadows/radii.
 - **Device data cards follow the Deye light-theme standard**: per-phase data = `DataTable` with a colored category TAG (DC/AC/Grid/Load/Gen) + phase rows L1/L2/L3. **Table values are RIGHT-aligned** so the last column lines up with the scalar rows below — left-aligned was rejected twice as "หนักซ้าย" (unbalanced). Scalar readings = `KVList` = label-left / value-right hairline rows.
 - History "กราฟพลังงาน" = Deye Power Profile (legend dots + kW/% dual axis). Today "การหมุนเวียนพลังงาน" = Deye Self-consumption stacked bars.
 - Weather is a separate immersive look; Meteocons for all conditions (day/night split).
