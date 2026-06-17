@@ -70,6 +70,9 @@ export default function App() {
   const [sim, setSim] = useState<string | null>(() => {
     try { return new URLSearchParams(location.search).get("sim"); } catch { return null; }
   });
+  // Bumped by the test panel's "preview install banner" button — each tap remounts
+  // InstallPrompt (forced open) so it can be re-previewed without leaving test mode.
+  const [installPreviewTick, setInstallPreviewTick] = useState(0);
   const go = useCallback((v: View) => {
     setViewState((cur) => { if (v !== cur) history.pushState(null, "", "/" + v); return v; });
   }, []);
@@ -234,8 +237,8 @@ export default function App() {
       </div>
       </PullToRefresh>
       <BottomNav view={view === "device" ? "home" : view} onGo={go} />
-      {!devMode && <InstallPrompt />}
-      {devMode && <DevPanel current={sim} onPick={setSim} />}
+      {(!devMode || installPreviewTick > 0) && <InstallPrompt key={installPreviewTick} forceShow={installPreviewTick > 0} />}
+      {devMode && <DevPanel current={sim} onPick={setSim} onPreviewInstall={() => setInstallPreviewTick((t) => t + 1)} />}
     </>
   );
 }

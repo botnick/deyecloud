@@ -44,16 +44,16 @@ const MenuIcon = () => (
  *   • macOS Safari        → Share ▸ เพิ่มลง Dock
  *   • Firefox / others     → เปิดเมนู ▸ ติดตั้ง
  *  Never shows when already installed; dismiss snoozes 14 days (not forever). */
-export function InstallPrompt() {
+export function InstallPrompt({ forceShow = false }: { forceShow?: boolean }) {
   const [mode, setMode] = useState<Mode | null>(null);
   const [deferred, setDeferred] = useState<any>(null);
 
   useEffect(() => {
     if (standalone()) return;
-    // ?install / ?pwa → force the banner open (ignore snooze) so it can always be
-    // previewed/QA'd on a real device, even after it was dismissed.
-    let force = false;
-    try { const q = new URLSearchParams(location.search); force = q.has("install") || q.has("pwa"); } catch {}
+    // forceShow (test-panel preview) or ?install / ?pwa → force the banner open
+    // (ignore snooze) so it can always be previewed/QA'd, even after dismissal.
+    let force = forceShow;
+    try { const q = new URLSearchParams(location.search); force = force || q.has("install") || q.has("pwa"); } catch {}
     if (!force) {
       try {
         const ts = Number(localStorage.getItem(KEY) || 0);

@@ -3,7 +3,7 @@ import { SCENARIOS, scenarioByKey } from "../lib/scenarios";
 
 // Dev-only scenario simulator. Lets you preview the whole UI in states the live
 // system rarely produces. Toggle with the floating "ทดสอบ" button.
-export function DevPanel({ current, onPick }: { current: string | null; onPick: (key: string | null) => void }) {
+export function DevPanel({ current, onPick, onPreviewInstall }: { current: string | null; onPick: (key: string | null) => void; onPreviewInstall: () => void }) {
   const [open, setOpen] = useState(false);
   const cur = scenarioByKey(current);
 
@@ -47,6 +47,12 @@ export function DevPanel({ current, onPick }: { current: string | null; onPick: 
                 {s.name}
               </button>
             ))}
+            <button
+              onClick={() => { onPreviewInstall(); setOpen(false); }}
+              className="w-full mt-2 px-4 py-3 rounded-2xl font-bold text-[#0d4add] bg-[#0d4add]/10 active:scale-[.99] transition-transform"
+            >
+              👀 ดู banner ติดตั้ง (PWA)
+            </button>
             <button
               onClick={exitDevMode}
               className="w-full mt-2 px-4 py-3 rounded-2xl font-bold text-rose-600 bg-rose-50 active:scale-[.99] transition-transform"
