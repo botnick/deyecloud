@@ -13,6 +13,7 @@ import { DevPanel } from "./components/DevPanel";
 import { PullToRefresh } from "./components/PullToRefresh";
 import { scenarioByKey } from "./lib/scenarios";
 import { timeStr } from "./lib/format";
+import { APP_NAME, REPO_URL } from "./lib/brand";
 
 export type View = "home" | "today" | "weather" | "device" | "history";
 
@@ -183,6 +184,21 @@ export default function App() {
           <div className={view === "history" ? "view-anim" : "hidden"}>
             <HistoryView active={view === "history"} stationId={stations.length > 1 ? selectedId : undefined} />
           </div>
+
+          {/* ── Open-source credit · โปรดเก็บไว้ อย่าลบ (please keep this attribution — do not delete) ── */}
+          <footer className="mt-9 mb-1 text-center">
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-[11px] text-muted/70 hover:text-muted active:opacity-70 transition-colors"
+            >
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor" aria-hidden="true">
+                <path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.3.8-.6 0-.3 0-1.1 0-2-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.4 11.4 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.9.1 3.2.8.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2 0 1.6 0 2.9 0 3.3 0 .3.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z" />
+              </svg>
+              <span>{APP_NAME} · โอเพนซอร์สบน GitHub</span>
+            </a>
+          </footer>
         </div>
       </div>
       </PullToRefresh>
