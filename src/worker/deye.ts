@@ -78,7 +78,19 @@ async function apiPost(env: Env, path: string, payload: any): Promise<any> {
     }).then((r) => r.json() as Promise<any>);
 
   let data = await call(token);
-  if (data && (data.code === 1006 || data.code === 2002 || data.msg === "auth fail")) {
+  // Refresh + retry once on ANY auth/error envelope. Deye surfaces a bad token in
+  // (at least) two shapes, neither carrying code:1006:
+  //   • expired token  → HTTP 500 `{status:500, exception:"...UndeclaredThrowable..."}`
+  //   • invalid token   → `{success:false, code:"2101019", msg:"auth invalid token"}`
+  // Without this a long-lived bad token makes the whole app silently serve zeros
+  // until the cache is cleared by hand. The retry is once and only fires on error.
+  const authFailed =
+    data &&
+    ((typeof data.status === "number" && data.status >= 400) || // expired → HTTP 500 envelope
+      data.code === 1006 ||
+      data.code === 2002 ||
+      /auth|token/i.test(String(data.msg || ""))); // invalid → msg:"auth invalid token"
+  if (authFailed) {
     token = await getToken(env, true);
     data = await call(token);
   }
@@ -154,8 +166,8 @@ export async function getStationMeta(env: Env): Promise<Station> {
   return picked;
 }
 
-async function getLatestInternal(env: Env): Promise<Latest> {
-  const id = await getStationId(env);
+async function getLatestInternal(env: Env, stationId?: string): Promise<Latest> {
+  const id = stationId || (await getStationId(env));
   const d: any = await internalGet(env, `/maintain-s/fast/system/${id}`);
   const wire = String(d.wireStatus || "").toUpperCase();
   const gridMag = Number(d.wirePower || d.buyPower || 0);
@@ -184,15 +196,15 @@ export function passwordReady(env: Env): boolean {
   return !!env.DEYE_PASSWORD && !env.DEYE_PASSWORD.startsWith("PUT_YOUR");
 }
 
-export async function getLatest(env: Env): Promise<Latest> {
+export async function getLatest(env: Env, stationId?: string): Promise<Latest> {
   // Open API is the configured primary; fall back to the session-token internal
   // API so the app keeps showing data until a real password is set.
   if (passwordReady(env)) {
-    try { return await getLatestOpen(env); }
+    try { return await getLatestOpen(env, stationId); }
     catch (e) { if (!env.DEYE_SESSION_TOKEN) throw e; }
   }
-  if (env.DEYE_SESSION_TOKEN) return getLatestInternal(env);
-  return getLatestOpen(env);
+  if (env.DEYE_SESSION_TOKEN) return getLatestInternal(env, stationId);
+  return getLatestOpen(env, stationId);
 }
 
 const n = (v: any) => Number(v) || 0;
@@ -212,7 +224,12 @@ async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
     apiPost(env, "/station/latest", { stationId: Number(id) }),
     getDayTotals(env, id).catch(() => ({})),
   ]);
-  const d = (latestRes.stationDataItems && latestRes.stationDataItems[0]) || latestRes.data || latestRes;
+  // A successful call carries station data; an error/auth envelope carries none.
+  // Throw (rather than silently emit zeros) so the API returns 5xx and the cron
+  // skips writing a zero row when the system is unreachable. A legitimate idle
+  // reading still has stationDataItems with zero values, so it passes through.
+  const d = (latestRes.stationDataItems && latestRes.stationDataItems[0]) || latestRes.data;
+  if (!d) throw new Error("station/latest unavailable: " + JSON.stringify(latestRes).slice(0, 160));
 
   const batt = n(d.batteryPower);            // + discharge, − charge
   const wire = n(d.wirePower ?? d.gridPower ?? d.purchasePower); // + buy, − reverse

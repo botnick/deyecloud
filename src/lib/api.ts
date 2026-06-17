@@ -11,13 +11,21 @@ export interface WeatherHour { time: string; tc: number; cond: number; rain: num
 export interface SunInfo { rise: string; set: string; noon: string; peakStart: string; peakEnd: string; dayHours: number; psh: number; noonGhi: number; noonElev: number; arc: number[]; }
 export interface Weather {
   source: string; place: string; temp: number; humidity: number; cond: number;
-  rain: number | null; wind: number | null; hourly: WeatherHour[]; daily: WeatherDay[]; sun?: SunInfo; error?: string;
+  rain: number | null; wind: number | null; uv?: number | null; hourly: WeatherHour[]; daily: WeatherDay[]; sun?: SunInfo; error?: string;
 }
 
 export interface Station { id: number; name: string; capacity?: number; lat?: number; lng?: number; status?: string; address?: string; type?: string; }
 
+/** Thrown when the server can't reach the backend (Deye unreachable → 5xx). */
+export class ApiError extends Error {
+  constructor(public status: number) { super("HTTP " + status); }
+}
 async function api<T>(path: string, opts?: RequestInit): Promise<T> {
+  // Network failure rejects the fetch itself; a 5xx means our Worker reached
+  // the client but Deye was unreachable. Both surface as a thrown error so the
+  // UI can show the offline banner. 4xx (e.g. login 401) passes through as JSON.
   const r = await fetch(path, { credentials: "same-origin", ...opts });
+  if (r.status >= 500) throw new ApiError(r.status);
   return r.json() as Promise<T>;
 }
 
@@ -33,8 +41,11 @@ export interface Device { sn: string; type: string; online: boolean; collectionT
 
 export const getStation = () => api<Station>("/api/station");
 export const getStations = () => api<Station[]>("/api/stations");
-export const getDevice = () => api<Device>("/api/device");
-export const getLatest = () => api<Latest>("/api/latest");
+// `station` is sent only for multi-station accounts; omitting it keeps the
+// single-station path identical (server falls back to the default station).
+export const getDevice = (station?: number | null) => api<Device>("/api/device" + (station != null ? "?station=" + station : ""));
+export const getLatest = (station?: number | null) => api<Latest>("/api/latest" + (station != null ? "?station=" + station : ""));
 export const getWeather = () => api<Weather>("/api/weather");
-export const getHistory = (range: string, date?: string) =>
-  api<{ range: string; points: any[]; source?: string; date?: string }>("/api/history?range=" + range + (date ? "&date=" + date : ""));
+export const getHistory = (range: string, date?: string, station?: number | null) =>
+  api<{ range: string; points: any[]; source?: string; date?: string }>(
+    "/api/history?range=" + range + (date ? "&date=" + date : "") + (station != null ? "&station=" + station : ""));

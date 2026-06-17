@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getHistory } from "../lib/api";
-import { card, cardSm, h2First } from "../lib/ui";
+import { cardSm, plate, h2First } from "../lib/ui";
 import { IconChevron } from "../lib/icons";
 import { BarChart, Legend } from "./Chart";
 import { PowerProfile } from "./PowerProfile";
@@ -14,7 +14,7 @@ const TABS: { k: Range; label: string }[] = [
 const pad = (n: number) => String(n).padStart(2, "0");
 const isoLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-export function HistoryView({ active }: { active: boolean }) {
+export function HistoryView({ active, stationId }: { active: boolean; stationId?: number | null }) {
   const [range, setRange] = useState<Range>("day");
   const [ref, setRef] = useState(() => new Date());
   const [points, setPoints] = useState<any[] | null>(null);
@@ -23,9 +23,9 @@ export function HistoryView({ active }: { active: boolean }) {
     if (!active) return;
     let alive = true;
     setPoints(null);
-    getHistory(range, isoLocal(ref)).then((r) => { if (alive) setPoints(r.points || []); }).catch(() => { if (alive) setPoints([]); });
+    getHistory(range, isoLocal(ref), stationId).then((r) => { if (alive) setPoints(r.points || []); }).catch(() => { if (alive) setPoints([]); });
     return () => { alive = false; };
-  }, [range, ref, active]);
+  }, [range, ref, active, stationId]);
 
   const changeRange = (r: Range) => { setRange(r); setRef(new Date()); };
   const shift = (dir: number) => setRef((d) => {
@@ -85,13 +85,13 @@ export function HistoryView({ active }: { active: boolean }) {
       )}
 
       {points === null ? (
-        <div className={`${card} h-[280px] mt-3 animate-pulse`} />
+        <div className={`${plate} h-[280px] mt-3 animate-pulse`} />
       ) : points.length === 0 ? (
-        <div className={`${card} p-4 mt-3`}><p className="text-center text-muted py-12">ไม่มีข้อมูลช่วงนี้</p></div>
+        <div className={`${plate} p-4 mt-3`}><p className="text-center text-muted py-12">ไม่มีข้อมูลช่วงนี้</p></div>
       ) : range === "day" ? (
         <div className="mt-3"><PowerProfile points={points} /></div>
       ) : (
-        <div className={`${card} p-4 mt-3`}>
+        <div className={`${plate} p-4 mt-3`}>
           <BarChart labels={points.map((p) => (range === "month" ? p.day.slice(8) : p.month.slice(5)))} series={[
             { color: "var(--color-pv)", data: points.map((p) => p.gen || 0) },
             { color: "var(--color-use)", data: points.map((p) => p.use || 0) },

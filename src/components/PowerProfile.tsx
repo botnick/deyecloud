@@ -10,12 +10,12 @@ export interface PowerPoint {
   soc: number; // 0..100
 }
 
-// --- colors (per spec) ---
-const C_GEN = "#18a673"; // ผลิต  (green)
-const C_USE = "#f5a623"; // ใช้   (amber)
-const C_GRID = "#8b5cf6"; // กริด  (purple)
-const C_BATT = "#38bdf8"; // แบต   (sky)
-const C_SOC = "#0d4add"; // แบต % (blue)
+// --- colors (entity palette — must match FlowDiagram / RingFlow / tokens) ---
+const C_GEN = "#f5a623"; // ผลิต  (solar = amber)
+const C_USE = "#0d4add"; // ใช้   (home = blue)
+const C_GRID = "#8b5cf6"; // กริด  (grid = violet)
+const C_BATT = "#18a673"; // แบต   (battery = green)
+const C_SOC = "#0b6b48"; // แบต % (battery family, darker + dashed to read apart)
 const AXIS = "#a0a4ac";
 const GRIDLINE = "#eeeeee";
 
@@ -70,8 +70,7 @@ function kwBounds(pts: PowerPoint[]): { min: number; max: number; step: number }
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 export function PowerProfile({ points }: { points: PowerPoint[] }) {
-  const cardCls =
-    "bg-white rounded-[20px] shadow-[0_8px_24px_rgba(17,17,17,0.06)] p-5";
+  const cardCls = "metric-plate p-5";
 
   if (!points || points.length === 0) {
     return (
@@ -284,7 +283,7 @@ export function PowerProfile({ points }: { points: PowerPoint[] }) {
           strokeLinecap="round"
         />
 
-        {/* SOC polyline (% scale) */}
+        {/* SOC polyline (% scale) — dashed so it reads apart from batt power */}
         <polyline
           points={lineSoc}
           fill="none"
@@ -292,6 +291,7 @@ export function PowerProfile({ points }: { points: PowerPoint[] }) {
           strokeWidth={2.5}
           strokeLinejoin="round"
           strokeLinecap="round"
+          strokeDasharray="5 4"
         />
       </svg>
     </div>

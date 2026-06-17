@@ -1,7 +1,7 @@
 import type { Latest } from "../lib/api";
 import { fmtKwh } from "../lib/format";
 import { IconSun, IconHouse, IconGrid, IconBattery } from "../lib/icons";
-import { cardP, h2First, h2Mid } from "../lib/ui";
+import { cardP, plateP, h2First, h2Mid } from "../lib/ui";
 import { Tile } from "./Tile";
 import { AnalysisCard } from "./AnalysisCard";
 import { SelfConsumption } from "./SelfConsumption";
@@ -16,7 +16,7 @@ export function TodayView({ latest, capacity }: { latest: Latest | null; capacit
   return (
     <>
       <h2 className={h2First}>สรุปวันนี้</h2>
-      <div className={`${cardP} flex items-center`}>
+      <div className={`${plateP} flex items-center`}>
         <div>
           <div className="text-[46px] font-extrabold leading-none">
             <span className="tabnum">{fmtKwh(latest.genToday)}</span>

@@ -9,6 +9,7 @@ export function PinGate({ onOk }: { onOk: () => void }) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy) return; // guard against double-submit (e.g. Enter held / repeated taps)
     setErr("");
     setBusy(true);
     const r = await postLogin(pin).catch(() => ({ ok: false, error: "เชื่อมต่อไม่ได้" }));
