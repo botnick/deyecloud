@@ -5,6 +5,15 @@ import { Hono } from "hono";
 import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, bkkDay, type Env } from "./deye";
 import { sunInfo } from "./sun";
 
+// --- External endpoints + defaults — centralized, not scattered as inline literals.
+//     Per-account/site values (email, coords) come from env; stable public API
+//     bases are named constants here so there's a single place to change them.
+const NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse";
+const OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast";
+const TMD_DEFAULT_BASE = "https://data.tmd.go.th/nwpapi/v1/forecast/location";
+const DEFAULT_LAT = 13.7, DEFAULT_LON = 100.5; // last-resort coords; env WEATHER_LAT/LON override
+const AUTH_COOKIE_MAX_AGE = 31536000; // 1 year, seconds
+
 // --- Auto-migrate: tables build themselves on first use (no setup step) --
 // ts/day are INTEGER/TEXT PRIMARY KEYs (covering range scans) → no secondary
 // index needed; samples/daily are kept forever, device_samples on a 90-day window.
@@ -138,11 +147,13 @@ async function geoPlace(env: Env, lat: string, lng: string): Promise<string> {
   const strip = (s: any) => String(s || "").replace(/^(จังหวัด|อำเภอ|เขต|ตำบล)\s?/, "").trim();
   const join = (arr: any[]) => arr.map(strip).filter((v: string, i: number, a: string[]) => v && a.indexOf(v) === i).join(" · ");
   let place = "";
-  // Nominatim / OpenStreetMap only (no other provider). Needs a real UA per their policy.
+  // Nominatim / OpenStreetMap only (no other provider). Needs a real contact UA per
+  // their policy — from env so no personal address is baked into the source.
+  const contact = env.CONTACT_EMAIL || "https://github.com/botnick/deyecloud";
   try {
     const j: any = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=jsonv2&addressdetails=1&accept-language=th&layer=address`,
-      { headers: { "User-Agent": "deyecloud-solar-pwa/1.0 (opor.artit@gmail.com)", "Accept-Language": "th" } }
+      `${NOMINATIM_REVERSE_URL}?lat=${lat}&lon=${lng}&format=jsonv2&addressdetails=1&accept-language=th&layer=address`,
+      { headers: { "User-Agent": `deyecloud-solar-pwa/1.0 (${contact})`, "Accept-Language": "th" } }
     ).then((r) => (r.ok ? r.json() : null));
     const a = (j && j.address) || {};
     const locality = a.city || a.town || a.municipality || a.village || a.suburb || a.neighbourhood;
@@ -168,8 +179,8 @@ async function getWeather(env: Env): Promise<any> {
   }
   // Coords come from the Deye station (cached); WEATHER_LAT/LON are an optional fallback.
   const meta = await getStationMeta(env).catch(() => null);
-  const lat = String(meta && meta.lat != null ? meta.lat : (env.WEATHER_LAT || 13.7));
-  const lng = String(meta && meta.lng != null ? meta.lng : (env.WEATHER_LON || 100.5));
+  const lat = String(meta && meta.lat != null ? meta.lat : (env.WEATHER_LAT || DEFAULT_LAT));
+  const lng = String(meta && meta.lng != null ? meta.lng : (env.WEATHER_LON || DEFAULT_LON));
   // Readable Thai place name from the station coords; rough coords as last resort.
   const co = (v: string, p: string, n: string) => `${Math.abs(Number(v)).toFixed(1)}°${Number(v) >= 0 ? p : n}`;
   const place = env.WEATHER_PLACE || (await geoPlace(env, lat, lng).catch(() => "")) || `${co(lat, "N", "S")} ${co(lng, "E", "W")}`;
@@ -186,7 +197,7 @@ async function getWeather(env: Env): Promise<any> {
 }
 async function fetchTMD(env: Env, lat: string, lng: string, place: string): Promise<any> {
   if (!env.TMD_TOKEN) return null;
-  const base = env.TMD_BASE || "https://data.tmd.go.th/nwpapi/v1/forecast/location";
+  const base = env.TMD_BASE || TMD_DEFAULT_BASE;
   const q = `lat=${lat}&lon=${lng}`;
   const opt = { headers: { accept: "application/json", authorization: "Bearer " + env.TMD_TOKEN } };
   const [h, d] = await Promise.all([
@@ -208,7 +219,7 @@ const wmoToCond = (w: number): number =>
   w === 0 ? 1 : w <= 2 ? 2 : w === 3 ? 4 : w <= 48 ? 4 : w <= 57 ? 5 : w <= 65 ? 6 : w <= 67 ? 7 : w <= 77 ? 4 : w <= 81 ? 6 : w <= 82 ? 7 : w <= 86 ? 4 : 8;
 async function fetchOpenMeteo(env: Env, lat: string, lng: string, place: string): Promise<any> {
   const url =
-    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
+    `${OPEN_METEO_URL}?latitude=${lat}&longitude=${lng}` +
     `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,uv_index` +
     `&hourly=temperature_2m,weather_code,precipitation` +
     `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,shortwave_radiation_sum` +
@@ -235,7 +246,7 @@ async function fetchOpenMeteo(env: Env, lat: string, lng: string, place: string)
 }
 // TMD has no UV field — pull the live UV index from Open-Meteo (free, no key).
 async function fetchUV(lat: string, lng: string): Promise<number | null> {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=uv_index&timezone=Asia%2FBangkok&forecast_days=1`;
+  const url = `${OPEN_METEO_URL}?latitude=${lat}&longitude=${lng}&current=uv_index&timezone=Asia%2FBangkok&forecast_days=1`;
   const j: any = await fetch(url).then((r) => r.json());
   const uv = j.current && j.current.uv_index;
   return uv != null ? Math.round(uv) : null;
@@ -252,7 +263,7 @@ app.post("/api/login", async (c) => {
   if (!env.APP_PIN || pin === env.APP_PIN) {
     const tok = await authToken(env);
     const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
-    c.header("Set-Cookie", `deye_auth=${tok}; Path=/; HttpOnly${secure}; SameSite=Lax; Max-Age=31536000`);
+    c.header("Set-Cookie", `deye_auth=${tok}; Path=/; HttpOnly${secure}; SameSite=Lax; Max-Age=${AUTH_COOKIE_MAX_AGE}`);
     return c.json({ ok: true });
   }
   return c.json({ ok: false, error: "PIN ไม่ถูกต้อง" }, 401);

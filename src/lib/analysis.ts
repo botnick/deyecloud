@@ -1,9 +1,8 @@
 import type { Latest } from "./api";
+import { ELECTRICITY_RATE as RATE, CO2_PER_KWH } from "./config";
 
 export interface Insight { tone: "ok" | "info" | "warn" | "tip"; title: string; detail: string; sub?: string[]; }
 
-// ค่าไฟบ้านเฉลี่ย (บาท/หน่วย) — โครงสร้างก้าวหน้า + Ft โดยประมาณปี 2026
-const RATE = 4.4;
 const b = (n: number) => Math.round(n).toLocaleString("th-TH");
 const u = (n: number) => (Number(n) || 0).toFixed(1);
 
@@ -123,8 +122,6 @@ export function analyze(l: Latest, capacityKw?: number): Insight[] {
 const TH_MONTH = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 const monthTh = (ym: string) => { const m = Number(String(ym).slice(5, 7)); return TH_MONTH[m - 1] || ym; };
 
-// ค่าการปล่อย CO₂ ของไฟฟ้าในระบบของไทย ~0.5 กก./หน่วย (อ้างอิง อบก./TGO)
-const CO2_PER_KWH = 0.5;
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const clockOf = (ts: number) => { const d = new Date(ts * 1000); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 const clamp100 = (x: number) => Math.round(Math.max(0, Math.min(100, x)));

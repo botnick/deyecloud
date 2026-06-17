@@ -9,12 +9,14 @@ export interface Env {
   DEYE_APP_SECRET: string;
   DEYE_EMAIL: string;
   DEYE_PASSWORD: string;
+  DEYE_COMPANY_ID?: string;
   DEYE_STATION_ID?: string;
   WEATHER_LAT?: string;
   WEATHER_LON?: string;
   WEATHER_PLACE?: string;
   TMD_BASE?: string;
   TMD_TOKEN?: string;
+  CONTACT_EMAIL?: string;
   APP_PIN?: string;
 }
 
@@ -55,7 +57,7 @@ async function getToken(env: Env, force = false): Promise<string> {
     appSecret: env.DEYE_APP_SECRET,
     email: env.DEYE_EMAIL,
     password: await sha256Hex(env.DEYE_PASSWORD),
-    companyId: "0",
+    companyId: env.DEYE_COMPANY_ID || "0", // most accounts are "0"; override per account
   };
   const res = await fetch(url, {
     method: "POST",
@@ -122,13 +124,26 @@ export interface Latest {
 
 export interface Station { id: number; name: string; capacity?: number; lat?: number; lng?: number; status?: string; address?: string; type?: string; }
 
-// Discover stations the account can see — nothing is hardcoded.
+// Page through a Deye list endpoint until every item is collected (no silent cap).
+const PAGE_SIZE = 100;
+async function pageAll(env: Env, path: string, base: any, pick: (d: any) => any[]): Promise<any[]> {
+  const all: any[] = [];
+  for (let page = 1; page <= 100; page++) { // hard stop at 10k items — safety, not a real cap
+    const d = await apiPost(env, path, { ...base, page, size: PAGE_SIZE });
+    const items = pick(d) || [];
+    all.push(...items);
+    if (items.length < PAGE_SIZE) break;
+  }
+  return all;
+}
+
+// Discover stations the account can see — nothing is hardcoded; accept whichever
+// field name the region returns for capacity/coords, and page through them all.
 export async function listStations(env: Env): Promise<Station[]> {
-  const d = await apiPost(env, "/station/list", { page: 1, size: 10 });
-  // Coords come straight from Deye so weather/sun need no manual config — accept
-  // whichever field name the region returns.
-  return (d.stationList || d.list || []).map((s: any) => ({
-    id: s.id || s.stationId, name: s.name, capacity: s.installedCapacity,
+  const list = await pageAll(env, "/station/list", {}, (d) => d.stationList || d.list || []);
+  return list.map((s: any) => ({
+    id: s.id || s.stationId, name: s.name,
+    capacity: s.installedCapacity ?? s.capacity ?? s.totalCapacity ?? s.installPower,
     lat: s.locationLat ?? s.lat ?? s.latitude, lng: s.locationLng ?? s.lng ?? s.lon ?? s.longitude,
   }));
 }
@@ -182,11 +197,12 @@ async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
   const selfSuff = useToday > 0 ? Math.max(0, Math.min(100, (1 - buyToday / useToday) * 100)) : 0;
 
   return {
-    genPower: n(d.generationPower),
-    usePower: n(d.consumptionPower),
+    // accept the common field-name variants across Deye regions/models
+    genPower: n(d.generationPower ?? d.pvPower),
+    usePower: n(d.consumptionPower ?? d.loadPower),
     gridPower: wire,
     battPower: batt,
-    soc: n(d.batterySOC ?? d.batterySoc),
+    soc: n(d.batterySOC ?? d.batterySoc ?? d.soc),
     genToday: n(t.generationValue),
     useToday,
     buyToday,
@@ -211,8 +227,7 @@ export async function getHistory(env: Env, granularity: number, startAt: string,
 // ----- Devices -----
 export async function listDevices(env: Env, stationId?: string): Promise<any[]> {
   const id = stationId || (await getStationId(env));
-  const d = await apiPost(env, "/station/device", { page: 1, size: 50, stationIds: [Number(id)] });
-  return d.deviceListItems || d.list || d.data || [];
+  return pageAll(env, "/station/device", { stationIds: [Number(id)] }, (d) => d.deviceListItems || d.list || d.data || []);
 }
 export async function deviceLatest(env: Env, sns: string[]): Promise<any> {
   return apiPost(env, "/device/latest", { deviceList: sns });
