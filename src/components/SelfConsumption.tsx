@@ -75,18 +75,18 @@ function BarGroup({ title, total, segs }: { title: string; total: number; segs: 
 export function SelfConsumption({ latest }: { latest: Latest }) {
   const { genToday, useToday, buyToday, sellToday, chargeToday, dischargeToday } = latest;
 
-  // GROUP 1 — การใช้ไฟ: where the consumed energy came from.
+  // GROUP 1 — การใช้ไฟ: where the consumed energy came from (source entity colors).
   const useSegs: Seg[] = [
-    { label: "จากแผงโซลาร์", color: "#18a673", value: clamp0(useToday - buyToday - dischargeToday) },
-    { label: "จากแบตเตอรี่", color: "#8b5cf6", value: clamp0(dischargeToday) },
-    { label: "จากการไฟฟ้า", color: "#0d4add", value: clamp0(buyToday) },
+    { label: "จากแผงโซลาร์", color: "#f5a623", value: clamp0(useToday - buyToday - dischargeToday) },
+    { label: "จากแบตเตอรี่", color: "#18a673", value: clamp0(dischargeToday) },
+    { label: "จากการไฟฟ้า", color: "#8b5cf6", value: clamp0(buyToday) },
   ];
 
-  // GROUP 2 — การผลิต: where the produced energy went.
+  // GROUP 2 — การผลิต: where the produced energy went (destination entity colors).
   const genSegs: Seg[] = [
-    { label: "ใช้เอง", color: "#f5a623", value: clamp0(genToday - chargeToday - sellToday) },
+    { label: "ใช้เอง", color: "#0d4add", value: clamp0(genToday - chargeToday - sellToday) },
     { label: "ชาร์จแบต", color: "#18a673", value: clamp0(chargeToday) },
-    { label: "ไฟย้อน", color: "#94a3b8", value: clamp0(sellToday) },
+    { label: "ไฟย้อน", color: "#8b5cf6", value: clamp0(sellToday) },
   ];
 
   return (

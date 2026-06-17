@@ -121,6 +121,20 @@ textarea {
     0 0 0 1px rgba(17, 17, 17, 0.035),
     inset 0 1px 1px rgba(255, 255, 255, 0.9);
 }
+/* Opaque sibling of .glass-card (same radius/shadow family, NO translucency).
+   For data-viz (charts) and giant hero numbers where thin colored lines / big
+   digits must keep full contrast over the sunrise gradient — translucency hurts
+   legibility most exactly where this elderly-first UI needs it most. Reads as a
+   "solid frost" right next to the glass cards, not a flat island. */
+.metric-plate {
+  background: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 20px;
+  box-shadow:
+    0 10px 30px rgba(17, 17, 17, 0.10),
+    0 0 0 1px rgba(17, 17, 17, 0.04),
+    inset 0 1px 1px rgba(255, 255, 255, 0.95);
+}
 /* fallback when the browser/OS can't blur (e.g. iOS Reduce Transparency) —
    go nearly opaque so contrast never drops below the elderly-readable floor. */
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
@@ -144,6 +158,7 @@ textarea {
 @keyframes loadbar { 0% { transform: translateX(-120%); } 100% { transform: translateX(260%); } }
 @keyframes splashfade { to { opacity: 0; visibility: hidden; } }
 @keyframes viewin { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes sheetup { from { transform: translateY(100%); } to { transform: none; } }
 .view-anim { animation: viewin 0.36s cubic-bezier(.22, 1, .36, 1) both; }
 .splash-leave { animation: splashfade 0.45s ease 0.1s forwards; }
 

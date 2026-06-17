@@ -167,8 +167,10 @@ export function RingFlow({ latest, temps }: { latest: Latest; temps?: { inv?: nu
   const soc = Math.max(0, Math.min(100, Math.round(Number(latest.soc) || 0)));
 
   const bs = (latest.battStatus || "").toUpperCase();
-  const discharging = bs.includes("DIS");
-  const charging = bs.includes("CHARGE") && !discharging;
+  // status string first; battPower sign (+discharge / −charge) as fallback when STATIC/blank
+  let discharging = bs.includes("DIS");
+  let charging = bs.includes("CHARGE") && !discharging;
+  if (!charging && !discharging) { if (batt > 20) discharging = true; else if (batt < -20) charging = true; }
 
   const buying = grid >= 0; // buying from grid → into home; exporting → out
 
@@ -188,8 +190,8 @@ export function RingFlow({ latest, temps }: { latest: Latest; temps?: { inv?: nu
   /* ---- Deye 6-node layout (viewBox 340×400). Node sizes by importance:
      home hub biggest, power medium, temperatures smallest. ---- */
   const eSolar = { id: "rf-solar", color: "#f5a623", on: solarOn, d: "M86,98 Q132,134 144,158" };
-  const eGrid = { id: "rf-grid", color: "#0d4add", on: gridOn, d: buying ? "M102,200 Q116,200 122,200" : "M122,200 Q116,200 102,200" };
-  const eBatt = { id: "rf-batt", color: "#ec4899", on: battOn, d: discharging ? "M86,302 Q132,266 144,242" : "M144,242 Q132,266 86,302" };
+  const eGrid = { id: "rf-grid", color: "#8b5cf6", on: gridOn, d: buying ? "M102,200 Q116,200 122,200" : "M122,200 Q116,200 102,200" };
+  const eBatt = { id: "rf-batt", color: "#18a673", on: battOn, d: discharging ? "M86,302 Q132,266 144,242" : "M144,242 Q132,266 86,302" };
   const edges = [eSolar, eGrid, eBatt];
 
   const gridArrow = buying ? "→" : "←";
@@ -198,7 +200,7 @@ export function RingFlow({ latest, temps }: { latest: Latest; temps?: { inv?: nu
   const tempPct = (t: number) => Math.max(0.05, Math.min(1, t / 80));
 
   return (
-    <div className="bg-white rounded-[20px] shadow-[0_8px_24px_rgba(17,17,17,0.06)] p-4">
+    <div className="metric-plate p-4">
       <div className="relative w-full mx-auto" style={{ aspectRatio: "340 / 400" }}>
         <svg viewBox="0 0 340 400" className="absolute inset-0 w-full h-full pointer-events-none">
           {/* decorative links to the temperature rings */}
@@ -218,11 +220,11 @@ export function RingFlow({ latest, temps }: { latest: Latest; temps?: { inv?: nu
 
         {/* left column — power (medium) */}
         <RingNode cx={18} cy={17} size={82} color="#f5a623" pct={solarPct} icon={<IconSun />} value={fmtPower(gen)} label="แสงอาทิตย์" />
-        <RingNode cx={18} cy={50} size={82} color="#0d4add" pct={gridPct} icon={<IconPylon />} value={fmtPower(grid)} sub={gridOn ? `${gridArrow} ${buying ? "ซื้อ" : "ย้อน"}` : undefined} label="กริด" />
-        <RingNode cx={18} cy={83} size={82} color="#ec4899" pct={battPct} icon={<IconBattery />} value={`${soc}%`} sub={battOn ? `${battArrow} ${fmtPower(batt)}` : undefined} label="แบตเตอรี่" />
+        <RingNode cx={18} cy={50} size={82} color="#8b5cf6" pct={gridPct} icon={<IconPylon />} value={fmtPower(grid)} sub={gridOn ? `${gridArrow} ${buying ? "ซื้อ" : "ย้อน"}` : undefined} label="กริด" />
+        <RingNode cx={18} cy={83} size={82} color="#18a673" pct={battPct} icon={<IconBattery />} value={`${soc}%`} sub={battOn ? `${battArrow} ${fmtPower(batt)}` : undefined} label="แบตเตอรี่" />
 
         {/* centre hub — biggest */}
-        <RingNode cx={52} cy={50} size={112} color="#18a673" pct={homePct} icon={<IconHouse />} value={fmtPower(use)} label="บ้าน" />
+        <RingNode cx={52} cy={50} size={112} color="#0d4add" pct={homePct} icon={<IconHouse />} value={fmtPower(use)} label="บ้าน" />
 
         {/* right column — temperatures (smallest) */}
         {temps?.inv != null && <RingNode cx={85} cy={30} size={62} color={tempCol(temps.inv)} pct={tempPct(temps.inv)} icon={<IconThermo />} value={`${temps.inv.toFixed(1)}°`} label="อุณหภูมิเครื่อง" />}
