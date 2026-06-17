@@ -121,29 +121,31 @@ export function analyze(l: Latest, capacityKw?: number): Insight[] {
 const TH_MONTH = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 const monthTh = (ym: string) => { const m = Number(String(ym).slice(5, 7)); return TH_MONTH[m - 1] || ym; };
 
-// วิเคราะห์ข้อมูลย้อนหลังของช่วงที่เลือก (วัน = เส้นกำลังไฟ / เดือน·ปี = พลังงานรวมจาก Deye)
-export function analyzeHistory(range: "day" | "month" | "year", points: any[]): Insight[] {
+// วิเคราะห์ข้อมูลย้อนหลังของช่วงที่เลือก (วัน = เส้นกำลังไฟ / เดือน·ปี = พลังงานรวมจาก Deye).
+// ทุกค่าคำนวณจากตัวเลขจริงของ Deye + ค่าไฟอ้างอิง ~4.4 บาท/หน่วย
+export function analyzeHistory(range: "day" | "month" | "year", points: any[], capacityKw?: number): Insight[] {
   const out: Insight[] = [];
   if (!points || !points.length) return out;
+  const clock = (ts: number) => { const d = new Date(ts * 1000); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+  const cap = capacityKw && capacityKw > 0 ? capacityKw : 0;
 
   if (range === "day") {
-    // power frames (W): หากำลังผลิตสูงสุดและช่วงเวลา + กำลังใช้สูงสุด
-    let pkGen = 0, pkGenTs = "", pkUse = 0;
+    // power frames (W): หากำลังผลิต/ใช้สูงสุดและช่วงเวลา (ts เป็น unix วินาที → ×1000)
+    let pkGen = 0, pkGenTs = 0, pkUse = 0, pkUseTs = 0;
     for (const p of points) {
       const g = p.gen_power || 0, us = p.use_power || 0;
       if (g > pkGen) { pkGen = g; pkGenTs = p.ts; }
-      if (us > pkUse) pkUse = us;
+      if (us > pkUse) { pkUse = us; pkUseTs = p.ts; }
     }
     const kw = (w: number) => (w / 1000).toFixed(2);
-    const pk = pkGenTs ? new Date(pkGenTs * 1000) : null; // ts is unix SECONDS
-    const tm = pk ? `${String(pk.getHours()).padStart(2, "0")}:${String(pk.getMinutes()).padStart(2, "0")}` : "";
+    const pct = cap ? ` (แตะ ${Math.round((pkGen / 1000 / cap) * 100)}% ของขนาดระบบ)` : "";
     out.push({
-      tone: "tip", title: "สรุปวันนี้",
+      tone: "tip", title: "สรุปทั้งวัน",
       detail: pkGen > 50
-        ? `แผงผลิตได้สูงสุด ${kw(pkGen)} kW ตอน ${tm} น. — ช่วงนั้นแดดแรงที่สุดของวัน เหมาะใช้เครื่องใช้ไฟฟ้ากำลังสูง`
+        ? `แผงผลิตได้สูงสุด ${kw(pkGen)} kW ตอน ${clock(pkGenTs)} น.${pct} — ช่วงที่แดดแรงที่สุดของวัน เหมาะใช้เครื่องใช้ไฟฟ้ากำลังสูง`
         : "ยังไม่มีการผลิตที่ชัดเจนในวันนี้ (กลางคืน/แดดน้อย)",
     });
-    if (pkUse > 50) out.push({ tone: "info", title: `ใช้ไฟสูงสุด ${kw(pkUse)} kW`, detail: "จุดที่บ้านดึงกำลังไฟมากที่สุดในวันนี้" });
+    if (pkUse > 50) out.push({ tone: "info", title: `ใช้ไฟสูงสุด ${kw(pkUse)} kW`, detail: `ตอน ${clock(pkUseTs)} น. — จุดที่บ้านดึงกำลังไฟมากที่สุด` });
     return out;
   }
 
@@ -155,26 +157,42 @@ export function analyzeHistory(range: "day" | "month" | "year", points: any[]): 
   const span = range === "month" ? "เดือนนี้" : "ปีนี้";
   const unit = range === "month" ? "วัน" : "เดือน";
   const n = points.length || 1;
-  const selfSuff = s.use > 0 ? Math.max(0, Math.min(100, ((s.use - s.buy) / s.use) * 100)) : 0;
+  const selfSuff = s.use > 0 ? Math.round(Math.max(0, Math.min(100, ((s.use - s.buy) / s.use) * 100))) : 0; // พึ่งพาไฟตัวเอง
+  const selfCons = s.gen > 0 ? Math.round(Math.max(0, Math.min(100, ((s.gen - s.sell) / s.gen) * 100))) : 0; // ใช้ไฟแดดเอง
   const saved = (s.use - s.buy) * RATE;
-  let best = points[0];
-  for (const p of points) if ((p.gen || 0) > (best.gen || 0)) best = p;
-  const bestLabel = range === "month" ? `วันที่ ${Number(String(best.day || "").slice(8)) || "-"}` : monthTh(best.month || "");
+  let best = points[0], worst = points.find((p) => (p.gen || 0) > 0) || points[0];
+  for (const p of points) {
+    if ((p.gen || 0) > (best.gen || 0)) best = p;
+    if ((p.gen || 0) > 0 && (p.gen || 0) < (worst.gen || 0)) worst = p; // ข้ามวันที่ไม่มีข้อมูล (0)
+  }
+  const lbl = (p: any) => range === "month" ? `วันที่ ${Number(String(p.day || "").slice(8)) || "-"}` : monthTh(p.month || "");
+  const posDays = points.filter((p) => (p.gen || 0) >= (p.use || 0)).length;
+  const noBuyDays = points.filter((p) => (p.buy || 0) < 0.5).length;
 
   out.push({
     tone: "tip", title: "สรุปภาพรวม",
-    detail: `${span}ผลิตได้ ${u(s.gen)} หน่วย ใช้ไป ${u(s.use)} หน่วย — พึ่งพาแสงอาทิตย์เองได้ ${Math.round(selfSuff)}% ของที่ใช้ทั้งหมด`,
+    detail: `${span}ผลิตได้ ${u(s.gen)} หน่วย ใช้ไป ${u(s.use)} หน่วย — พึ่งพาไฟตัวเองได้ ${selfSuff}% (ส่วนที่ไม่ต้องซื้อ)`,
   });
   out.push({
-    tone: "ok", title: `${span}ประหยัด ~${b(saved)} บาท`,
+    tone: "ok", title: `${span}ประหยัดค่าไฟ ~${b(saved)} บาท`,
     detail: `ถ้าไม่มีโซลาร์ต้องจ่าย ~${b(s.use * RATE)} บาท · จ่ายจริง ~${b(s.buy * RATE)} บาท`,
     sub: ["คิดที่ค่าไฟ ~4.4 บาท/หน่วย (โดยประมาณ)"],
   });
   out.push({
     tone: "info", title: `เฉลี่ยต่อ${unit} ${u(s.gen / n)} หน่วย`,
     detail: `ผลิตเฉลี่ย ${u(s.gen / n)} · ใช้เฉลี่ย ${u(s.use / n)} หน่วยต่อ${unit} (จาก ${n} ${unit})`,
+    sub: cap ? [`ผลิตต่อขนาดระบบ ~${(s.gen / n / cap).toFixed(2)} หน่วยต่อกิโลวัตต์ ในแต่ละ${unit}`] : undefined,
   });
-  out.push({ tone: "ok", title: `ผลิตได้ดีที่สุด: ${bestLabel}`, detail: `ผลิตได้ ${u(best.gen || 0)} หน่วยใน${unit}นั้น` });
-  if (s.sell > 0.5) out.push({ tone: "info", title: `ไฟไหลย้อน ${u(s.sell)} หน่วย`, detail: "ไฟที่ผลิตเกินแล้วไหลย้อนเข้าระบบ (ส่วนนี้ยังไม่ได้นำกลับมาใช้)" });
+  out.push({
+    tone: "ok", title: range === "month" ? `วันแดดจัดที่สุด: ${lbl(best)}` : `เดือนที่ผลิตดีที่สุด: ${lbl(best)}`,
+    detail: `ผลิตได้ ${u(best.gen || 0)} หน่วย`,
+    sub: [`${range === "month" ? "วันเมฆหนาที่สุด" : "เดือนที่ผลิตน้อยสุด"}: ${lbl(worst)} (${u(worst.gen || 0)} หน่วย)`, `ผลิตได้มากกว่าที่ใช้ ${posDays} จาก ${n} ${unit}`],
+  });
+  if (s.sell > 0.5) {
+    out.push({ tone: "info", title: `ไฟไหลย้อน ${u(s.sell)} หน่วย`, detail: `ใช้ไฟแดดที่ผลิตเองทันที ${selfCons}% · ที่เหลือไหลย้อนเข้าระบบ` });
+  } else {
+    out.push({ tone: "ok", title: `ใช้ไฟแดดที่ผลิตเองได้ ${selfCons}%`, detail: "แทบไม่มีไฟไหลย้อนทิ้ง — ใช้แดดที่ผลิตได้คุ้มค่า" });
+  }
+  if (noBuyDays > 0) out.push({ tone: "ok", title: `แทบไม่ต้องซื้อไฟ ${noBuyDays} ${unit}`, detail: `${unit}ที่ใช้แสงอาทิตย์และแบตเตอรี่ได้เกือบทั้งหมด` });
   return out;
 }

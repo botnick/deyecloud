@@ -211,7 +211,7 @@ export default function App() {
             {view === "device" && <DeviceView latest={shownLatest} active={true} stationId={stations.length > 1 ? selectedId : undefined} onBack={() => go("home")} />}
           </div>
           <div className={view === "history" ? "view-anim" : "hidden"}>
-            <HistoryView active={view === "history"} stationId={stations.length > 1 ? selectedId : undefined} />
+            <HistoryView active={view === "history"} stationId={stations.length > 1 ? selectedId : undefined} capacity={active?.capacity} />
           </div>
 
           {/* ── Open-source credit · โปรดเก็บไว้ อย่าลบ (please keep this attribution — do not delete) ── */}
