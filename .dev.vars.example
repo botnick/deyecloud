@@ -1,0 +1,6 @@
+# Copy to ".dev.vars" for local `wrangler dev`. NEVER commit the real file.
+# In production set these with: wrangler secret put <NAME>
+
+DEYE_APP_SECRET=your_app_secret_here
+DEYE_PASSWORD=your_deyecloud_login_password
+APP_PIN=1234

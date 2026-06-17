@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "deye-monitor",
+  "main": "./src/worker/index.ts",
+  "compatibility_date": "2026-06-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": { "enabled": true },
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "deye-monitor",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  "vars": {
+    "DEYE_BASE_URL": "https://eu1-developer.deyecloud.com/v1.0",
+    "DEYE_APP_ID": "202606166871044",
+    "DEYE_EMAIL": "botnick.xxx@gmail.com",
+    "DEYE_INTERNAL_BASE": "https://eu1.deyecloud.com",
+    "WEATHER_LAT": "13.7",
+    "WEATHER_LON": "100.5",
+    "TMD_BASE": "https://data.tmd.go.th/nwpapi/v1/forecast/location"
+  }
+}
