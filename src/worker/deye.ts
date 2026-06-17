@@ -217,12 +217,15 @@ async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
     apiPost(env, "/station/latest", { stationId: Number(id) }),
     getDayTotals(env, id).catch(() => ({})),
   ]);
-  // A successful call carries station data; an error/auth envelope carries none.
-  // Throw (rather than silently emit zeros) so the API returns 5xx and the cron
-  // skips writing a zero row when the system is unreachable. A legitimate idle
-  // reading still has stationDataItems with zero values, so it passes through.
-  const d = (latestRes.stationDataItems && latestRes.stationDataItems[0]) || latestRes.data;
-  if (!d) throw new Error("station/latest unavailable: " + JSON.stringify(latestRes).slice(0, 160));
+  // Open API returns the realtime power fields at the TOP LEVEL of the response
+  // (no stationDataItems/data wrapper), so fall back to latestRes itself. Throw
+  // ONLY on a real error envelope (success:false / HTTP 4xx-5xx) so /api/latest
+  // returns 5xx and the cron skips writing — a valid idle reading (success:true,
+  // zero values) still passes through.
+  const d = (latestRes.stationDataItems && latestRes.stationDataItems[0]) || latestRes.data || latestRes;
+  if (latestRes && (latestRes.success === false || (typeof latestRes.status === "number" && latestRes.status >= 400))) {
+    throw new Error("station/latest unavailable: " + JSON.stringify(latestRes).slice(0, 160));
+  }
 
   const batt = n(d.batteryPower);            // + discharge, − charge
   const wire = n(d.wirePower ?? d.gridPower ?? d.purchasePower); // + buy, − reverse
