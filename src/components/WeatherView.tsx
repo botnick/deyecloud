@@ -94,11 +94,11 @@ export function WeatherView({ weather }: { weather: Weather | null }) {
 
       {/* hourly */}
       <h2 className={h2Mid}>ราย 1 ชั่วโมง</h2>
-      <div className="flex gap-2.5 overflow-x-auto no-scrollbar snap-x pb-1">
+      <div className="flex gap-2.5 overflow-x-auto hscroll snap-x pb-2.5 -mx-[18px] px-[18px]">
         {(w.hourly || []).slice(0, 12).map((h, i) => (
-          <div key={i} className="glass-sm shrink-0 snap-start w-[76px] p-3 text-center">
+          <div key={i} className="shrink-0 snap-start w-[70px] py-3 px-2 text-center rounded-[18px] bg-white/55 border border-white/70">
             <div className="text-[13px] font-bold text-body">{i === 0 ? "ตอนนี้" : new Date(h.time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</div>
-            <WxIcon cond={h.cond} night={isNightAt(h.time)} className="w-11 h-11 mx-auto my-1.5" />
+            <WxIcon cond={h.cond} night={isNightAt(h.time)} className="w-10 h-10 mx-auto my-1.5" />
             <div className="text-[17px] font-extrabold">{Math.round(h.tc)}°</div>
             <div className="text-[11px] font-bold text-grid min-h-[14px] leading-none">{h.rain > 0 ? `${(+h.rain).toFixed(1)}มม` : ""}</div>
           </div>

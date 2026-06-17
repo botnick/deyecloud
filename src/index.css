@@ -73,6 +73,18 @@ textarea {
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
+/* Horizontal scroller with an obvious affordance: edges fade out (implies "more
+   →", desktop + mobile) and a slim subtle scrollbar so PC users see it scrolls. */
+.hscroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(17, 17, 17, 0.22) transparent;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+}
+.hscroll::-webkit-scrollbar { height: 6px; }
+.hscroll::-webkit-scrollbar-thumb { background: rgba(17, 17, 17, 0.2); border-radius: 99px; }
+.hscroll::-webkit-scrollbar-track { background: transparent; }
 /* number tween wrapper keeps digits from reflowing the row */
 .tabnum {
   font-variant-numeric: tabular-nums;
