@@ -1,8 +1,12 @@
 # Copy to ".dev.vars" for local `wrangler dev`. NEVER commit the real file.
-# In production set these with: wrangler secret put <NAME>
+# In production set these with: wrangler secret put <NAME>  (or the Cloudflare dashboard / Deploy button)
 
+# Deye Cloud account (developer.deyecloud.com) — all four required
+DEYE_APP_ID=your_app_id_here
+DEYE_EMAIL=your_deyecloud_login_email
 DEYE_APP_SECRET=your_app_secret_here
 DEYE_PASSWORD=your_deyecloud_login_password
+# App PIN gate — optional (no PIN = public)
 APP_PIN=1234
 # TMD (กรมอุตุฯ) token — optional; falls back to Open-Meteo if blank
 TMD_TOKEN=

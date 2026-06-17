@@ -10,19 +10,19 @@
   },
   "observability": { "enabled": true },
   "triggers": { "crons": ["*/5 * * * *"] },
+  // database_id intentionally omitted → Cloudflare auto-provisions/links the D1 on deploy (clone-friendly).
+  // Run `wrangler deploy --x-provision` (Workers Builds) or the Deploy button; locally `npm run setup` writes a real id.
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "deye-monitor",
-      "database_id": "00000000-0000-0000-0000-000000000000"
+      "database_name": "deye-monitor"
     }
   ],
   "vars": {
     // Region endpoint — switch to us1-developer… etc. if your Deye account is not in the EU region
     "DEYE_BASE_URL": "https://eu1-developer.deyecloud.com/v1.0",
-    "DEYE_APP_ID": "YOUR_DEYE_APP_ID",
-    "DEYE_EMAIL": "your-email@example.com",
     "TMD_BASE": "https://data.tmd.go.th/nwpapi/v1/forecast/location"
-    // Station id, coordinates, capacity & place are auto-discovered from Deye and cached in D1 — no config needed.
+    // DEYE_APP_ID, DEYE_EMAIL + the secrets are set per-Worker (dashboard / Deploy-button prompt), never committed.
+    // Station id, coordinates, capacity & place auto-discover from Deye and cache in D1.
   }
 }
