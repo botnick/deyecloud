@@ -4,3 +4,5 @@
 DEYE_APP_SECRET=your_app_secret_here
 DEYE_PASSWORD=your_deyecloud_login_password
 APP_PIN=1234
+# TMD (กรมอุตุฯ) token — optional; falls back to Open-Meteo if blank
+TMD_TOKEN=
