@@ -50,10 +50,16 @@ export function InstallPrompt() {
 
   useEffect(() => {
     if (standalone()) return;
-    try {
-      const ts = Number(localStorage.getItem(KEY) || 0);
-      if (ts && Date.now() - ts < SNOOZE_MS) return;
-    } catch {}
+    // ?install / ?pwa → force the banner open (ignore snooze) so it can always be
+    // previewed/QA'd on a real device, even after it was dismissed.
+    let force = false;
+    try { const q = new URLSearchParams(location.search); force = q.has("install") || q.has("pwa"); } catch {}
+    if (!force) {
+      try {
+        const ts = Number(localStorage.getItem(KEY) || 0);
+        if (ts && Date.now() - ts < SNOOZE_MS) return;
+      } catch {}
+    }
 
     // beforeinstallprompt is the gold signal (Chrome/Edge desktop+mobile, Android).
     // It can fire late, so always honour it — even after a manual hint is showing.
@@ -71,7 +77,7 @@ export function InstallPrompt() {
         if (isMacSafari()) return { kind: "macos" };
         return { kind: "generic" }; // Firefox + anything else installable via menu
       });
-    }, SHOW_DELAY);
+    }, force ? 300 : SHOW_DELAY);
 
     return () => {
       clearTimeout(t);
