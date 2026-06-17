@@ -1,80 +1,115 @@
 # โซลาร์บ้านคุณนิก — Deye Solar Monitor (PWA)
 
-แอปดูข้อมูลระบบโซลาร์เซลล์แบบเรียลไทม์ สำหรับผู้สูงอายุ ภาษาไทย ฟอนต์ Sarabun
-ใช้ **Deye Cloud Open API** ทำงานบน **Cloudflare Workers + D1** — ทุน 0 (free tier ล้วน)
+แอปดูข้อมูลระบบโซลาร์เซลล์แบบเรียลไทม์ ภาษาไทย สำหรับผู้สูงอายุ ฟอนต์ Sarabun
+ใช้ **Deye Cloud Open API** รันบน **Cloudflare Workers + D1** — ทุน **0 บาท** (free tier ล้วน)
+ทำงาน **offline** ได้ (PWA precache) · สถานี 62237107 (ไฮบริด 12 kW 3 เฟส)
 
-## สถาปัตยกรรม
+> เอกสารสำหรับนักพัฒนา/ผู้ช่วย AI อยู่ที่ **`CLAUDE.md`** · สถาปัตยกรรมละเอียดที่ **`ARCHITECTURE.md`**
+
+---
+
+## สถาปัตยกรรมโดยย่อ
 
 ```
-PWA (มือถือ) ─▶ Cloudflare Worker ─┬─▶ Deye Open API   (เรียลไทม์)
-   PIN เข้า         /api/* + เว็บ    ├─▶ D1 SQLite       (เก็บย้อนหลัง)
-                    cron ทุก 5 นาที  └─▶ Open-Meteo      (อากาศ ชลบุรี)
+PWA (มือถือ) ─▶ Cloudflare Worker ─┬─▶ Deye Open API   (เรียลไทม์ + ย้อนหลัง)
+   PIN เข้า         SPA + /api/*     ├─▶ D1 SQLite       (เก็บ history + cache + token)
+                    cron ทุก 5 นาที  └─▶ TMD / Open-Meteo (อากาศ — พิกัดจาก station)
 ```
 
-- **secret อยู่ใน Worker เท่านั้น** (`DEYE_APP_SECRET`, `DEYE_PASSWORD`) — ไม่หลุดไปฝั่ง client ผู้ใช้ไม่ต้อง login บัญชี Deye
-- ผู้ใช้เข้าด้วย **PIN** (เก็บใน secret `APP_PIN`)
-- cron poll `/station/latest` ทุก 5 นาที เขียนลง D1 → กราฟย้อนหลัง วัน/เดือน/ปี
-- frontend mount ครั้งเดียว แล้ว patch เฉพาะค่า (count-up + transition) = ไม่มี flicker
+- **secret อยู่ใน Worker เท่านั้น** (`DEYE_APP_SECRET`, `DEYE_PASSWORD`) — ไม่หลุดฝั่ง client ผู้ใช้ไม่ต้อง login บัญชี Deye
+- ผู้ใช้เข้าด้วย **PIN** (secret `APP_PIN`) → cookie HMAC
+- cron poll `/station/latest` ทุก 5 นาที เขียน D1 → กราฟย้อนหลัง วัน/เดือน/ปี
+- station / พิกัด / กำลังติดตั้ง **ค้นจาก API เอง** ไม่ hardcode
+- การรับแดด (พระอาทิตย์ขึ้น-ตก, ช่วงแดดดี, ชั่วโมงแดดเต็ม) **คำนวณจริง** (NOAA + Haurwitz) ใน `src/worker/sun.ts`
+
+## Stack
+Vite 6 · React 19 + TypeScript · Tailwind CSS v4 · Hono 4 · Cloudflare Workers / D1 / Cron · vite-plugin-pwa · Meteocons
+
+---
 
 ## ความต้องการ
 - Node.js 18+
 - บัญชี Cloudflare (ฟรี) — https://dash.cloudflare.com/sign-up
+- บัญชี Deye developer — https://developer.deyecloud.com (เอา `appId` + `appSecret`)
 
-## ติดตั้ง (ครั้งแรก)
+## ติดตั้งครั้งแรก
 
 ```bash
 npm install
-npx wrangler login                 # เปิด browser ยืนยันบัญชี Cloudflare
+npx wrangler login                       # ยืนยันบัญชี Cloudflare
 
-# 1) สร้าง D1 database
+# 1) สร้าง D1 แล้วเอา database_id ไปวางใน wrangler.jsonc → d1_databases[0].database_id
 npm run db:create
-#    คัดลอก database_id ที่ได้ ไปวางใน wrangler.toml (ช่อง REPLACE_WITH_DATABASE_ID)
 
-# 2) สร้างตาราง
-npm run db:init                    # remote (production)
-npm run db:init:local              # local (สำหรับ wrangler dev)
+# 2) สร้างตาราง (จริง ๆ ไม่จำเป็น — schema auto-migrate ตอน request แรก)
+npm run db:init
 
 # 3) ตั้ง secret (production)
-npx wrangler secret put DEYE_APP_SECRET    # appSecret จาก developer.deyecloud.com
-npx wrangler secret put DEYE_PASSWORD      # รหัสผ่าน login www.deyecloud.com
-npx wrangler secret put APP_PIN            # PIN ที่จะใช้เข้าแอป เช่น 2580
+npx wrangler secret put DEYE_APP_SECRET  # appSecret จาก developer.deyecloud.com
+npx wrangler secret put DEYE_PASSWORD    # รหัสผ่าน login www.deyecloud.com
+npx wrangler secret put APP_PIN          # PIN เข้าแอป เช่น 2580
+npx wrangler secret put TMD_TOKEN        # token กรมอุตุฯ (ถ้าไม่มี ใช้ Open-Meteo อัตโนมัติ)
 ```
 
 ## รันทดสอบ local
 
 ```bash
-cp .dev.vars.example .dev.vars     # แล้วแก้ค่าจริงในไฟล์ .dev.vars (ห้าม commit)
-npm run dev                         # เปิด http://localhost:8787
+cp .dev.vars.example .dev.vars   # แล้วแก้ค่าจริงในไฟล์ .dev.vars
+npm run dev                       # → http://localhost:5174  (เข้าจากมือถือในวง LAN: http://<ip-เครื่อง>:5174)
 ```
 
-ตรวจสอบการเชื่อมต่อ Deye:
-- `http://localhost:8787/api/_debug` — ดู payload ดิบจาก Deye (เช็คชื่อ field ว่า map ครบ)
-- `http://localhost:8787/api/_poll`  — ดึง 1 ครั้ง + เขียนลง D1 (seed ข้อมูลแรก)
+- ใส่ PIN ที่ตั้งไว้ (เช่น 2580) เพื่อเข้า
+- **cron ไม่ทำงานใน dev** → เปิด `http://localhost:5174/api/_poll` 1 ครั้งเพื่อ seed ข้อมูลแรกลง D1
+- ดู payload ดิบจาก Deye: `http://localhost:5174/api/_debug`
 
-> ถ้า `/api/_debug` คืน field ชื่อไม่ตรงกับใน `src/deye.js` (ฟังก์ชัน `getLatest`)
-> ให้แก้ list ชื่อใน `pick(...)` ให้ตรง แล้ว field อื่นจะ map อัตโนมัติ
-
-## Deploy
+## Deploy ($0)
 
 ```bash
-npm run deploy
+npm run deploy                    # vite build + wrangler deploy
 ```
 
-ได้ URL `https://deye-monitor.<subdomain>.workers.dev` — เปิดบนมือถือ → เมนู → **Add to Home Screen** ติดตั้งเป็นแอป (PWA)
+ได้ URL `https://deye-monitor.<subdomain>.workers.dev` → เปิดบนมือถือ → **Add to Home Screen** = แอป PWA
+cron เริ่มเองทุก 5 นาที (ดู log: `npm run tail`)
 
-cron จะรันเองทุก 5 นาทีหลัง deploy (ดู log: `npm run tail`)
+---
 
-## ค่า config (wrangler.toml → [vars])
+## คำสั่ง
+
+| คำสั่ง | ทำอะไร |
+|---|---|
+| `npm run dev` | dev server (port 5174) — เสิร์ฟ Worker + SPA |
+| `npm run build` | build → `dist/` |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run deploy` | build + deploy ขึ้น Cloudflare |
+| `npm run db:create` / `db:init` | สร้าง / ตั้งตาราง D1 |
+| `npm run tail` | ดู log production |
+| `node design/shoot.mjs` | ภาพหน้าจอ 5 หน้า → `design/shots/` |
+| `node design/shootdev.mjs` | ภาพหน้า Device เต็มหน้า |
+
+## ค่า config
+
+**ไม่ลับ** — `wrangler.jsonc` → `vars`:
+
 | ตัวแปร | ค่า | หมายเหตุ |
 |---|---|---|
-| `DEYE_BASE_URL` | eu1-developer (EMEA) | เปลี่ยนเป็น us1 ถ้าใช้ US |
-| `DEYE_APP_ID` | 202606166871044 | |
-| `DEYE_EMAIL` | botnick.xxx@gmail.com | |
-| `DEYE_STATION_ID` | 62237107 | ว่างได้ ระบบหา station แรกให้เอง |
-| `WEATHER_LAT/LON` | 13.36 / 100.98 | ชลบุรี |
+| `DEYE_BASE_URL` | `…eu1-developer…/v1.0` | EMEA — เปลี่ยนเป็น us1 ถ้าใช้ US |
+| `DEYE_APP_ID` | 202606166871044 | จาก developer.deyecloud.com |
+| `DEYE_EMAIL` | botnick.xxx@gmail.com | บัญชี Deye |
+| `WEATHER_LAT/LON` | 13.7 / 100.5 | fallback — ปกติดึงพิกัดจาก station |
+| `TMD_BASE` | data.tmd.go.th/nwpapi | กรมอุตุฯ |
 
-## free tier ที่ใช้ (ไม่เกินโควต้า)
-- Workers: 100,000 req/วัน — cron 288 ครั้ง/วัน + ผู้ใช้ไม่กี่คน ห่างไกลลิมิต
-- D1: 5GB, 5M reads/วัน — 1 sample/5นาที = ~288 แถว/วัน
-- Cron Triggers: ฟรี
-- Open-Meteo: ฟรี ไม่ต้องใช้ key
+**ลับ** (`.dev.vars` local / `wrangler secret` prod): `DEYE_APP_SECRET`, `DEYE_PASSWORD`, `APP_PIN`, `TMD_TOKEN`
+
+## free tier (ไม่เกินโควต้า)
+- Workers 100,000 req/วัน — cron 288 ครั้ง/วัน + ผู้ใช้ไม่กี่คน → ห่างลิมิตมาก
+- D1 5GB, 5M reads/วัน — ~288 แถว/วัน
+- Cron Triggers / Static Assets / Open-Meteo — ฟรี
+
+---
+
+## หมายเหตุการพัฒนา
+- หน้า "เครื่อง" (Device) เข้าผ่านปุ่มเหลืองบน Home ไม่ใช่แท็บที่ 5
+- ทดสอบ UI ด้วยสถานการณ์จำลอง: เปิด `?dev=1` (หรือ `?sim=peak`)
+- คีย์ข้อมูล device จาก Deye เป็น **อังกฤษ** (GridVoltageL1, LoadPhasePowerA …) แมป→ไทยที่ `src/lib/device.ts`
+- คำว่า "**ไฟย้อน**" ตั้งใจใช้ (ไฟย้อนกลับ ไม่ใช่ขายไฟ) — อย่าเปลี่ยนเป็น "ขาย"
+```
