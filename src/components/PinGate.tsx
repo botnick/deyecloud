@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { postLogin } from "../lib/api";
 import { IconSun } from "../lib/icons";
+import { APP_NAME } from "../lib/brand";
 
 export function PinGate({ onOk }: { onOk: () => void }) {
   const [pin, setPin] = useState("");
@@ -23,7 +24,7 @@ export function PinGate({ onOk }: { onOk: () => void }) {
       <div className="w-20 h-20 rounded-3xl bg-primary grid place-items-center shadow-[0_8px_24px_rgba(17,17,17,0.10)]">
         <IconSun className="w-11 h-11 text-ink" />
       </div>
-      <h1 className="text-2xl font-extrabold">โซลาร์บ้านคุณนิก</h1>
+      <h1 className="text-2xl font-extrabold">{APP_NAME}</h1>
       <p className="text-body text-center">ใส่รหัสผ่านเพื่อเข้าดูข้อมูล</p>
       <form onSubmit={submit} className="contents">
         <input

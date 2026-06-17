@@ -1,3 +1,5 @@
+import { APP_NAME } from "../lib/brand";
+
 export function Splash() {
   return (
     <div
@@ -19,7 +21,7 @@ export function Splash() {
         </div>
 
         <div className="text-center mt-7">
-          <div className="text-[22px] font-extrabold text-title tracking-tight">โซลาร์บ้านคุณนิก</div>
+          <div className="text-[22px] font-extrabold text-title tracking-tight">{APP_NAME}</div>
           <div className="text-muted text-[13px] mt-2" style={{ letterSpacing: ".5px" }}>ระบบติดตามพลังงานแสงอาทิตย์</div>
         </div>
       </div>

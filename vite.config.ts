@@ -20,7 +20,7 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
       manifest: {
-        name: "โซลาร์บ้านคุณนิก",
+        name: "โซลาร์มอนิเตอร์",
         short_name: "โซลาร์",
         description: "ดูข้อมูลระบบโซลาร์เซลล์แบบเรียลไทม์",
         lang: "th",
