@@ -1,8 +1,8 @@
-# โซลาร์บ้านคุณนิก — Deye Solar Monitor (PWA)
+# โซลาร์มอนิเตอร์ — Deye Solar Monitor (PWA)
 
 แอปดูระบบโซลาร์เซลล์ **แบบเรียลไทม์ ภาษาไทย ออกแบบเพื่อผู้สูงอายุ** (ฟอนต์ Sarabun, ตัวเลขใหญ่, ปุ่มน้อย)
 ใช้ **Deye Cloud Open API** จริง รันบน **Cloudflare Workers + D1** — ทุน **0 บาท** (free tier ล้วน)
-ทำงาน **offline** ได้ (PWA precache) · สถานีตั้งต้น 62237107 (ไฮบริด 12 kW 3 เฟส)
+ทำงาน **offline** ได้ (PWA precache) · อ่านสถานีจาก Deye อัตโนมัติ · รองรับระบบ **on-grid / hybrid / off-grid**
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/botnick/deyecloud)
 
@@ -47,11 +47,12 @@
 - **หน้าหลัก** — สถานะระบบ (ปกติ/แจ้งเตือน), ผลิตไฟวันนี้ (ring), ประหยัดเงิน, ผังการไหลของพลังงาน (โซลาร์/บ้าน/กริด/แบต เส้นวิ่ง)
 - **วันนี้** — สรุปผลิต/ใช้/ซื้อ/ไฟย้อน, พึ่งพาตัวเอง, การหมุนเวียนพลังงาน (stacked bar)
 - **อากาศ** — พยากรณ์ TMD, **เส้นทางดวงอาทิตย์ (golden hour)** + ช่วงแดดดีสุด, **ดัชนี UV**, ราย ชม. + 7 วัน
-- **ย้อนหลัง** — กราฟพลังงานราย วัน/เดือน/ปี (Power Profile + Bar chart)
+- **ย้อนหลัง** — กราฟพลังงานราย วัน/เดือน/ปี (Power Profile + Bar chart) เก็บถาวรใน D1
+- **คำแนะนำ** — การ์ดวิเคราะห์อัตโนมัติจากเลขจริง (สมการสมดุลพลังงาน — **ไม่ใช่ AI**) ปรับตามชนิดระบบ on/hybrid/off-grid
 - **รายละเอียดเครื่อง** — ค่าต่อเฟส/PV string/BMS (เข้าผ่านปุ่มบนหน้าหลัก)
 - **หลายสถานี** — ถ้าบัญชีมี >1 สถานี จะมีตัวสลับสถานีบนหัวจอให้อัตโนมัติ (จำค่าที่เลือก)
 - **ทนทาน** — เชื่อม Deye ไม่ได้ → แถบ "เชื่อมต่อระบบไม่ได้" + คงข้อมูลล่าสุด + ลองใหม่อัตโนมัติ; token หมดอายุกู้คืนเอง; cron ไม่บันทึกค่า 0 ตอนระบบล่ม
-- **PWA** — เพิ่มลงหน้าจอโฮม ใช้เหมือนแอป, ทำงาน offline ได้
+- **PWA — ติดตั้งเป็นแอปได้ทุก device** — แถบ "เพิ่มลงหน้าจอโฮม" ปรับข้อความตามอุปกรณ์อัตโนมัติ: Chrome/Edge/Android (กดติดตั้งทีเดียว), iPhone/iPad Safari, macOS Safari, Firefox/อื่นๆ · ทำงาน offline ได้
 
 ---
 
@@ -100,7 +101,7 @@ npm run setup             # สร้าง D1 + ใส่ id ลง wrangler.js
 
 อัปเดตครั้งต่อไป: `npm run deploy` · ดู log: `npm run tail` · **รายละเอียดเต็มใน [`DEPLOY.md`](./DEPLOY.md)**
 
-ได้ URL `https://deye-monitor.<subdomain>.workers.dev` → เปิดบนมือถือ → **Add to Home Screen** = แอป PWA
+ได้ URL `https://deyecloud.<subdomain>.workers.dev` → เปิดบนมือถือ → **Add to Home Screen** = แอป PWA
 ตารางใน D1 สร้างเองตอน request แรก · cron เริ่มเองทุก 5 นาที
 
 ---
@@ -121,20 +122,21 @@ npm run setup             # สร้าง D1 + ใส่ id ลง wrangler.js
 
 ## ค่า config
 
-ตั้งค่าน้อยที่สุด — **สถานี / พิกัด / กำลังติดตั้ง / สถานที่ ดึงจาก Deye อัตโนมัติแล้ว cache ใน D1** ไม่ต้องตั้งเอง
+ตั้งค่าน้อยที่สุด — **สถานี / พิกัด / กำลังติดตั้ง / สถานที่ ดึงจาก Deye อัตโนมัติแล้ว cache ใน D1** ไม่ต้องตั้งเอง · ไม่มีค่าส่วนตัว hardcode ในโค้ดเลย
 
-**ไม่ลับ** — `wrangler.jsonc` → `vars`:
+**ไม่ลับ (commit อยู่ใน `wrangler.jsonc` → `vars`):**
 
 | ตัวแปร | ค่า | หมายเหตุ |
 |---|---|---|
-| `DEYE_APP_ID` | YOUR_DEYE_APP_ID | จาก developer.deyecloud.com |
-| `DEYE_EMAIL` | บัญชี Deye | อีเมลบัญชี Deye |
 | `DEYE_BASE_URL` | `…eu1-developer…/v1.0` | ค่าตั้งต้น EU — เปลี่ยนเป็น us1 ถ้าบัญชีอยู่ US |
-| `TMD_BASE` | data.tmd.go.th/nwpapi | มีค่าตั้งต้นให้แล้ว |
+| `TMD_BASE` | `data.tmd.go.th/nwpapi/v1/forecast/location` | มีค่าตั้งต้นให้แล้ว |
+
+**ค่าบัญชี Deye (ตั้งต่อ Worker ตอน deploy — ไม่ commit):** `DEYE_APP_ID` · `DEYE_EMAIL` (จาก developer.deyecloud.com)
 
 **ลับ** (`.dev.vars` local · `wrangler secret` prod): `DEYE_APP_SECRET`, `DEYE_PASSWORD` · **optional:** `APP_PIN` (ไม่ตั้ง = เปิดสาธารณะ) · `TMD_TOKEN` (ไม่ตั้ง = ใช้ Open-Meteo)
 
-> ปรับพิกัด/ชื่อสถานที่อากาศเองได้ (ไม่บังคับ): `WEATHER_LAT` · `WEATHER_LON` · `WEATHER_PLACE`
+> **optional ทั้งหมด (ไม่ตั้งก็ได้):** `DEYE_STATION_ID` (ปักสถานีเจาะจง แทนเลือกตัวแรกอัตโนมัติ) · `DEYE_COMPANY_ID` · `CONTACT_EMAIL` · `WEATHER_LAT`/`WEATHER_LON`/`WEATHER_PLACE` (override พิกัดอากาศ)
+> ค่าไฟ/CO₂ สำหรับคำนวณเงินที่ประหยัด ปรับที่ `src/lib/config.ts` (`ELECTRICITY_RATE` 4.4 บาท/kWh · `CO2_PER_KWH` 0.5)
 
 ## free tier (ไม่เกินโควต้า)
 
