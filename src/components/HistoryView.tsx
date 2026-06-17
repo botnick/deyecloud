@@ -27,7 +27,9 @@ export function HistoryView({ active, stationId }: { active: boolean; stationId?
     return () => { alive = false; };
   }, [range, ref, active, stationId]);
 
-  const changeRange = (r: Range) => { setRange(r); setRef(new Date()); };
+  // Clear points on tab change so we never render the previous range's data
+  // shape against the new range (e.g. day frames have no .day/.month → crash).
+  const changeRange = (r: Range) => { setRange(r); setRef(new Date()); setPoints(null); };
   const shift = (dir: number) => setRef((d) => {
     const n = new Date(d);
     if (range === "day") n.setDate(n.getDate() + dir);
@@ -92,7 +94,7 @@ export function HistoryView({ active, stationId }: { active: boolean; stationId?
         <div className="mt-3"><PowerProfile points={points} /></div>
       ) : (
         <div className={`${plate} p-4 mt-3`}>
-          <BarChart labels={points.map((p) => (range === "month" ? p.day.slice(8) : p.month.slice(5)))} series={[
+          <BarChart labels={points.map((p) => (range === "month" ? String(p.day || "").slice(8) : String(p.month || "").slice(5)))} series={[
             { color: "var(--color-pv)", data: points.map((p) => p.gen || 0) },
             { color: "var(--color-use)", data: points.map((p) => p.use || 0) },
           ]} />
