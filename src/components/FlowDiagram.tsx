@@ -56,10 +56,19 @@ export function FlowDiagram({ latest }: { latest: Latest }) {
   return (
     <div className="relative w-full" style={{ aspectRatio: "360 / 300" }}>
       <svg viewBox="0 0 360 300" className="absolute inset-0 w-full h-full">
+        <defs>
+          {edges.map((e) => (
+            <marker key={`m-${e.id}`} id={`ah-${e.id}`} viewBox="0 0 12 12" refX="8.5" refY="6" markerWidth="3.6" markerHeight="3.6" orient="auto">
+              <path d="M1 1 L11 6 L1 11 Z" fill={e.color} />
+            </marker>
+          ))}
+        </defs>
+        {/* base connector + a steady arrowhead at the destination → direction (รับ/จ่าย) is unmistakable */}
         {edges.map((e) => (
           <path key={e.id} id={e.id} d={e.d} fill="none"
             stroke={e.on ? e.color : "#dde2ea"} strokeWidth={e.on ? 3 : 2}
-            strokeOpacity={e.on ? 0.28 : 1} strokeLinecap="round" strokeLinejoin="round" />
+            strokeOpacity={e.on ? 0.28 : 1} strokeLinecap="round" strokeLinejoin="round"
+            markerEnd={e.on ? `url(#ah-${e.id})` : undefined} />
         ))}
         {/* flowing current — continuous dash stream (smooth + even; plays with Reduce Motion on) */}
         {edges.filter((e) => e.on).map((e) => (

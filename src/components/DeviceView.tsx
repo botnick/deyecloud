@@ -4,7 +4,17 @@ import { groupDevice, INVERTER_TYPE_TH } from "../lib/device";
 import { timeStr } from "../lib/format";
 import { IconChevron, IconBack } from "../lib/icons";
 import { card, cardP, h2 } from "../lib/ui";
-import { RingFlow } from "./RingFlow";
+import { FlowDiagram } from "./FlowDiagram";
+
+const tcol = (t: number) => (t >= 60 ? "#e8603c" : t >= 45 ? "#d98c00" : "#18a673");
+function TempChip({ label, t }: { label: string; t: number }) {
+  return (
+    <div className="bg-canvas rounded-2xl px-4 py-3 flex items-center justify-between">
+      <span className="text-[13px] text-body">{label}</span>
+      <span className="text-[17px] font-extrabold tabnum" style={{ color: tcol(t) }}>{t.toFixed(1)}°</span>
+    </div>
+  );
+}
 
 // keys rendered inside the per-phase tables — excluded from the key/value lists
 const TABLE_KEYS =
@@ -186,8 +196,14 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
       </div>
 
       {latest && (
-        <div className="mt-3.5">
-          <RingFlow latest={latest} temps={temps} />
+        <div className="mt-3.5 space-y-3">
+          <div className={`${card} px-2 py-3`}><FlowDiagram latest={latest} /></div>
+          {(temps.inv != null || temps.batt != null) && (
+            <div className="grid grid-cols-2 gap-3">
+              {temps.inv != null && <TempChip label="อุณหภูมิเครื่อง" t={temps.inv} />}
+              {temps.batt != null && <TempChip label="อุณหภูมิแบตเตอรี่" t={temps.batt} />}
+            </div>
+          )}
         </div>
       )}
 
