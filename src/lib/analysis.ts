@@ -1,6 +1,6 @@
 import type { Latest } from "./api";
 
-export interface Insight { tone: "ok" | "info" | "warn"; title: string; detail: string; sub?: string[]; }
+export interface Insight { tone: "ok" | "info" | "warn" | "tip"; title: string; detail: string; sub?: string[]; }
 
 // ค่าไฟบ้านเฉลี่ย (บาท/หน่วย) — โครงสร้างก้าวหน้า + Ft โดยประมาณปี 2026
 const RATE = 4.4;
@@ -16,6 +16,25 @@ export function analyze(l: Latest, capacityKw?: number): Insight[] {
   const hour = new Date((l.updatedAt || Date.now() / 1000) * 1000).getHours();
   const daytime = hour >= 6 && hour < 18;
   const kw = (w: number) => (Math.abs(w) / 1000).toFixed(2);
+
+  // ----- 0) คำแนะนำ (ดูจากค่าจริงตอนนี้ แล้วบอกว่าควรทำอะไร) -----
+  const buying = l.gridPower > 20;
+  const surplus = l.genPower - l.usePower; // ผลิตมากกว่าที่ใช้ = มีไฟเหลือ
+  const discharging = bs.includes("DIS");
+  const socR = Math.round(l.soc);
+  let rec: string;
+  if (!daytime) {
+    rec = discharging
+      ? `ตอนนี้กลางคืน ใช้ไฟจากแบตเตอรี่ที่เก็บไว้ (แบตเหลือ ${socR}%) — ${l.soc <= 25 ? "แบตใกล้หมด แนะนำลดเครื่องใช้ไฟฟ้าขนาดใหญ่ รอแดดเช้ามาชาร์จ" : "ระบบทำงานปกติ ไม่ต้องปรับอะไร"}`
+      : `ตอนนี้กลางคืน ใช้ไฟจากการไฟฟ้า ${kw(Math.max(0, l.gridPower))} kW — ช่วงนี้ไม่มีแดด เครื่องใช้ไฟฟ้ากำลังสูงควรเลื่อนไปใช้ตอนกลางวัน จะประหยัดกว่า`;
+  } else if (surplus > 200) {
+    rec = `แดดกำลังดี ผลิตได้มากกว่าที่ใช้อยู่ ~${kw(surplus)} kW — ช่วงนี้เหมาะเปิดเครื่องใช้ไฟฟ้ากำลังสูง (แอร์ เครื่องซักผ้า ปั๊มน้ำ) ได้ใช้ไฟจากแสงอาทิตย์เต็มที่ ไม่เสียค่าไฟ`;
+  } else if (buying) {
+    rec = `แดดยังไม่พอกับที่ใช้ กำลังซื้อไฟ ${kw(l.gridPower)} kW — ถ้าเลื่อนได้ ควรใช้เครื่องใช้ไฟฟ้ากำลังสูงช่วงแดดแรง (ราว 9:00–15:00 น.) จะคุ้มกว่า`;
+  } else {
+    rec = `ระบบสมดุล — แสงอาทิตย์ที่ผลิตกำลังพอดีกับที่บ้านใช้อยู่`;
+  }
+  out.push({ tone: "tip", title: "คำแนะนำ", detail: rec });
 
   // ----- 1) ตอนนี้ (สมดุลกำลังไฟแบบเรียลไทม์) -----
   const now: string[] = [];

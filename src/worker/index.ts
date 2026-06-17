@@ -55,28 +55,43 @@ async function pollAndStore(env: Env) {
 // Reverse-geocode the station coords to a readable Thai place (e.g. "เมืองพัทยา · ชลบุรี").
 // Cached in D1 — the station never moves. Free, no key (BigDataCloud).
 async function geoPlace(env: Env, lat: string, lng: string): Promise<string> {
-  const k = `geoplace_${Number(lat).toFixed(2)}_${Number(lng).toFixed(2)}`;
+  const k = `geoplace2_${Number(lat).toFixed(2)}_${Number(lng).toFixed(2)}`;
   const row = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(k).first();
   if (row && (row as any).v) return (row as any).v;
+  const strip = (s: any) => String(s || "").replace(/^(จังหวัด|อำเภอ|เขต|ตำบล)\s?/, "").trim();
+  const join = (arr: any[]) => arr.map(strip).filter((v: string, i: number, a: string[]) => v && a.indexOf(v) === i).join(" · ");
   let place = "";
+  // 1) Nominatim — rich Thai admin names (ตำบล · อำเภอ · จังหวัด). Needs a real UA per their policy.
   try {
-    // BigDataCloud is edge-friendly (no key, no UA policy, not IP-blocked like Nominatim).
-    const j: any = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=th`).then((r) => r.json());
-    const admins: string[] = (j.localityInfo && j.localityInfo.administrative ? j.localityInfo.administrative : []).map((a: any) => String(a.name || "")).filter(Boolean);
-    const find = (re: RegExp) => admins.find((n) => re.test(n));
-    const strip = (s: any) => String(s || "").replace(/^(จังหวัด|อำเภอ|เขต|ตำบล)\s?/, "").trim();
-    const prov = j.principalSubdivision || find(/^จังหวัด/);
-    const amphoe = find(/^อำเภอ|^เขต/); // อำเภอ (county)
-    const tambon = find(/^ตำบล|^แขวง/) || find(/^เมือง/) || j.locality || j.city;
-    place = [tambon, amphoe, prov].map(strip).filter((v: string, i: number, arr: string[]) => v && arr.indexOf(v) === i).join(" · ");
+    const j: any = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=jsonv2&addressdetails=1&accept-language=th&layer=address`,
+      { headers: { "User-Agent": "deyecloud-solar-pwa/1.0 (opor.artit@gmail.com)", "Accept-Language": "th" } }
+    ).then((r) => (r.ok ? r.json() : null));
+    const a = (j && j.address) || {};
+    const locality = a.city || a.town || a.municipality || a.village || a.suburb || a.neighbourhood;
+    const district = a.city_district || a.county || a.district;
+    const province = a.state || a.province;
+    place = join([locality, district, province]);
   } catch {}
+  // 2) BigDataCloud — edge-safe fallback if Nominatim is unavailable/rate-limited.
+  if (!place) {
+    try {
+      const j: any = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=th`).then((r) => r.json());
+      const admins: string[] = (j.localityInfo && j.localityInfo.administrative ? j.localityInfo.administrative : []).map((a: any) => String(a.name || "")).filter(Boolean);
+      const find = (re: RegExp) => admins.find((n) => re.test(n));
+      const prov = j.principalSubdivision || find(/^จังหวัด/);
+      const amphoe = find(/^อำเภอ|^เขต/);
+      const tambon = find(/^ตำบล|^แขวง/) || find(/^เมือง/) || j.locality || j.city;
+      place = join([tambon, amphoe, prov]);
+    } catch {}
+  }
   if (place) await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(k, place).run();
   return place;
 }
 
 // --- Weather: TMD NWP (primary) + Open-Meteo (fallback), cached 30 min --
 async function getWeather(env: Env): Promise<any> {
-  const row = await env.DB.prepare("SELECT v FROM meta WHERE k='weather_cache2'").first();
+  const row = await env.DB.prepare("SELECT v FROM meta WHERE k='weather_cache3'").first();
   if (row) {
     try {
       const c = JSON.parse((row as any).v);
@@ -101,7 +116,7 @@ async function getWeather(env: Env): Promise<any> {
   if (!data) data = { error: "weather unavailable" };
   if (data && data.temp != null && data.uv == null) data.uv = await fetchUV(lat, lng).catch(() => null);
   if (data && data.temp != null) data.sun = sunInfo(Number(lat), Number(lng));
-  await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('weather_cache2',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();
+  await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('weather_cache3',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();
   return data;
 }
 async function fetchTMD(env: Env, lat: string, lng: string, place: string): Promise<any> {
