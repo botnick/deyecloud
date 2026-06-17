@@ -85,9 +85,11 @@ export function SunPath({ sun }: { sun: SunInfo }) {
   const elev = elevAt(f);
   const sx = xAt(f), sy = yAt(elev);
   const passed: Pt[] = pts.slice(0, Math.min(n - 1, Math.floor(f * (n - 1))) + 1);
-  if (!passed.length || passed[passed.length - 1][0] < sx) passed.push([sx, sy]);
+  // always keep ≥2 points so smooth() emits a leading "M" (at f≈0 / night the
+  // sun sits on the start point → a 1-point path would start with "L" and crash)
+  if (passed.length < 2 || passed[passed.length - 1][0] < sx) passed.push([sx, sy]);
   const passedD = smooth(passed);
-  const areaD = `${passedD} L${sx.toFixed(1)} ${HZ} L${X0} ${HZ} Z`;
+  const areaD = passedD ? `${passedD} L${sx.toFixed(1)} ${HZ} L${X0} ${HZ} Z` : "";
   const px0 = xAt(cl(fracOfTime(sun.peakStart))), px1 = xAt(cl(fracOfTime(sun.peakEnd)));
   const hours = [6, 9, 12, 15, 18].map((h) => fracOfTime(`${pad(h)}:00`)).filter((fr) => fr > 0.04 && fr < 0.96);
 
@@ -138,10 +140,10 @@ export function SunPath({ sun }: { sun: SunInfo }) {
           <circle cx={sx.toFixed(1)} cy={sy.toFixed(1)} r="74" fill="url(#sp-halo)" />
           {hours.map((fr, i) => <line key={i} x1={xAt(fr).toFixed(1)} y1={SKY_T + 6} x2={xAt(fr).toFixed(1)} y2={HZ} stroke="#b89bd0" strokeOpacity="0.13" strokeWidth="1" />)}
           {px1 > px0 && <rect x={px0.toFixed(1)} y={SKY_T} width={(px1 - px0).toFixed(1)} height={HZ - SKY_T} fill="url(#sp-peak)" />}
-          <path d={areaD} fill="url(#sp-recv)" />
-          <path d={fullD} fill="none" stroke="url(#sp-arc)" strokeOpacity="0.28" strokeWidth="2" strokeLinecap="round" />
-          <path d={passedD} fill="none" stroke="url(#sp-arc)" strokeOpacity="0.5" strokeWidth="6" strokeLinecap="round" filter="url(#sp-glow)" />
-          <path d={passedD} fill="none" stroke="url(#sp-arc)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+          {areaD && <path d={areaD} fill="url(#sp-recv)" />}
+          {fullD && <path d={fullD} fill="none" stroke="url(#sp-arc)" strokeOpacity="0.28" strokeWidth="2" strokeLinecap="round" />}
+          {passedD && <path d={passedD} fill="none" stroke="url(#sp-arc)" strokeOpacity="0.5" strokeWidth="6" strokeLinecap="round" filter="url(#sp-glow)" />}
+          {passedD && <path d={passedD} fill="none" stroke="url(#sp-arc)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />}
         </g>
 
         {px1 > px0 && (
