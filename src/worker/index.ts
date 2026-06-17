@@ -52,6 +52,23 @@ async function pollAndStore(env: Env) {
   return l;
 }
 
+// Reverse-geocode the station coords to a readable Thai place (e.g. "เมืองพัทยา · ชลบุรี").
+// Cached in D1 — the station never moves. Free, no key (BigDataCloud).
+async function geoPlace(env: Env, lat: string, lng: string): Promise<string> {
+  const k = `geoplace_${Number(lat).toFixed(2)}_${Number(lng).toFixed(2)}`;
+  const row = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(k).first();
+  if (row && (row as any).v) return (row as any).v;
+  let place = "";
+  try {
+    const j: any = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=th`).then((r) => r.json());
+    const loc = j.locality || j.city;
+    const prov = String(j.principalSubdivision || "").replace(/^จังหวัด/, "");
+    place = [loc, prov].filter(Boolean).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(" · ");
+  } catch {}
+  if (place) await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(k, place).run();
+  return place;
+}
+
 // --- Weather: TMD NWP (primary) + Open-Meteo (fallback), cached 30 min --
 async function getWeather(env: Env): Promise<any> {
   const row = await env.DB.prepare("SELECT v FROM meta WHERE k='weather_cache2'").first();
@@ -68,9 +85,9 @@ async function getWeather(env: Env): Promise<any> {
   const meta = await getStationMeta(env).catch(() => null);
   const lat = String(meta && meta.lat != null ? meta.lat : (env.WEATHER_LAT || 13.7));
   const lng = String(meta && meta.lng != null ? meta.lng : (env.WEATHER_LON || 100.5));
-  // rough coordinates (1 decimal ≈ 11 km) — locates the area without exposing the exact address
+  // Readable Thai place name from the station coords; rough coords as last resort.
   const co = (v: string, p: string, n: string) => `${Math.abs(Number(v)).toFixed(1)}°${Number(v) >= 0 ? p : n}`;
-  const place = env.WEATHER_PLACE || `${co(lat, "N", "S")} ${co(lng, "E", "W")}`;
+  const place = env.WEATHER_PLACE || (await geoPlace(env, lat, lng).catch(() => "")) || `${co(lat, "N", "S")} ${co(lng, "E", "W")}`;
   let data = await fetchTMD(env, lat, lng, place).catch(() => null);
   if (!data || data.temp == null) {
     const fb = await fetchOpenMeteo(env, lat, lng, place).catch(() => null);
