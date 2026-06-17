@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "setup": "node scripts/setup.mjs",
     "deploy": "npm run build && wrangler deploy",
     "db:create": "wrangler d1 create deye-monitor",
     "db:init": "wrangler d1 execute deye-monitor --remote --file=./schema.sql",

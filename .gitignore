@@ -1,1 +1,5 @@
 node_modules/
+# transient secrets file written by scripts/setup.mjs — must never be committed
+.secrets.tmp.json
+# local Worker/D1 state (Miniflare)
+.wrangler/
