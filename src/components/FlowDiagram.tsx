@@ -41,6 +41,8 @@ export function FlowDiagram({ latest }: { latest: Latest }) {
   let discharging = bs.includes("DIS");
   if (!charging && !discharging) { if (bp < -20) charging = true; else if (bp > 20) discharging = true; }
   const soc = Math.round(latest.soc || 0);
+  // on-grid systems have no battery → hide the battery node/flow rather than show 0%
+  const hasBatt = (latest.soc || 0) > 0.5 || charging || discharging || Math.abs(bp) > 15 || (Number(latest.chargeToday) || 0) > 0.05 || (Number(latest.dischargeToday) || 0) > 0.05;
   const gridOff = /OFF|ISLAND|DISCONNECT/i.test(latest.gridStatus || "");
   const gridFlow = !gridOff && Math.abs(latest.gridPower) > 2;
   const battCol = soc <= 20 ? "#ef6c2e" : soc <= 50 ? "#d98c00" : "#18a673";
@@ -50,7 +52,7 @@ export function FlowDiagram({ latest }: { latest: Latest }) {
     { id: "fe-pv", on: latest.genPower > 2, color: "#f5a623", d: "M85,64 H165 V127" },
     { id: "fe-load", on: latest.usePower > 2, color: "#0d4add", d: "M195,173 V226 H275" },
     { id: "fe-grid", on: gridFlow, color: "#8b5cf6", d: buying ? "M275,64 H195 V127" : "M195,127 V64 H275" },
-    { id: "fe-batt", on: charging || discharging, color: "#18a673", d: discharging ? "M85,226 H165 V173" : "M165,173 V226 H85" },
+    { id: "fe-batt", on: hasBatt && (charging || discharging), color: "#18a673", d: discharging ? "M85,226 H165 V173" : "M165,173 V226 H85" },
   ];
 
   return (
@@ -90,7 +92,7 @@ export function FlowDiagram({ latest }: { latest: Latest }) {
 
       <Node x={15.3} y={21.3} color="#f5a623" icon={<IconSun />} value={fmtPower(latest.genPower)} label="แผงโซลาร์" />
       <Node x={84.7} y={21.3} color="#8b5cf6" icon={<IconGrid />} value={fmtPower(latest.gridPower)} label={gridOff ? "ไฟดับ" : buying ? "ซื้อไฟ" : "ไฟย้อน"} badge={gridOff ? "ออฟกริด" : "เชื่อมต่อ"} badgeWarn={gridOff} />
-      <Node x={15.3} y={75.3} color="#18a673" icon={<BatteryGlyph soc={soc} />} value={`${soc}%`} valueColor={battCol} label={discharging ? "กำลังจ่าย" : charging ? "กำลังชาร์จ" : "แบตเตอรี่"} />
+      {hasBatt && <Node x={15.3} y={75.3} color="#18a673" icon={<BatteryGlyph soc={soc} />} value={`${soc}%`} valueColor={battCol} label={discharging ? "กำลังจ่าย" : charging ? "กำลังชาร์จ" : "แบตเตอรี่"} />}
       <Node x={84.7} y={75.3} color="#0d4add" icon={<IconHouse />} value={fmtPower(latest.usePower)} label="บ้าน" />
 
       {/* centre inverter */}

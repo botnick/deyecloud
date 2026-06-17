@@ -13,6 +13,7 @@ import { DevPanel } from "./components/DevPanel";
 import { PullToRefresh } from "./components/PullToRefresh";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { scenarioByKey } from "./lib/scenarios";
+import { useSmartPoll } from "./lib/usePoll";
 import { timeStr } from "./lib/format";
 import { APP_NAME, REPO_URL } from "./lib/brand";
 
@@ -155,17 +156,12 @@ export default function App() {
     if (authed !== true) return;
     getStation().then(setStation).catch(() => {});
     refresh(true);
-    const onVis = () => { if (!document.hidden) refresh(false); };
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
   }, [authed, refresh]);
 
-  // Poll on an interval; retry faster while offline so it recovers promptly.
-  useEffect(() => {
-    if (authed !== true) return;
-    const id = setInterval(() => refresh(false), offline ? 20000 : 60000);
-    return () => clearInterval(id);
-  }, [authed, offline, refresh]);
+  // Smart poll: refresh every 60s while visible (20s while offline so it recovers
+  // promptly), pause when the tab is hidden, and refresh instantly on return —
+  // realtime feel without burning the free-tier quota in the background.
+  useSmartPoll(() => refresh(false), offline ? 20000 : 60000, authed === true);
 
   // Discover stations; resolve the active selection (persisted, else first).
   useEffect(() => {

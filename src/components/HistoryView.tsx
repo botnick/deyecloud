@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { getHistory } from "../lib/api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getHistory, type HistTotals } from "../lib/api";
+import { useSmartPoll } from "../lib/usePoll";
 import { cardSm, plate, h2First, h2Mid } from "../lib/ui";
 import { IconChevron } from "../lib/icons";
 import { BarChart, Legend } from "./Chart";
@@ -20,38 +21,41 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   const [range, setRange] = useState<Range>("day");
   const [ref, setRef] = useState(() => new Date());
   const [points, setPoints] = useState<any[] | null>(null);
+  const [totals, setTotals] = useState<HistTotals | null>(null);
+
+  // Monotonic request id — a slow older fetch (after a fast range/station switch or
+  // a tab wake) is ignored so it can't overwrite the current period's state.
+  const reqRef = useRef(0);
+  const load = useCallback((clearOnError: boolean) => {
+    const id = ++reqRef.current;
+    getHistory(range, isoLocal(ref), stationId)
+      .then((r) => { if (id === reqRef.current) { setPoints(r.points || []); setTotals(r.totals ?? null); } })
+      .catch(() => { if (id === reqRef.current && clearOnError) setPoints([]); });
+  }, [range, ref, stationId]);
 
   useEffect(() => {
     if (!active) return;
-    let alive = true;
-    setPoints(null);
-    getHistory(range, isoLocal(ref), stationId).then((r) => { if (alive) setPoints(r.points || []); }).catch(() => { if (alive) setPoints([]); });
-    return () => { alive = false; };
-  }, [range, ref, active, stationId]);
+    setPoints(null); setTotals(null);
+    load(true);
+  }, [active, load]);
 
   // Auto-refresh the CURRENT period every 60s (เสมือน realtime) — past periods are
-  // immutable so we skip them. Server cache makes this cheap.
-  useEffect(() => {
-    if (!active) return;
-    const now = new Date();
-    const cur = range === "day" ? isoLocal(ref) === isoLocal(now)
-      : range === "month" ? (ref.getFullYear() === now.getFullYear() && ref.getMonth() === now.getMonth())
-        : ref.getFullYear() === now.getFullYear();
-    if (!cur) return;
-    const id = setInterval(() => {
-      getHistory(range, isoLocal(ref), stationId).then((r) => setPoints(r.points || [])).catch(() => {});
-    }, 60000);
-    return () => clearInterval(id);
-  }, [active, range, ref, stationId]);
+  // immutable so we skip them; the poll also pauses while the tab is hidden.
+  const nowD = new Date();
+  const isCurrent = range === "day" ? isoLocal(ref) === isoLocal(nowD)
+    : range === "month" ? (ref.getFullYear() === nowD.getFullYear() && ref.getMonth() === nowD.getMonth())
+      : ref.getFullYear() === nowD.getFullYear();
+  useSmartPoll(() => load(false), 60000, active && isCurrent);
 
   // Clear points on tab change so we never render the previous range's data
   // shape against the new range (e.g. day frames have no .day/.month → crash).
   const changeRange = (r: Range) => { setRange(r); setRef(new Date()); setPoints(null); };
+  // Anchor to day 1 before month/year math so the 31st never skips a short month.
   const shift = (dir: number) => setRef((d) => {
     const n = new Date(d);
     if (range === "day") n.setDate(n.getDate() + dir);
-    else if (range === "month") n.setMonth(n.getMonth() + dir);
-    else n.setFullYear(n.getFullYear() + dir);
+    else if (range === "month") { n.setDate(1); n.setMonth(n.getMonth() + dir); }
+    else { n.setDate(1); n.setFullYear(n.getFullYear() + dir); }
     return n;
   });
 
@@ -66,6 +70,10 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
 
   const energy = range !== "day";
   const tot = energy && points ? points.reduce((a, p) => ({ gen: a.gen + (p.gen || 0), use: a.use + (p.use || 0) }), { gen: 0, use: 0 }) : null;
+  const insights = useMemo(
+    () => (points && points.length ? analyzeHistory(range, points, capacity, totals) : []),
+    [range, points, capacity, totals],
+  );
 
   return (
     <>
@@ -119,10 +127,10 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
         </div>
       )}
 
-      {points && points.length > 0 && analyzeHistory(range, points, capacity).length > 0 && (
+      {insights.length > 0 && (
         <>
           <h2 className={h2Mid}>วิเคราะห์</h2>
-          <InsightList items={analyzeHistory(range, points, capacity)} />
+          <InsightList items={insights} />
         </>
       )}
     </>
