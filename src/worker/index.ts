@@ -290,7 +290,13 @@ app.get("/api/_dev", async (c) => {
 app.onError((err, c) => c.json({ error: String(err && (err as any).message ? (err as any).message : err) }, 500));
 
 // SPA fallback (most non-API requests are served by the assets layer first).
-app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw));
+// Tag everything noindex so a private friend-install never shows up in search.
+app.all("*", async (c) => {
+  const r = await c.env.ASSETS.fetch(c.req.raw);
+  const res = new Response(r.body, r);
+  res.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return res;
+});
 
 export default {
   fetch: app.fetch,

@@ -18,7 +18,7 @@ export default defineConfig({
     cloudflare(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icon.svg"],
+      includeAssets: ["icon.svg", "apple-touch-icon.png", "favicon-32.png", "favicon-16.png", "robots.txt"],
       manifest: {
         name: "โซลาร์มอนิเตอร์",
         short_name: "โซลาร์",
@@ -30,7 +30,12 @@ export default defineConfig({
         orientation: "portrait",
         background_color: "#f5f5f6",
         theme_color: "#f5f5f6",
-        icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }],
+        icons: [
+          { src: "/pwa-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "/pwa-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+          { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+        ],
       },
       workbox: {
         // Precache everything needed to render fully offline — including the bundled
