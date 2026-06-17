@@ -1,0 +1,36 @@
+{
+  "name": "deye-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PWA realtime solar monitor for Deye Cloud — Vite + React + Cloudflare Workers + D1",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "deploy": "npm run build && wrangler deploy",
+    "db:create": "wrangler d1 create deye-monitor",
+    "db:init": "wrangler d1 execute deye-monitor --remote --file=./schema.sql",
+    "tail": "wrangler tail"
+  },
+  "dependencies": {
+    "@meteocons/svg": "^0.1.0",
+    "hono": "^4.12.25",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.0.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "puppeteer-core": "^25.1.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "vite-plugin-pwa": "^0.21.0",
+    "wrangler": "^4.0.0"
+  }
+}
