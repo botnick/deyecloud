@@ -4,6 +4,7 @@ import { condText, isNightNow } from "../lib/weather";
 import { IconChevron, IconCheck, IconAlert } from "../lib/icons";
 import { WxIcon } from "../lib/wxicon";
 import { card, cardP, h2Mid } from "../lib/ui";
+import { ELECTRICITY_RATE } from "../lib/config";
 import { FlowDiagram } from "./FlowDiagram";
 import { ProductionRing } from "./ProductionRing";
 
@@ -21,7 +22,7 @@ export function HomeView({ latest, weather, capacity, onWeather, onDevice }: { l
   const ok = (latest.warningStatus || "NORMAL") === "NORMAL";
   const potential = capacity ? capacity * 4.5 : 0; // ~peak-sun-hours in Thailand
   const prodPct = potential > 0 ? Math.round(Math.min(100, (latest.genToday / potential) * 100)) : Math.min(100, Math.round(latest.genToday));
-  const savings = Math.max(0, Math.round((latest.useToday - latest.buyToday) * 4.4)); // self-consumed kWh × tariff
+  const savings = Math.max(0, Math.round((latest.useToday - latest.buyToday) * ELECTRICITY_RATE)); // self-consumed kWh × tariff
 
   return (
     <>
