@@ -44,6 +44,3 @@ export const NavWeather = (p: P) => (
 export const NavHistory = (p: P) => (
   <svg viewBox="0 0 24 24" className={p.className} {...s} strokeWidth={2}><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
 );
-export const NavDevice = (p: P) => (
-  <svg viewBox="0 0 24 24" className={p.className} {...s} strokeWidth={2}><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h3" /></svg>
-);
