@@ -11,6 +11,7 @@ import { HistoryView } from "./components/HistoryView";
 import { DeviceView } from "./components/DeviceView";
 import { DevPanel } from "./components/DevPanel";
 import { PullToRefresh } from "./components/PullToRefresh";
+import { InstallPrompt } from "./components/InstallPrompt";
 import { scenarioByKey } from "./lib/scenarios";
 import { timeStr } from "./lib/format";
 import { APP_NAME, REPO_URL } from "./lib/brand";
@@ -203,6 +204,7 @@ export default function App() {
       </div>
       </PullToRefresh>
       <BottomNav view={view === "device" ? "home" : view} onGo={go} />
+      {!devMode && <InstallPrompt />}
       {devMode && <DevPanel current={sim} onPick={setSim} />}
     </>
   );
