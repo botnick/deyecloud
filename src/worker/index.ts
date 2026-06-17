@@ -56,7 +56,13 @@ async function pollAndStore(env: Env) {
 async function getWeather(env: Env): Promise<any> {
   const row = await env.DB.prepare("SELECT v FROM meta WHERE k='weather_cache2'").first();
   if (row) {
-    try { const c = JSON.parse((row as any).v); if (Date.now() - c._at < 30 * 60 * 1000 && c.data && (c.data.error || (c.data.sun && c.data.sun.arc))) return c.data; } catch {}
+    try {
+      const c = JSON.parse((row as any).v);
+      // Full 30 min for the real TMD source; only 5 min when we fell back to
+      // Open-Meteo (or errored) so it retries TMD soon after a token is added.
+      const ttl = c.data && c.data.source === "tmd" ? 30 * 60 * 1000 : 5 * 60 * 1000;
+      if (Date.now() - c._at < ttl && c.data && (c.data.error || (c.data.sun && c.data.sun.arc))) return c.data;
+    } catch {}
   }
   // Coords come from the Deye station (cached); WEATHER_LAT/LON are an optional fallback.
   const meta = await getStationMeta(env).catch(() => null);

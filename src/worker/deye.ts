@@ -114,19 +114,21 @@ export interface Station { id: number; name: string; capacity?: number; lat?: nu
 // Discover stations the account can see — nothing is hardcoded.
 export async function listStations(env: Env): Promise<Station[]> {
   const d = await apiPost(env, "/station/list", { page: 1, size: 10 });
-  // Coords come straight from Deye (locationLat/Lng) so weather/sun need no manual config.
+  // Coords come straight from Deye so weather/sun need no manual config — accept
+  // whichever field name the region returns.
   return (d.stationList || d.list || []).map((s: any) => ({
     id: s.id || s.stationId, name: s.name, capacity: s.installedCapacity,
-    lat: s.locationLat, lng: s.locationLng,
+    lat: s.locationLat ?? s.lat ?? s.latitude, lng: s.locationLng ?? s.lng ?? s.lon ?? s.longitude,
   }));
 }
 
 export async function getStationMeta(env: Env): Promise<Station> {
-  const cached = await metaGet(env, "station_meta");
+  // v2 key — drops any older cache that was stored before coords were mapped.
+  const cached = await metaGet(env, "station_meta2");
   if (cached) { try { return JSON.parse(cached); } catch {} }
   const list = await listStations(env);
   const picked = (env.DEYE_STATION_ID ? list.find((x) => String(x.id) === String(env.DEYE_STATION_ID)) : null) || list[0] || ({} as Station);
-  await metaSet(env, "station_meta", JSON.stringify(picked));
+  await metaSet(env, "station_meta2", JSON.stringify(picked));
   return picked;
 }
 
