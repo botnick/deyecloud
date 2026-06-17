@@ -21,7 +21,6 @@
     "DEYE_BASE_URL": "https://eu1-developer.deyecloud.com/v1.0",
     "DEYE_APP_ID": "YOUR_DEYE_APP_ID",
     "DEYE_EMAIL": "your-email@example.com",
-    "DEYE_INTERNAL_BASE": "https://eu1.deyecloud.com",
     "WEATHER_LAT": "13.7",
     "WEATHER_LON": "100.5",
     "TMD_BASE": "https://data.tmd.go.th/nwpapi/v1/forecast/location"

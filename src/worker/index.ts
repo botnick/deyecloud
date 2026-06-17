@@ -2,7 +2,7 @@
 // D1, realtime polling on a cron schedule. The SPA is served via the ASSETS
 // binding (configured by @cloudflare/vite-plugin).
 import { Hono } from "hono";
-import { getLatest, getHistory, internalGet, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, type Env } from "./deye";
+import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, type Env } from "./deye";
 import { sunInfo } from "./sun";
 
 // --- Auto-migrate: tables build themselves on first use (no setup step) --
@@ -265,15 +265,6 @@ app.get("/api/history", async (c) => {
   }
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
   return c.json(data);
-});
-
-// Generic allow-listed proxy (used only if a session token is configured).
-app.get("/api/deye", async (c) => {
-  const env = c.env;
-  if (!env.DEYE_SESSION_TOKEN) return c.json({ error: "no session token" }, 503);
-  const p = c.req.query("p") || "";
-  if (!/^\/(maintain-s|operating-s|weather-s|dmm-s|message-s|user-s|power-s)\//.test(p)) return c.json({ error: "path not allowed" }, 400);
-  return c.json(await internalGet(env, p));
 });
 
 app.get("/api/_debug", async (c) => c.json(await getLatest(c.env)));
