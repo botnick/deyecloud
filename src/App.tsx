@@ -59,7 +59,13 @@ export default function App() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [view, setViewState] = useState<View>(viewFromPath());
   const [devMode] = useState(() => {
-    try { const q = new URLSearchParams(location.search); if (q.has("dev") || q.has("sim")) localStorage.setItem("deye_dev", "1"); return localStorage.getItem("deye_dev") === "1"; } catch { return false; }
+    try {
+      const q = new URLSearchParams(location.search);
+      // ?dev=0 / ?nodev → leave test mode (escape hatch for phones with no devtools).
+      if (q.get("dev") === "0" || q.has("nodev")) { localStorage.removeItem("deye_dev"); return false; }
+      if (q.has("dev") || q.has("sim")) localStorage.setItem("deye_dev", "1");
+      return localStorage.getItem("deye_dev") === "1";
+    } catch { return false; }
   });
   const [sim, setSim] = useState<string | null>(() => {
     try { return new URLSearchParams(location.search).get("sim"); } catch { return null; }
