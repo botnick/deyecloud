@@ -2094,12 +2094,12 @@ async function listStations(env) {
     id: s.id || s.stationId,
     name: s.name,
     capacity: s.installedCapacity,
-    lat: s.locationLat,
-    lng: s.locationLng
+    lat: s.locationLat ?? s.lat ?? s.latitude,
+    lng: s.locationLng ?? s.lng ?? s.lon ?? s.longitude
   }));
 }
 async function getStationMeta(env) {
-  const cached = await metaGet(env, "station_meta");
+  const cached = await metaGet(env, "station_meta2");
   if (cached) {
     try {
       return JSON.parse(cached);
@@ -2108,7 +2108,7 @@ async function getStationMeta(env) {
   }
   const list = await listStations(env);
   const picked = (env.DEYE_STATION_ID ? list.find((x) => String(x.id) === String(env.DEYE_STATION_ID)) : null) || list[0] || {};
-  await metaSet(env, "station_meta", JSON.stringify(picked));
+  await metaSet(env, "station_meta2", JSON.stringify(picked));
   return picked;
 }
 async function getLatest(env, stationId) {
@@ -2277,19 +2277,43 @@ async function pollAndStore(env) {
   ).bind(day, l.genToday, l.useToday, l.buyToday, l.sellToday, l.chargeToday, l.dischargeToday).run();
   return l;
 }
+async function geoPlace(env, lat, lng) {
+  const k = `geoplace2_${Number(lat).toFixed(2)}_${Number(lng).toFixed(2)}`;
+  const row = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(k).first();
+  if (row && row.v) return row.v;
+  const strip = (s) => String(s || "").replace(/^(จังหวัด|อำเภอ|เขต|ตำบล)\s?/, "").trim();
+  const join = (arr) => arr.map(strip).filter((v, i, a) => v && a.indexOf(v) === i).join(" · ");
+  let place = "";
+  try {
+    const j = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=jsonv2&addressdetails=1&accept-language=th&layer=address`,
+      { headers: { "User-Agent": "deyecloud-solar-pwa/1.0 (opor.artit@gmail.com)", "Accept-Language": "th" } }
+    ).then((r) => r.ok ? r.json() : null);
+    const a = j && j.address || {};
+    const locality = a.city || a.town || a.municipality || a.village || a.suburb || a.neighbourhood;
+    const district = a.city_district || a.county || a.district;
+    const province = a.state || a.province;
+    place = join([locality, district, province]);
+  } catch {
+  }
+  if (place) await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(k, place).run();
+  return place;
+}
 async function getWeather(env) {
-  const row = await env.DB.prepare("SELECT v FROM meta WHERE k='weather_cache2'").first();
+  const row = await env.DB.prepare("SELECT v FROM meta WHERE k='weather_cache3'").first();
   if (row) {
     try {
       const c = JSON.parse(row.v);
-      if (Date.now() - c._at < 30 * 60 * 1e3 && c.data && (c.data.error || c.data.sun && c.data.sun.arc)) return c.data;
+      const ttl = c.data && c.data.source === "tmd" ? 30 * 60 * 1e3 : 5 * 60 * 1e3;
+      if (Date.now() - c._at < ttl && c.data && (c.data.error || c.data.sun && c.data.sun.arc)) return c.data;
     } catch {
     }
   }
   const meta = await getStationMeta(env).catch(() => null);
   const lat = String(meta && meta.lat != null ? meta.lat : env.WEATHER_LAT || 13.7);
   const lng = String(meta && meta.lng != null ? meta.lng : env.WEATHER_LON || 100.5);
-  const place = env.WEATHER_PLACE || "";
+  const co = (v, p, n2) => `${Math.abs(Number(v)).toFixed(1)}°${Number(v) >= 0 ? p : n2}`;
+  const place = env.WEATHER_PLACE || await geoPlace(env, lat, lng).catch(() => "") || `${co(lat, "N", "S")} ${co(lng, "E", "W")}`;
   let data = await fetchTMD(env, lat, lng, place).catch(() => null);
   if (!data || data.temp == null) {
     const fb = await fetchOpenMeteo(env, lat, lng, place).catch(() => null);
@@ -2298,7 +2322,7 @@ async function getWeather(env) {
   if (!data) data = { error: "weather unavailable" };
   if (data && data.temp != null && data.uv == null) data.uv = await fetchUV(lat, lng).catch(() => null);
   if (data && data.temp != null) data.sun = sunInfo(Number(lat), Number(lng));
-  await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('weather_cache2',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();
+  await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('weather_cache3',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();
   return data;
 }
 async function fetchTMD(env, lat, lng, place) {
@@ -2535,7 +2559,12 @@ app.get("/api/_dev", async (c) => {
   return c.json({ inverter: inv, measurePointsSample: mp });
 });
 app.onError((err, c) => c.json({ error: String(err && err.message ? err.message : err) }, 500));
-app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw));
+app.all("*", async (c) => {
+  const r = await c.env.ASSETS.fetch(c.req.raw);
+  const res = new Response(r.body, r);
+  res.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return res;
+});
 const index = {
   fetch: app.fetch,
   async scheduled(_event, env, ctx) {

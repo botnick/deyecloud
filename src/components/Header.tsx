@@ -5,11 +5,12 @@ import { haptic } from "../lib/haptics";
 import { StationSwitcher } from "./StationSwitcher";
 import type { Station } from "../lib/api";
 
-export function Header({ stationName, stations, selectedId, onSwitch, onRefresh, spinning }: {
-  stationName?: string; stations?: Station[]; selectedId?: number | null; onSwitch?: (id: number) => void; onRefresh: () => void; spinning: boolean;
+export function Header({ stationName, stations, selectedId, onSwitch, onRefresh, spinning, cooldown = 0 }: {
+  stationName?: string; stations?: Station[]; selectedId?: number | null; onSwitch?: (id: number) => void; onRefresh: () => void; spinning: boolean; cooldown?: number;
 }) {
   const [open, setOpen] = useState(false);
   const multi = !!(stations && stations.length > 1);
+  const cooling = cooldown > 0;
   return (
     <header className="bg-[#fffdf6f5] border-b border-black/[0.05] sticky top-0 z-20 flex items-center justify-between px-[18px] pt-[calc(20px+env(safe-area-inset-top))] pb-4">
       <div className="min-w-0">
@@ -28,11 +29,14 @@ export function Header({ stationName, stations, selectedId, onSwitch, onRefresh,
         )}
       </div>
       <button
-        onClick={() => { haptic(); onRefresh(); }}
-        aria-label="รีเฟรช"
-        className="w-14 h-14 rounded-[20px] bg-use-soft grid place-items-center text-secondary active:scale-95 shrink-0 ml-3"
+        onClick={() => { if (cooling) return; haptic(); onRefresh(); }}
+        disabled={cooling}
+        aria-label={cooling ? `รีเฟรชได้ในอีก ${cooldown} วินาที` : "รีเฟรช"}
+        className={`w-14 h-14 rounded-[20px] grid place-items-center shrink-0 ml-3 transition-colors ${cooling ? "bg-line text-muted" : "bg-use-soft text-secondary active:scale-95"}`}
       >
-        <IconRefresh className={`w-6 h-6 ${spinning ? "animate-spin" : ""}`} />
+        {cooling
+          ? <span className="text-[16px] font-extrabold tabnum">{cooldown}</span>
+          : <IconRefresh className={`w-6 h-6 ${spinning ? "animate-spin" : ""}`} />}
       </button>
       {open && multi && (
         <StationSwitcher

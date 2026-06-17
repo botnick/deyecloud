@@ -11,7 +11,7 @@ function TempChip({ label, t }: { label: string; t: number }) {
   const c = tcol(t);
   const pct = Math.max(6, Math.min(100, (t / 80) * 100)); // 0–80°C scale
   return (
-    <div className="bg-canvas rounded-2xl px-4 py-3.5">
+    <div className={`${card} px-4 py-3.5`}>
       <div className="flex items-center gap-2 text-[13px] text-body">
         <span className="grid place-items-center w-6 h-6 rounded-lg shrink-0" style={{ background: `${c}22`, color: c }}>
           <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 14.76V5a2 2 0 0 0-4 0v9.76a4 4 0 1 0 4 0z" /></svg>

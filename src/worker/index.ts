@@ -53,7 +53,7 @@ async function pollAndStore(env: Env) {
 }
 
 // Reverse-geocode the station coords to a readable Thai place (e.g. "เมืองพัทยา · ชลบุรี").
-// Cached in D1 — the station never moves. Free, no key (BigDataCloud).
+// Cached in D1 — the station never moves. Free, no key (Nominatim/OpenStreetMap).
 async function geoPlace(env: Env, lat: string, lng: string): Promise<string> {
   const k = `geoplace2_${Number(lat).toFixed(2)}_${Number(lng).toFixed(2)}`;
   const row = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(k).first();
@@ -61,7 +61,7 @@ async function geoPlace(env: Env, lat: string, lng: string): Promise<string> {
   const strip = (s: any) => String(s || "").replace(/^(จังหวัด|อำเภอ|เขต|ตำบล)\s?/, "").trim();
   const join = (arr: any[]) => arr.map(strip).filter((v: string, i: number, a: string[]) => v && a.indexOf(v) === i).join(" · ");
   let place = "";
-  // 1) Nominatim — rich Thai admin names (ตำบล · อำเภอ · จังหวัด). Needs a real UA per their policy.
+  // Nominatim / OpenStreetMap only (no other provider). Needs a real UA per their policy.
   try {
     const j: any = await fetch(
       `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=jsonv2&addressdetails=1&accept-language=th&layer=address`,
@@ -73,18 +73,6 @@ async function geoPlace(env: Env, lat: string, lng: string): Promise<string> {
     const province = a.state || a.province;
     place = join([locality, district, province]);
   } catch {}
-  // 2) BigDataCloud — edge-safe fallback if Nominatim is unavailable/rate-limited.
-  if (!place) {
-    try {
-      const j: any = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=th`).then((r) => r.json());
-      const admins: string[] = (j.localityInfo && j.localityInfo.administrative ? j.localityInfo.administrative : []).map((a: any) => String(a.name || "")).filter(Boolean);
-      const find = (re: RegExp) => admins.find((n) => re.test(n));
-      const prov = j.principalSubdivision || find(/^จังหวัด/);
-      const amphoe = find(/^อำเภอ|^เขต/);
-      const tambon = find(/^ตำบล|^แขวง/) || find(/^เมือง/) || j.locality || j.city;
-      place = join([tambon, amphoe, prov]);
-    } catch {}
-  }
   if (place) await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(k, place).run();
   return place;
 }
