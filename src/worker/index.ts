@@ -2,21 +2,49 @@
 // D1, realtime polling on a cron schedule. The SPA is served via the ASSETS
 // binding (configured by @cloudflare/vite-plugin).
 import { Hono } from "hono";
-import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, type Env } from "./deye";
+import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, bkkDay, type Env } from "./deye";
 import { sunInfo } from "./sun";
 
 // --- Auto-migrate: tables build themselves on first use (no setup step) --
+// ts/day are INTEGER/TEXT PRIMARY KEYs (covering range scans) → no secondary
+// index needed; samples/daily are kept forever, device_samples on a 90-day window.
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`,
-  `CREATE TABLE IF NOT EXISTS samples (ts INTEGER PRIMARY KEY, gen_power REAL, use_power REAL, grid_power REAL, batt_power REAL, soc REAL, gen_today REAL, use_today REAL)`,
-  `CREATE TABLE IF NOT EXISTS daily (day TEXT PRIMARY KEY, gen REAL, use REAL, buy REAL, sell REAL, charge REAL, discharge REAL)`,
-  // ts เป็น INTEGER PRIMARY KEY (rowid alias) อยู่แล้ว → ไม่ต้องมี index แยก. ลบของเก่าทิ้งให้เขียนเร็วขึ้น
+  `CREATE TABLE IF NOT EXISTS samples (ts INTEGER PRIMARY KEY, gen_power REAL, use_power REAL, grid_power REAL, batt_power REAL, soc REAL, gen_today REAL, use_today REAL, buy_today REAL, sell_today REAL, charge_today REAL, discharge_today REAL, gen_total REAL)`,
+  `CREATE TABLE IF NOT EXISTS daily (day TEXT PRIMARY KEY, gen REAL, use REAL, buy REAL, sell REAL, charge REAL, discharge REAL, peak_power REAL, peak_ts INTEGER)`,
+  `CREATE TABLE IF NOT EXISTS device_samples (sn TEXT, ts INTEGER, data TEXT, PRIMARY KEY (sn, ts))`,
   `DROP INDEX IF EXISTS idx_samples_ts`,
 ];
+// Widen tables created before the long-term redesign (idempotent — a duplicate
+// column just throws and is ignored, so first-run-with-new-SCHEMA is a no-op too).
+const MIGRATE = [
+  `ALTER TABLE samples ADD COLUMN buy_today REAL`,
+  `ALTER TABLE samples ADD COLUMN sell_today REAL`,
+  `ALTER TABLE samples ADD COLUMN charge_today REAL`,
+  `ALTER TABLE samples ADD COLUMN discharge_today REAL`,
+  `ALTER TABLE samples ADD COLUMN gen_total REAL`,
+  `ALTER TABLE daily ADD COLUMN peak_power REAL`,
+  `ALTER TABLE daily ADD COLUMN peak_ts INTEGER`,
+];
+const SCHEMA_V = 2;
 let schemaReady = false;
 async function ensureSchema(env: Env) {
   if (schemaReady) return;
-  for (const stmt of SCHEMA) await env.DB.prepare(stmt).run();
+  // meta must exist to hold the version flag; everything else runs only until the
+  // DB is migrated, so a warm-DB cold start costs just two cheap queries (not the
+  // full CREATE/ALTER set + 7 failing ALTERs every isolate spawn).
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`).run();
+  const v = await env.DB.prepare("SELECT v FROM meta WHERE k='schema_v'").first();
+  if (!v || Number((v as any).v) < SCHEMA_V) {
+    for (const stmt of SCHEMA) await env.DB.prepare(stmt).run();
+    // Swallow only "duplicate column" (already migrated); rethrow anything else so
+    // a transient D1 error can't mark the migration done with columns missing.
+    for (const stmt of MIGRATE) {
+      try { await env.DB.prepare(stmt).run(); }
+      catch (e) { if (!/duplicate column/i.test(String((e as any)?.message || e))) throw e; }
+    }
+    await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('schema_v',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(SCHEMA_V)).run();
+  }
   schemaReady = true;
 }
 
@@ -39,28 +67,66 @@ async function isAuthed(req: Request, env: Env): Promise<boolean> {
 async function pollAndStore(env: Env) {
   const l = await getLatest(env);
   const ts = Math.floor(Date.now() / 60000) * 60;
-  const day = new Date().toISOString().slice(0, 10);
+  const day = bkkDay();
   // One transactional D1 batch = one round trip (sample + daily, + prune once/day).
   const stmts = [
     env.DB.prepare(
-      `INSERT INTO samples (ts, gen_power, use_power, grid_power, batt_power, soc, gen_today, use_today) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO samples (ts, gen_power, use_power, grid_power, batt_power, soc, gen_today, use_today, buy_today, sell_today, charge_today, discharge_today, gen_total)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(ts) DO UPDATE SET gen_power=excluded.gen_power, use_power=excluded.use_power, grid_power=excluded.grid_power,
-         batt_power=excluded.batt_power, soc=excluded.soc, gen_today=excluded.gen_today, use_today=excluded.use_today`
-    ).bind(ts, l.genPower, l.usePower, l.gridPower, l.battPower, l.soc, l.genToday, l.useToday),
+         batt_power=excluded.batt_power, soc=excluded.soc, gen_today=excluded.gen_today, use_today=excluded.use_today,
+         buy_today=excluded.buy_today, sell_today=excluded.sell_today, charge_today=excluded.charge_today,
+         discharge_today=excluded.discharge_today, gen_total=excluded.gen_total`
+    ).bind(ts, l.genPower, l.usePower, l.gridPower, l.battPower, l.soc, l.genToday, l.useToday, l.buyToday, l.sellToday, l.chargeToday, l.dischargeToday, l.genTotal),
     env.DB.prepare(
-      `INSERT INTO daily (day, gen, use, buy, sell, charge, discharge) VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(day) DO UPDATE SET gen=excluded.gen, use=excluded.use, buy=excluded.buy, sell=excluded.sell, charge=excluded.charge, discharge=excluded.discharge`
-    ).bind(day, l.genToday, l.useToday, l.buyToday, l.sellToday, l.chargeToday, l.dischargeToday),
+      // peak_power/peak_ts track the day's highest PV power (COALESCE handles the
+      // pre-migration NULL on a row's first update of the day).
+      `INSERT INTO daily (day, gen, use, buy, sell, charge, discharge, peak_power, peak_ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(day) DO UPDATE SET gen=excluded.gen, use=excluded.use, buy=excluded.buy, sell=excluded.sell, charge=excluded.charge, discharge=excluded.discharge,
+         peak_power=CASE WHEN excluded.peak_power > COALESCE(daily.peak_power, -1) THEN excluded.peak_power ELSE daily.peak_power END,
+         peak_ts=CASE WHEN excluded.peak_power > COALESCE(daily.peak_power, -1) THEN excluded.peak_ts ELSE daily.peak_ts END`
+    ).bind(day, l.genToday, l.useToday, l.buyToday, l.sellToday, l.chargeToday, l.dischargeToday, l.genPower, ts),
   ];
-  // Prune 5-min frames older than ~35 days, but only once per day (writes are
-  // cheap but unnecessary every 5 min). daily rollups are kept forever.
+  // Prune the bulky telemetry past ~90 days, once per day. samples + daily are
+  // kept forever (small + the basis of all long-term analysis).
   const lp = await env.DB.prepare("SELECT v FROM meta WHERE k='last_prune'").first();
   if (!lp || (lp as any).v !== day) {
-    stmts.push(env.DB.prepare("DELETE FROM samples WHERE ts < ?").bind(ts - 35 * 86400));
+    stmts.push(env.DB.prepare("DELETE FROM device_samples WHERE ts < ?").bind(ts - 90 * 86400));
     stmts.push(env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_prune',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(day));
   }
   await env.DB.batch(stmts);
+
+  // Full inverter telemetry — heavy JSON, captured ~every 15 min. Gate on elapsed
+  // time since the last successful capture (not the wall-clock minute) so a cron
+  // that consistently fires at :05/:20/:35/:50 still captures, and a failed attempt
+  // retries next poll. Best-effort: a device/Deye hiccup never breaks the core poll.
+  const lt = await env.DB.prepare("SELECT v FROM meta WHERE k='last_telemetry'").first();
+  if (!lt || ts - Number((lt as any).v || 0) >= 14 * 60) {
+    await captureTelemetry(env, ts).catch((e) => console.error("telemetry capture failed", e));
+  }
   return l;
+}
+
+// Pull EVERY inverter's full measure-point list (one /device/latest call) and store
+// each as its own JSON row — works for single- or multi-inverter sites, any model.
+async function captureTelemetry(env: Env, ts: number) {
+  const devs = await listDevices(env);
+  const invs = devs.filter((x: any) => /INVERTER|HYBRID|STORAGE/i.test(x.deviceType || ""));
+  const sns = (invs.length ? invs : devs.filter((x: any) => x.deviceType !== "COLLECTOR"))
+    .map((x: any) => String(x.deviceSn || x.sn || "")).filter(Boolean);
+  if (!sns.length) return;
+  const res = await deviceLatest(env, sns);
+  const list = res.deviceDataList || [];
+  const st = env.DB.prepare("INSERT INTO device_samples (sn, ts, data) VALUES (?, ?, ?) ON CONFLICT(sn, ts) DO UPDATE SET data=excluded.data");
+  const rows = [];
+  for (let i = 0; i < list.length; i++) {
+    const d = list[i];
+    if (!d || !d.dataList || !d.dataList.length) continue;
+    rows.push(st.bind(String(d.deviceSn || d.sn || sns[i] || sns[0]), ts, JSON.stringify(d.dataList)));
+  }
+  if (!rows.length) return;
+  rows.push(env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_telemetry',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(ts)));
+  await env.DB.batch(rows);
 }
 
 // Reverse-geocode the station coords to a readable Thai place (e.g. "เมืองพัทยา · ชลบุรี").
@@ -246,24 +312,25 @@ app.get("/api/device", async (c) => {
 // History pulled LIVE from the Deye station/history API (frame curve for the day,
 // daily totals for the month, monthly totals for the year) so charts have real
 // data immediately — no waiting for the cron to accumulate. D1 is the fallback.
-async function histFromD1(env: Env, range: string) {
+async function histFromD1(env: Env, range: string, dateStr: string) {
+  // half-open range queries (day TEXT 'YYYY-MM-DD' เรียงตามตัวอักษร = ตามเวลา) ใช้ PK index ได้ ต่างจาก LIKE
+  const ref = new Date(dateStr + "T00:00:00Z");
+  const y = ref.getUTCFullYear(), mo = ref.getUTCMonth() + 1;
   if (range === "day") {
-    const start = Math.floor(new Date().setHours(0, 0, 0, 0) / 1000);
-    const { results } = await env.DB.prepare("SELECT ts, gen_power, use_power, grid_power, batt_power, soc FROM samples WHERE ts>=? ORDER BY ts").bind(start).all();
+    // bounds = the requested day in Thailand time (UTC+7) → unix seconds
+    const start = Math.floor(new Date(dateStr + "T00:00:00+07:00").getTime() / 1000);
+    const { results } = await env.DB.prepare("SELECT ts, gen_power, use_power, grid_power, batt_power, soc FROM samples WHERE ts>=? AND ts<? ORDER BY ts").bind(start, start + 86400).all();
     return { range, points: results, source: "d1" };
   }
-  // half-open range queries (day TEXT 'YYYY-MM-DD' เรียงตามตัวอักษร = ตามเวลา) ใช้ PK index ได้ ต่างจาก LIKE
-  const now = new Date();
   if (range === "month") {
-    const ym = now.toISOString().slice(0, 7);
-    const nextM = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString().slice(0, 7);
+    const ym = `${y}-${String(mo).padStart(2, "0")}`;
+    const nextM = new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 7);
     const { results } = await env.DB.prepare("SELECT day, gen, use, buy, sell FROM daily WHERE day >= ? AND day < ? ORDER BY day").bind(ym + "-01", nextM + "-01").all();
     return { range, points: results, source: "d1" };
   }
-  const yN = now.getUTCFullYear();
   const { results } = await env.DB.prepare(
     `SELECT substr(day,1,7) AS month, SUM(gen) gen, SUM(use) use, SUM(buy) buy, SUM(sell) sell FROM daily WHERE day >= ? AND day < ? GROUP BY month ORDER BY month`
-  ).bind(`${yN}-01-01`, `${yN + 1}-01-01`).all();
+  ).bind(`${y}-01-01`, `${y + 1}-01-01`).all();
   return { range, points: results, source: "d1" };
 }
 
@@ -273,15 +340,17 @@ app.get("/api/history", async (c) => {
   if (!["day", "month", "year"].includes(range)) return c.json({ error: "bad range" }, 400);
 
   const p2 = (n: number) => String(n).padStart(2, "0");
-  const dateStr = (c.req.query("date") || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const dateStr = (c.req.query("date") || bkkDay()).slice(0, 10);
   const ref = new Date(dateStr + "T00:00:00Z");
   const y = ref.getUTCFullYear(), mo = ref.getUTCMonth() + 1;
 
   const sid = c.req.query("station");
-  const ck = `hist_${range}_${dateStr}${sid ? "_" + sid : ""}`;
+  // hist_v2 — bumped when the day payload gained `totals`; old cached entries lack
+  // it, so a fresh key avoids serving them (which would fall back to integration).
+  const ck = `hist_v2_${range}_${dateStr}${sid ? "_" + sid : ""}`;
   // Past periods never change → cache a week (instant reloads, no Deye hit); the
   // current period is still accumulating, so refresh it on a short TTL.
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = bkkDay();
   const isCurrent = range === "day" ? dateStr === todayStr
     : range === "month" ? (y === Number(todayStr.slice(0, 4)) && mo === Number(todayStr.slice(5, 7)))
       : y === Number(todayStr.slice(0, 4));
@@ -294,24 +363,37 @@ app.get("/api/history", async (c) => {
   let data: any;
   try {
     if (range === "day") {
-      const res = await getHistory(env, 1, dateStr, dateStr, sid);
+      // frames (granularity 1) drive the curve/peak/timing; exact day energy
+      // (granularity 2) gives certified totals so the analysis numbers match Deye
+      // instead of an integrated approximation.
+      const nextStr = new Date(ref.getTime() + 86400000).toISOString().slice(0, 10);
+      const [res, tres] = await Promise.all([
+        getHistory(env, 1, dateStr, dateStr, sid),
+        getHistory(env, 2, dateStr, nextStr, sid).catch(() => null),
+      ]);
       const points = (res.stationDataItems || []).filter((x: any) => x.timeStamp).map((x: any) => ({
         ts: x.timeStamp, gen_power: x.generationPower ?? 0, use_power: x.consumptionPower ?? 0,
         grid_power: x.wirePower ?? x.gridPower ?? 0, batt_power: x.batteryPower ?? 0, soc: x.batterySOC ?? null,
       }));
-      data = { range, date: dateStr, points, source: "deye" };
+      const tot = (tres && tres.stationDataItems && tres.stationDataItems[0]) || null;
+      const totals = tot ? {
+        gen: tot.generationValue ?? 0, use: tot.consumptionValue ?? 0, buy: tot.purchaseValue ?? 0,
+        sell: tot.gridValue ?? 0, charge: tot.chargeValue ?? 0, discharge: tot.dischargeValue ?? 0,
+      } : null;
+      data = { range, date: dateStr, points, totals, source: "deye" };
     } else if (range === "month") {
       const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
       const res = await getHistory(env, 2, `${y}-${p2(mo)}-01`, `${y}-${p2(mo)}-${p2(last)}`, sid);
       const points = (res.stationDataItems || []).map((x: any) => ({
-        day: `${x.year}-${p2(x.month)}-${p2(x.day)}`, gen: x.generationValue ?? 0, use: x.consumptionValue ?? 0, buy: x.purchaseValue ?? 0, sell: x.gridValue ?? 0,
+        day: `${x.year}-${p2(x.month)}-${p2(x.day)}`, gen: x.generationValue ?? 0, use: x.consumptionValue ?? 0,
+        buy: x.purchaseValue ?? 0, sell: x.gridValue ?? 0, charge: x.chargeValue ?? 0, discharge: x.dischargeValue ?? 0,
       }));
       data = { range, date: dateStr, points, source: "deye" };
       // เก็บยาวถาวรลง D1 (daily) — เว้นวันนี้ไว้ให้ cron ที่ข้อมูลสดกว่า เขียนเอง
       if (!sid && points.length) {
-        const st = env.DB.prepare("INSERT INTO daily (day,gen,use,buy,sell,charge,discharge) VALUES (?,?,?,?,?,0,0) ON CONFLICT(day) DO UPDATE SET gen=excluded.gen, use=excluded.use, buy=excluded.buy, sell=excluded.sell");
+        const st = env.DB.prepare("INSERT INTO daily (day,gen,use,buy,sell,charge,discharge) VALUES (?,?,?,?,?,?,?) ON CONFLICT(day) DO UPDATE SET gen=excluded.gen, use=excluded.use, buy=excluded.buy, sell=excluded.sell, charge=excluded.charge, discharge=excluded.discharge");
         const rows = points.filter((p: any) => p.day !== todayStr && (p.gen || p.use || p.buy || p.sell));
-        if (rows.length) await env.DB.batch(rows.map((p: any) => st.bind(p.day, p.gen, p.use, p.buy, p.sell)));
+        if (rows.length) await env.DB.batch(rows.map((p: any) => st.bind(p.day, p.gen, p.use, p.buy, p.sell, p.charge, p.discharge)));
       }
     } else {
       const res = await getHistory(env, 3, `${y}-01`, `${y}-12`, sid);
@@ -322,9 +404,9 @@ app.get("/api/history", async (c) => {
     }
     // D1 fallback holds only the primary (cron) station's samples — use it for
     // the default station, not when a specific other station is requested.
-    if ((!data.points || !data.points.length) && !sid) { const fb = await histFromD1(env, range); if (fb.points && fb.points.length) data = fb; }
+    if ((!data.points || !data.points.length) && !sid) { const fb = await histFromD1(env, range, dateStr); if (fb.points && fb.points.length) data = fb; }
   } catch {
-    data = sid ? { range, date: dateStr, points: [], source: "deye" } : await histFromD1(env, range);
+    data = sid ? { range, date: dateStr, points: [], source: "deye" } : await histFromD1(env, range, dateStr);
   }
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
   return c.json({ ...data, cached: false });

@@ -18,6 +18,14 @@ export interface Env {
   APP_PIN?: string;
 }
 
+// Day key in Thailand local time (UTC+7, no DST). Deye reports "today" energy in
+// station-local time and Thai users' clocks are UTC+7, so day boundaries must roll
+// at Thai midnight — a plain UTC date would roll at 07:00 local and mis-attribute
+// the early-morning hours to the previous day.
+export function bkkDay(offsetDays = 0): string {
+  return new Date(Date.now() + 7 * 3600 * 1000 + offsetDays * 86400000).toISOString().slice(0, 10);
+}
+
 async function sha256Hex(text: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -94,11 +102,14 @@ async function apiPost(env: Env, path: string, payload: any): Promise<any> {
 }
 
 async function getStationId(env: Env): Promise<string> {
+  // Explicit config wins over the discovered cache, so changing DEYE_STATION_ID
+  // takes effect immediately instead of being shadowed by a stale cached id.
+  if (env.DEYE_STATION_ID) return String(env.DEYE_STATION_ID);
   const cached = await metaGet(env, "station_id");
   if (cached) return cached;
   const s = await getStationMeta(env);
   if (s && s.id) { await metaSet(env, "station_id", String(s.id)); return String(s.id); }
-  return env.DEYE_STATION_ID ? String(env.DEYE_STATION_ID) : "";
+  return "";
 }
 
 export interface Latest {
@@ -142,8 +153,8 @@ const n = (v: any) => Number(v) || 0;
 // Open API splits realtime power (/station/latest) from daily energy
 // (/station/history granularity=day). Compose both into one Latest.
 async function getDayTotals(env: Env, stationId: string): Promise<any> {
-  const today = new Date().toISOString().slice(0, 10);
-  const tmr = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const today = bkkDay();
+  const tmr = bkkDay(1);
   const res = await apiPost(env, "/station/history", { stationId: Number(stationId), granularity: 2, startAt: today, endAt: tmr });
   return (res.stationDataItems && res.stationDataItems[0]) || {};
 }

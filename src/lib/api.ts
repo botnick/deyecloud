@@ -46,6 +46,7 @@ export const getStations = () => api<Station[]>("/api/stations");
 export const getDevice = (station?: number | null) => api<Device>("/api/device" + (station != null ? "?station=" + station : ""));
 export const getLatest = (station?: number | null) => api<Latest>("/api/latest" + (station != null ? "?station=" + station : ""));
 export const getWeather = () => api<Weather>("/api/weather");
+export interface HistTotals { gen: number; use: number; buy: number; sell: number; charge: number; discharge: number; }
 export const getHistory = (range: string, date?: string, station?: number | null) =>
-  api<{ range: string; points: any[]; source?: string; date?: string }>(
+  api<{ range: string; points: any[]; totals?: HistTotals | null; source?: string; date?: string }>(
     "/api/history?range=" + range + (date ? "&date=" + date : "") + (station != null ? "&station=" + station : ""));

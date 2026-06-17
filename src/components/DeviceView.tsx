@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { getDevice, type Device, type DeviceData, type Latest } from "../lib/api";
 import { groupDevice, INVERTER_TYPE_TH } from "../lib/device";
+import { useSmartPoll } from "../lib/usePoll";
 import { timeStr } from "../lib/format";
 import { IconChevron, IconBack } from "../lib/icons";
 import { card, cardP, h2 } from "../lib/ui";
@@ -86,20 +87,24 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
   const [err, setErr] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({ pv: true, ac: true, grid: true, load: true });
 
-  const load = useCallback(async () => {
-    try { const d = await getDevice(stationId); setDev(d); setErr(!!d.error); }
-    catch { setErr(true); }
+  // Monotonic request id — a stale in-flight fetch (after a station switch or tab
+  // wake) is ignored so it can't overwrite the current inverter's readings.
+  const reqRef = useRef(0);
+  const load = useCallback(() => {
+    const id = ++reqRef.current;
+    getDevice(stationId)
+      .then((d) => { if (id === reqRef.current) { setDev(d); setErr(!!d.error); } })
+      .catch(() => { if (id === reqRef.current) setErr(true); });
   }, [stationId]);
 
   useEffect(() => {
     if (!active) return;
-    let alive = true;
     setDev(null); setErr(false); // reset when (re)opened or station changes
-    const run = () => getDevice(stationId).then((d) => { if (alive) { setDev(d); setErr(!!d.error); } }).catch(() => { if (alive) setErr(true); });
-    run();
-    const id = setInterval(run, 60000);
-    return () => { alive = false; clearInterval(id); };
-  }, [active, stationId]);
+    load();
+  }, [active, load]);
+
+  // Keep the inverter readings live while open; pauses when the tab is hidden.
+  useSmartPoll(load, 60000, active);
 
   if (!dev || dev.error || err) {
     const failed = err || !!dev?.error;
