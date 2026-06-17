@@ -16,10 +16,6 @@ export interface Env {
   TMD_BASE?: string;
   TMD_TOKEN?: string;
   APP_PIN?: string;
-  // Internal dashboard API (uses a deyecloud.com login session token, ~60-day).
-  // When set, this is the data source and no Deye password is needed.
-  DEYE_SESSION_TOKEN?: string;
-  DEYE_INTERNAL_BASE?: string;
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -113,39 +109,10 @@ export interface Latest {
   selfSufficiency: number; updatedAt: number; raw?: any;
 }
 
-// ----- Internal dashboard API (session token) -----
-export async function internalGet(env: Env, path: string): Promise<any> {
-  const base = env.DEYE_INTERNAL_BASE || "https://eu1.deyecloud.com";
-  const r = await fetch(base + path, {
-    headers: { Authorization: "Bearer " + env.DEYE_SESSION_TOKEN, Accept: "application/json, text/plain, */*" },
-  });
-  return r.json();
-}
-async function internalPost(env: Env, path: string, body: any): Promise<any> {
-  const base = env.DEYE_INTERNAL_BASE || "https://eu1.deyecloud.com";
-  const r = await fetch(base + path, {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer " + env.DEYE_SESSION_TOKEN,
-      Accept: "application/json, text/plain, */*",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body || {}),
-  });
-  return r.json();
-}
-
 export interface Station { id: number; name: string; capacity?: number; lat?: number; lng?: number; status?: string; address?: string; type?: string; }
 
 // Discover stations the account can see — nothing is hardcoded.
 export async function listStations(env: Env): Promise<Station[]> {
-  if (!passwordReady(env) && env.DEYE_SESSION_TOKEN) {
-    const d = await internalPost(env, "/maintain-s/operating/station/v2/search?page=1&size=50&order.direction=ASC&order.property=name", {});
-    return (d.data || []).map((x: any) => {
-      const s = x.station || x;
-      return { id: s.id, name: s.name, capacity: s.installedCapacity, lat: s.locationLat, lng: s.locationLng, status: s.networkStatus, address: s.locationAddress, type: s.gridInterconnectionType };
-    });
-  }
   const d = await apiPost(env, "/station/list", { page: 1, size: 10 });
   return (d.stationList || d.list || []).map((s: any) => ({ id: s.id || s.stationId, name: s.name, capacity: s.installedCapacity }));
 }
@@ -159,44 +126,8 @@ export async function getStationMeta(env: Env): Promise<Station> {
   return picked;
 }
 
-async function getLatestInternal(env: Env, stationId?: string): Promise<Latest> {
-  const id = stationId || (await getStationId(env));
-  const d: any = await internalGet(env, `/maintain-s/fast/system/${id}`);
-  const wire = String(d.wireStatus || "").toUpperCase();
-  const gridMag = Number(d.wirePower || d.buyPower || 0);
-  return {
-    genPower: Number(d.generationPower || 0),
-    usePower: Number(d.usePower || 0),
-    gridPower: wire.includes("PURCHASE") ? gridMag : -gridMag,
-    battPower: Number(d.batteryPower || 0),
-    soc: Number(d.batterySoc || 0),
-    genToday: Number(d.generationValue || 0),
-    useToday: Number(d.useValue || 0),
-    buyToday: Number(d.buyValue || 0),
-    sellToday: Number(d.gridValue || 0),
-    chargeToday: Number(d.chargeValue || 0),
-    dischargeToday: Number(d.dischargeValue || 0),
-    genTotal: Number(d.generationUploadTotal || 0),
-    battStatus: d.batteryStatus || "STATIC",
-    gridStatus: d.wireStatus || "NORMAL",
-    warningStatus: d.warningStatus || "NORMAL",
-    selfSufficiency: Number(d.selfSufficiencyValue || 0),
-    updatedAt: Number(d.lastUpdateTime || Math.floor(Date.now() / 1000)),
-  };
-}
-
-function passwordReady(env: Env): boolean {
-  return !!env.DEYE_PASSWORD && !env.DEYE_PASSWORD.startsWith("PUT_YOUR");
-}
-
+// Open API is the only data source.
 export async function getLatest(env: Env, stationId?: string): Promise<Latest> {
-  // Open API is the configured primary; fall back to the session-token internal
-  // API so the app keeps showing data until a real password is set.
-  if (passwordReady(env)) {
-    try { return await getLatestOpen(env, stationId); }
-    catch (e) { if (!env.DEYE_SESSION_TOKEN) throw e; }
-  }
-  if (env.DEYE_SESSION_TOKEN) return getLatestInternal(env, stationId);
   return getLatestOpen(env, stationId);
 }
 
@@ -263,12 +194,8 @@ export async function getHistory(env: Env, granularity: number, startAt: string,
 // ----- Devices -----
 export async function listDevices(env: Env, stationId?: string): Promise<any[]> {
   const id = stationId || (await getStationId(env));
-  if (passwordReady(env) || !env.DEYE_SESSION_TOKEN) {
-    const d = await apiPost(env, "/station/device", { page: 1, size: 50, stationIds: [Number(id)] });
-    return d.deviceListItems || d.list || d.data || [];
-  }
-  const d = await internalGet(env, `/maintain-s/power/deye/device/${id}/device-list?deviceType=INVERTER`);
-  return d.deviceListItems || d.data || (Array.isArray(d) ? d : []);
+  const d = await apiPost(env, "/station/device", { page: 1, size: 50, stationIds: [Number(id)] });
+  return d.deviceListItems || d.list || d.data || [];
 }
 export async function deviceLatest(env: Env, sns: string[]): Promise<any> {
   return apiPost(env, "/device/latest", { deviceList: sns });
