@@ -135,7 +135,8 @@ export function analyzeHistory(range: "day" | "month" | "year", points: any[]): 
       if (us > pkUse) pkUse = us;
     }
     const kw = (w: number) => (w / 1000).toFixed(2);
-    const tm = pkGenTs ? new Date(pkGenTs).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "";
+    const pk = pkGenTs ? new Date(pkGenTs * 1000) : null; // ts is unix SECONDS
+    const tm = pk ? `${String(pk.getHours()).padStart(2, "0")}:${String(pk.getMinutes()).padStart(2, "0")}` : "";
     out.push({
       tone: "tip", title: "สรุปวันนี้",
       detail: pkGen > 50
