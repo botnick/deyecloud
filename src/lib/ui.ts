@@ -1,12 +1,14 @@
 // Solurna design tokens — single source of truth for shared surface styles.
 // Tune here to restyle the whole app at once.
 
-/** Elevated white card (radius 20, soft shadow). */
-export const card = "bg-white rounded-[20px] shadow-[0_8px_24px_rgba(17,17,17,0.06)]";
+// Surfaces are iOS-style glass (recipe in index.css). Swap these two strings
+// back to `bg-white …` to return the whole app to flat cards.
+/** Elevated glass card (radius 20, frosted, specular edge). */
+export const card = "glass-card";
 /** Card with standard inner padding. */
 export const cardP = card + " p-5";
-/** Small/secondary surface (toolbars, pills). */
-export const cardSm = "bg-white rounded-[16px] shadow-[0_2px_10px_rgba(17,17,17,0.04)]";
+/** Small/secondary glass surface (toolbars, pills). */
+export const cardSm = "glass-sm";
 /** Section heading. */
 export const h2 = "text-[22px] font-bold tracking-tight text-title";
 /** Section heading + first-in-page top margin. */

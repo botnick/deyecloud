@@ -106,9 +106,9 @@ export default function App() {
   return (
     <>
       <PullToRefresh onRefresh={() => refresh(true)}>
-      <div className="max-w-[480px] mx-auto min-h-full bg-white">
+      <div className="max-w-[480px] mx-auto min-h-full">
         {view !== "device" && <Header stationName={station?.name} onRefresh={() => refresh(true)} spinning={spinning} />}
-        <div className={`bg-canvas rounded-t-[20px] px-[18px] pb-[calc(96px+env(safe-area-inset-bottom))] min-h-[70vh] ${view === "device" ? "pt-[calc(12px+env(safe-area-inset-top))]" : "pt-5"}`}>
+        <div className={`px-[18px] pb-[calc(96px+env(safe-area-inset-bottom))] min-h-[70vh] ${view === "device" ? "pt-[calc(12px+env(safe-area-inset-top))]" : "pt-5"}`}>
           <div key={view} className="view-anim">
             {view === "home" && <HomeView latest={shownLatest} weather={weather} capacity={station?.capacity} onWeather={() => go("weather")} onDevice={() => go("device")} />}
             {view === "today" && <TodayView latest={shownLatest} capacity={station?.capacity} />}
