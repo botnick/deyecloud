@@ -15,27 +15,6 @@ function gridLines(max: number, fmt: (v: number) => string) {
   });
 }
 
-export function LineChart({ xs, series, fmtX }: { xs: number[]; series: Series[]; fmtX: (x: number) => string }) {
-  const iw = BOX.W - BOX.l - BOX.r, ih = BOX.H - BOX.t - BOX.b;
-  const max = Math.max(0.5, ...series.flatMap((s) => s.data));
-  const n = xs.length;
-  const X = (i: number) => BOX.l + (n <= 1 ? iw / 2 : (i / (n - 1)) * iw);
-  const Y = (v: number) => BOX.t + ih - (v / max) * ih;
-  const ticks = [0, Math.floor(n / 2), n - 1].filter((v, i, a) => a.indexOf(v) === i && v >= 0);
-  return (
-    <svg viewBox={`0 0 ${BOX.W} ${BOX.H}`} className="w-full h-[240px]" preserveAspectRatio="xMidYMid meet">
-      {gridLines(max, (v) => v.toFixed(1))}
-      {series.map((sr, si) => (
-        <path key={si} fill="none" stroke={sr.color} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"
-          d={sr.data.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join(" ")} />
-      ))}
-      {ticks.map((i) => (
-        <text key={i} x={X(i)} y={BOX.H - 8} textAnchor="middle" fontSize="11" fill="var(--color-muted)">{fmtX(xs[i])}</text>
-      ))}
-    </svg>
-  );
-}
-
 export function BarChart({ labels, series }: { labels: string[]; series: Series[] }) {
   const iw = BOX.W - BOX.l - BOX.r, ih = BOX.H - BOX.t - BOX.b;
   const max = Math.max(0.5, ...series.flatMap((s) => s.data));

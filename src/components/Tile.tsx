@@ -18,7 +18,7 @@ export function Tile({
 }) {
   const t = TONE[tone];
   return (
-    <div className={`${cardP} active:scale-[.98] transition-transform`}>
+    <div className={cardP}>
       <div className="flex items-center gap-2 text-[15px] font-semibold text-body">
         <span className={`grid place-items-center w-9 h-9 rounded-xl ${t.chip}`}>
           <span className="w-5 h-5 block">{icon}</span>

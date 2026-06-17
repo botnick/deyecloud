@@ -30,7 +30,9 @@ export function PinGate({ onOk }: { onOk: () => void }) {
           onChange={(e) => setPin(e.target.value)}
           type="password"
           inputMode="numeric"
+          aria-label="รหัสผ่าน"
           autoComplete="off"
+          autoFocus
           maxLength={8}
           placeholder="• • • •"
           className="w-full max-w-[280px] h-[60px] rounded-2xl border-2 border-line bg-white text-center text-[30px] tracking-[12px] outline-none focus:border-secondary"
