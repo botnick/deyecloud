@@ -18,11 +18,11 @@
     }
   ],
   "vars": {
+    // Region endpoint — switch to us1-developer… etc. if your Deye account is not in the EU region
     "DEYE_BASE_URL": "https://eu1-developer.deyecloud.com/v1.0",
     "DEYE_APP_ID": "YOUR_DEYE_APP_ID",
     "DEYE_EMAIL": "your-email@example.com",
-    "WEATHER_LAT": "13.7",
-    "WEATHER_LON": "100.5",
     "TMD_BASE": "https://data.tmd.go.th/nwpapi/v1/forecast/location"
+    // Station id, coordinates, capacity & place are auto-discovered from Deye and cached in D1 — no config needed.
   }
 }

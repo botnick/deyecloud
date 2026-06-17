@@ -58,10 +58,11 @@ async function getWeather(env: Env): Promise<any> {
   if (row) {
     try { const c = JSON.parse((row as any).v); if (Date.now() - c._at < 30 * 60 * 1000 && c.data && (c.data.error || (c.data.sun && c.data.sun.arc))) return c.data; } catch {}
   }
+  // Coords come from the Deye station (cached); WEATHER_LAT/LON are an optional fallback.
   const meta = await getStationMeta(env).catch(() => null);
-  const lat = String(meta && meta.lat != null ? meta.lat : env.WEATHER_LAT);
-  const lng = String(meta && meta.lng != null ? meta.lng : env.WEATHER_LON);
-  const place = (meta && (meta.address || meta.name)) || env.WEATHER_PLACE || "";
+  const lat = String(meta && meta.lat != null ? meta.lat : (env.WEATHER_LAT || 13.7));
+  const lng = String(meta && meta.lng != null ? meta.lng : (env.WEATHER_LON || 100.5));
+  const place = env.WEATHER_PLACE || ""; // generic label by default — never expose the station address/name
   let data = await fetchTMD(env, lat, lng, place).catch(() => null);
   if (!data || data.temp == null) {
     const fb = await fetchOpenMeteo(env, lat, lng, place).catch(() => null);

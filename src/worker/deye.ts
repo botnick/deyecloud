@@ -10,8 +10,8 @@ export interface Env {
   DEYE_EMAIL: string;
   DEYE_PASSWORD: string;
   DEYE_STATION_ID?: string;
-  WEATHER_LAT: string;
-  WEATHER_LON: string;
+  WEATHER_LAT?: string;
+  WEATHER_LON?: string;
   WEATHER_PLACE?: string;
   TMD_BASE?: string;
   TMD_TOKEN?: string;
@@ -114,7 +114,11 @@ export interface Station { id: number; name: string; capacity?: number; lat?: nu
 // Discover stations the account can see — nothing is hardcoded.
 export async function listStations(env: Env): Promise<Station[]> {
   const d = await apiPost(env, "/station/list", { page: 1, size: 10 });
-  return (d.stationList || d.list || []).map((s: any) => ({ id: s.id || s.stationId, name: s.name, capacity: s.installedCapacity }));
+  // Coords come straight from Deye (locationLat/Lng) so weather/sun need no manual config.
+  return (d.stationList || d.list || []).map((s: any) => ({
+    id: s.id || s.stationId, name: s.name, capacity: s.installedCapacity,
+    lat: s.locationLat, lng: s.locationLng,
+  }));
 }
 
 export async function getStationMeta(env: Env): Promise<Station> {
