@@ -17,22 +17,25 @@ export function analyze(l: Latest, capacityKw?: number): Insight[] {
   const daytime = hour >= 6 && hour < 18;
   const kw = (w: number) => (Math.abs(w) / 1000).toFixed(2);
 
-  // ----- 0) คำแนะนำ (ดูจากค่าจริงตอนนี้ แล้วบอกว่าควรทำอะไร) -----
+  // ----- 0) คำแนะนำ (ดูจากการไหลของไฟจริงตอนนี้ ไม่อิงแค่นาฬิกา) -----
+  const producing = l.genPower > 100; // แผงกำลังผลิตจริง = มีแดด ไม่ว่านาฬิกาจะกี่โมง
   const buying = l.gridPower > 20;
   const surplus = l.genPower - l.usePower; // ผลิตมากกว่าที่ใช้ = มีไฟเหลือ
   const discharging = bs.includes("DIS");
   const socR = Math.round(l.soc);
   let rec: string;
-  if (!daytime) {
-    rec = discharging
-      ? `ตอนนี้กลางคืน ใช้ไฟจากแบตเตอรี่ที่เก็บไว้ (แบตเหลือ ${socR}%) — ${l.soc <= 25 ? "แบตใกล้หมด แนะนำลดเครื่องใช้ไฟฟ้าขนาดใหญ่ รอแดดเช้ามาชาร์จ" : "ระบบทำงานปกติ ไม่ต้องปรับอะไร"}`
-      : `ตอนนี้กลางคืน ใช้ไฟจากการไฟฟ้า ${kw(Math.max(0, l.gridPower))} kW — ช่วงนี้ไม่มีแดด เครื่องใช้ไฟฟ้ากำลังสูงควรเลื่อนไปใช้ตอนกลางวัน จะประหยัดกว่า`;
-  } else if (surplus > 200) {
+  if (producing && surplus > 200) {
     rec = `แดดกำลังดี ผลิตได้มากกว่าที่ใช้อยู่ ~${kw(surplus)} kW — ช่วงนี้เหมาะเปิดเครื่องใช้ไฟฟ้ากำลังสูง (แอร์ เครื่องซักผ้า ปั๊มน้ำ) ได้ใช้ไฟจากแสงอาทิตย์เต็มที่ ไม่เสียค่าไฟ`;
+  } else if (producing && buying) {
+    rec = `แผงผลิตอยู่แต่ยังไม่พอกับที่ใช้ กำลังซื้อไฟเสริม ${kw(l.gridPower)} kW — ถ้าเลื่อนได้ ควรใช้เครื่องใช้ไฟฟ้ากำลังสูงตอนแดดแรง (ราว 9:00–15:00 น.) จะคุ้มกว่า`;
+  } else if (producing) {
+    rec = `ระบบสมดุล — แสงอาทิตย์ที่ผลิตกำลังพอดีกับที่บ้านใช้อยู่ ไม่ต้องซื้อไฟ`;
+  } else if (discharging) {
+    rec = `ตอนนี้แผงไม่ผลิต ใช้ไฟจากแบตเตอรี่ที่เก็บไว้ (แบตเหลือ ${socR}%) — ${l.soc <= 25 ? "แบตใกล้หมด แนะนำลดเครื่องใช้ไฟฟ้าขนาดใหญ่ รอแดดมาชาร์จ" : "ระบบทำงานปกติ ไม่ต้องปรับอะไร"}`;
   } else if (buying) {
-    rec = `แดดยังไม่พอกับที่ใช้ กำลังซื้อไฟ ${kw(l.gridPower)} kW — ถ้าเลื่อนได้ ควรใช้เครื่องใช้ไฟฟ้ากำลังสูงช่วงแดดแรง (ราว 9:00–15:00 น.) จะคุ้มกว่า`;
+    rec = `ตอนนี้แผงไม่ผลิต${daytime ? " (แดดน้อย/มีเมฆ)" : " (กลางคืน)"} ใช้ไฟจากการไฟฟ้า ${kw(l.gridPower)} kW — เครื่องใช้ไฟฟ้ากำลังสูงควรใช้ตอนกลางวันที่มีแดด จะประหยัดกว่า`;
   } else {
-    rec = `ระบบสมดุล — แสงอาทิตย์ที่ผลิตกำลังพอดีกับที่บ้านใช้อยู่`;
+    rec = `ตอนนี้ใช้ไฟไม่มาก ระบบทำงานปกติ`;
   }
   out.push({ tone: "tip", title: "คำแนะนำ", detail: rec });
 
@@ -112,5 +115,65 @@ export function analyze(l: Latest, capacityKw?: number): Insight[] {
     });
   }
 
+  return out;
+}
+
+const TH_MONTH = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+const monthTh = (ym: string) => { const m = Number(String(ym).slice(5, 7)); return TH_MONTH[m - 1] || ym; };
+
+// วิเคราะห์ข้อมูลย้อนหลังของช่วงที่เลือก (วัน = เส้นกำลังไฟ / เดือน·ปี = พลังงานรวมจาก Deye)
+export function analyzeHistory(range: "day" | "month" | "year", points: any[]): Insight[] {
+  const out: Insight[] = [];
+  if (!points || !points.length) return out;
+
+  if (range === "day") {
+    // power frames (W): หากำลังผลิตสูงสุดและช่วงเวลา + กำลังใช้สูงสุด
+    let pkGen = 0, pkGenTs = "", pkUse = 0;
+    for (const p of points) {
+      const g = p.gen_power || 0, us = p.use_power || 0;
+      if (g > pkGen) { pkGen = g; pkGenTs = p.ts; }
+      if (us > pkUse) pkUse = us;
+    }
+    const kw = (w: number) => (w / 1000).toFixed(2);
+    const tm = pkGenTs ? new Date(pkGenTs).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "";
+    out.push({
+      tone: "tip", title: "สรุปวันนี้",
+      detail: pkGen > 50
+        ? `แผงผลิตได้สูงสุด ${kw(pkGen)} kW ตอน ${tm} น. — ช่วงนั้นแดดแรงที่สุดของวัน เหมาะใช้เครื่องใช้ไฟฟ้ากำลังสูง`
+        : "ยังไม่มีการผลิตที่ชัดเจนในวันนี้ (กลางคืน/แดดน้อย)",
+    });
+    if (pkUse > 50) out.push({ tone: "info", title: `ใช้ไฟสูงสุด ${kw(pkUse)} kW`, detail: "จุดที่บ้านดึงกำลังไฟมากที่สุดในวันนี้" });
+    return out;
+  }
+
+  // month / year — พลังงานรวม (หน่วย) จาก Deye: gen/use/buy/sell ต่อวัน/เดือน
+  const s = points.reduce(
+    (a, p) => ({ gen: a.gen + (p.gen || 0), use: a.use + (p.use || 0), buy: a.buy + (p.buy || 0), sell: a.sell + (p.sell || 0) }),
+    { gen: 0, use: 0, buy: 0, sell: 0 }
+  );
+  const span = range === "month" ? "เดือนนี้" : "ปีนี้";
+  const unit = range === "month" ? "วัน" : "เดือน";
+  const n = points.length || 1;
+  const selfSuff = s.use > 0 ? Math.max(0, Math.min(100, ((s.use - s.buy) / s.use) * 100)) : 0;
+  const saved = (s.use - s.buy) * RATE;
+  let best = points[0];
+  for (const p of points) if ((p.gen || 0) > (best.gen || 0)) best = p;
+  const bestLabel = range === "month" ? `วันที่ ${Number(String(best.day || "").slice(8)) || "-"}` : monthTh(best.month || "");
+
+  out.push({
+    tone: "tip", title: "สรุปภาพรวม",
+    detail: `${span}ผลิตได้ ${u(s.gen)} หน่วย ใช้ไป ${u(s.use)} หน่วย — พึ่งพาแสงอาทิตย์เองได้ ${Math.round(selfSuff)}% ของที่ใช้ทั้งหมด`,
+  });
+  out.push({
+    tone: "ok", title: `${span}ประหยัด ~${b(saved)} บาท`,
+    detail: `ถ้าไม่มีโซลาร์ต้องจ่าย ~${b(s.use * RATE)} บาท · จ่ายจริง ~${b(s.buy * RATE)} บาท`,
+    sub: ["คิดที่ค่าไฟ ~4.4 บาท/หน่วย (โดยประมาณ)"],
+  });
+  out.push({
+    tone: "info", title: `เฉลี่ยต่อ${unit} ${u(s.gen / n)} หน่วย`,
+    detail: `ผลิตเฉลี่ย ${u(s.gen / n)} · ใช้เฉลี่ย ${u(s.use / n)} หน่วยต่อ${unit} (จาก ${n} ${unit})`,
+  });
+  out.push({ tone: "ok", title: `ผลิตได้ดีที่สุด: ${bestLabel}`, detail: `ผลิตได้ ${u(best.gen || 0)} หน่วยใน${unit}นั้น` });
+  if (s.sell > 0.5) out.push({ tone: "info", title: `ไฟไหลย้อน ${u(s.sell)} หน่วย`, detail: "ไฟที่ผลิตเกินแล้วไหลย้อนเข้าระบบ (ส่วนนี้ยังไม่ได้นำกลับมาใช้)" });
   return out;
 }

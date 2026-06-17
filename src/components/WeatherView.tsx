@@ -56,15 +56,22 @@ export function WeatherView({ weather }: { weather: Weather | null }) {
           </div>
           <WxIcon cond={w.cond} night={night} className="w-[104px] h-[104px] shrink-0 [filter:drop-shadow(0_8px_14px_rgba(0,0,0,.12))]" />
         </div>
-        <div className="mt-4 bg-pv-soft rounded-2xl px-4 py-3">
-          <div className="flex items-center justify-between text-[14px] font-bold text-[#9a6500]">
-            <span>ผลิตไฟวันนี้ · {s.label}</span>
-            <span>แสงแดด {s.pct}%</span>
+        {night ? (
+          <div className="mt-4 rounded-2xl px-4 py-3 flex items-center justify-between" style={{ background: "#eef1f7" }}>
+            <span className="text-[14px] font-bold text-[#5b6472]">กลางคืน · แผงหยุดผลิตชั่วคราว</span>
+            <span className="text-[13px] font-semibold text-muted">รอแสงแดดพรุ่งนี้</span>
           </div>
-          <div className="h-2 rounded-full bg-white/70 mt-2 overflow-hidden">
-            <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${s.pct}%`, background: amber }} />
+        ) : (
+          <div className="mt-4 bg-pv-soft rounded-2xl px-4 py-3">
+            <div className="flex items-center justify-between text-[14px] font-bold text-[#9a6500]">
+              <span>แสงแดดวันนี้ · {s.label}</span>
+              <span>{s.pct}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-white/70 mt-2 overflow-hidden">
+              <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${s.pct}%`, background: amber }} />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* sun & solar reception */}

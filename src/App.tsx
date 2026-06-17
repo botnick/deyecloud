@@ -123,6 +123,34 @@ export default function App() {
     }
   }, []);
 
+  // Manual refresh (header button): a visible 60s cooldown so it can't be
+  // spammed — upstream data only changes every ~5 min anyway.
+  const cooldownUntilRef = useRef(0);
+  const [cooldownLeft, setCooldownLeft] = useState(0);
+  useEffect(() => {
+    if (cooldownLeft <= 0) return;
+    const id = setInterval(() => {
+      setCooldownLeft(Math.max(0, Math.ceil((cooldownUntilRef.current - Date.now()) / 1000)));
+    }, 500);
+    return () => clearInterval(id);
+  }, [cooldownLeft]);
+  const manualRefresh = useCallback(() => {
+    if (Date.now() < cooldownUntilRef.current) return;
+    cooldownUntilRef.current = Date.now() + 60000;
+    setCooldownLeft(60);
+    refresh(true);
+  }, [refresh]);
+
+  // Pull-to-refresh: always feels responsive, but silently throttles the live
+  // fetch (≥12s apart) so repeated dragging can't hammer the upstream API.
+  const pullAtRef = useRef(0);
+  const pullRefresh = useCallback(async () => {
+    const now = Date.now();
+    if (now - pullAtRef.current < 12000) { await new Promise((r) => setTimeout(r, 450)); return; }
+    pullAtRef.current = now;
+    await refresh(true);
+  }, [refresh]);
+
   useEffect(() => {
     if (authed !== true) return;
     getStation().then(setStation).catch(() => {});
@@ -171,9 +199,9 @@ export default function App() {
 
   return (
     <>
-      <PullToRefresh onRefresh={() => refresh(true)}>
+      <PullToRefresh onRefresh={pullRefresh}>
       <div className="max-w-[480px] mx-auto min-h-full">
-        {view !== "device" && <Header stationName={active?.name} stations={stations} selectedId={selectedId} onSwitch={switchStation} onRefresh={() => refresh(true)} spinning={spinning} />}
+        {view !== "device" && <Header stationName={active?.name} stations={stations} selectedId={selectedId} onSwitch={switchStation} onRefresh={manualRefresh} spinning={spinning} cooldown={cooldownLeft} />}
         <div className={`px-[18px] pb-[calc(96px+env(safe-area-inset-bottom))] min-h-[70vh] ${view === "device" ? "pt-[calc(12px+env(safe-area-inset-top))]" : "pt-5"}`}>
           {offline && !sim && <OfflineBanner latest={latest} onRetry={() => refresh(true)} />}
           <div key={view} className="view-anim">

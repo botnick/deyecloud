@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { getHistory } from "../lib/api";
-import { cardSm, plate, h2First } from "../lib/ui";
+import { cardSm, plate, h2First, h2Mid } from "../lib/ui";
 import { IconChevron } from "../lib/icons";
 import { BarChart, Legend } from "./Chart";
 import { PowerProfile } from "./PowerProfile";
+import { InsightList } from "./InsightList";
+import { analyzeHistory } from "../lib/analysis";
 
 type Range = "day" | "month" | "year";
 const TABS: { k: Range; label: string }[] = [
@@ -100,6 +102,13 @@ export function HistoryView({ active, stationId }: { active: boolean; stationId?
           ]} />
           <Legend items={[["ผลิต (หน่วย)", "var(--color-pv)"], ["ใช้ (หน่วย)", "var(--color-use)"]]} />
         </div>
+      )}
+
+      {points && points.length > 0 && analyzeHistory(range, points).length > 0 && (
+        <>
+          <h2 className={h2Mid}>วิเคราะห์</h2>
+          <InsightList items={analyzeHistory(range, points)} />
+        </>
       )}
     </>
   );
