@@ -8,10 +8,18 @@ import { FlowDiagram } from "./FlowDiagram";
 
 const tcol = (t: number) => (t >= 60 ? "#e8603c" : t >= 45 ? "#d98c00" : "#18a673");
 function TempChip({ label, t }: { label: string; t: number }) {
+  const c = tcol(t);
+  const pct = Math.max(6, Math.min(100, (t / 80) * 100)); // 0–80°C scale
   return (
-    <div className="bg-canvas rounded-2xl px-4 py-3 flex items-center justify-between">
-      <span className="text-[13px] text-body">{label}</span>
-      <span className="text-[17px] font-extrabold tabnum" style={{ color: tcol(t) }}>{t.toFixed(1)}°</span>
+    <div className="bg-canvas rounded-2xl px-4 py-3.5">
+      <div className="flex items-center gap-2 text-[13px] text-body">
+        <span className="grid place-items-center w-6 h-6 rounded-lg shrink-0" style={{ background: `${c}22`, color: c }}>
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 14.76V5a2 2 0 0 0-4 0v9.76a4 4 0 1 0 4 0z" /></svg>
+        </span>
+        <span className="leading-tight">{label}</span>
+      </div>
+      <div className="text-[24px] font-extrabold tabnum mt-1.5 leading-none" style={{ color: c }}>{t.toFixed(1)}<span className="text-[14px] font-bold ml-0.5">°C</span></div>
+      <div className="mt-2.5 h-1.5 rounded-full bg-line overflow-hidden"><div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${pct}%`, background: c }} /></div>
     </div>
   );
 }
