@@ -6,3 +6,8 @@ node_modules/
 # secrets — never commit (use .dev.vars.example as template)
 .dev.vars
 dist/**/.dev.vars
+
+# build output (Cloudflare Workers Builds rebuilds from source)
+dist/
+# local review screenshots
+design/shots/
