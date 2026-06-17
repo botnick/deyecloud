@@ -3,3 +3,6 @@ node_modules/
 .secrets.tmp.json
 # local Worker/D1 state (Miniflare)
 .wrangler/
+# secrets — never commit (use .dev.vars.example as template)
+.dev.vars
+dist/**/.dev.vars
