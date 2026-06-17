@@ -121,17 +121,20 @@ npm run setup             # สร้าง D1 + ใส่ id ลง wrangler.js
 
 ## ค่า config
 
+ตั้งค่าน้อยที่สุด — **สถานี / พิกัด / กำลังติดตั้ง / สถานที่ ดึงจาก Deye อัตโนมัติแล้ว cache ใน D1** ไม่ต้องตั้งเอง
+
 **ไม่ลับ** — `wrangler.jsonc` → `vars`:
 
 | ตัวแปร | ค่า | หมายเหตุ |
 |---|---|---|
-| `DEYE_BASE_URL` | `…eu1-developer…/v1.0` | EMEA — เปลี่ยนเป็น us1 ถ้าใช้ US |
 | `DEYE_APP_ID` | YOUR_DEYE_APP_ID | จาก developer.deyecloud.com |
-| `DEYE_EMAIL` | บัญชี Deye | |
-| `WEATHER_LAT/LON` | 13.7 / 100.5 | fallback — ปกติดึงพิกัดจาก station |
-| `TMD_BASE` | data.tmd.go.th/nwpapi | กรมอุตุฯ |
+| `DEYE_EMAIL` | บัญชี Deye | อีเมลบัญชี Deye |
+| `DEYE_BASE_URL` | `…eu1-developer…/v1.0` | ค่าตั้งต้น EU — เปลี่ยนเป็น us1 ถ้าบัญชีอยู่ US |
+| `TMD_BASE` | data.tmd.go.th/nwpapi | มีค่าตั้งต้นให้แล้ว |
 
-**ลับ** (`.dev.vars` local · `wrangler secret` prod): `DEYE_APP_SECRET`, `DEYE_PASSWORD`, `APP_PIN`, `TMD_TOKEN`
+**ลับ** (`.dev.vars` local · `wrangler secret` prod): `DEYE_APP_SECRET`, `DEYE_PASSWORD` · **optional:** `APP_PIN` (ไม่ตั้ง = เปิดสาธารณะ) · `TMD_TOKEN` (ไม่ตั้ง = ใช้ Open-Meteo)
+
+> ปรับพิกัด/ชื่อสถานที่อากาศเองได้ (ไม่บังคับ): `WEATHER_LAT` · `WEATHER_LON` · `WEATHER_PLACE`
 
 ## free tier (ไม่เกินโควต้า)
 
