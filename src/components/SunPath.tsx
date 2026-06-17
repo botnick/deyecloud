@@ -49,6 +49,8 @@ export function SunPath({ sun }: { sun: SunInfo }) {
   const riseMin = toMin(sun.rise), setMin = toMin(sun.set), span = Math.max(1, setMin - riseMin);
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
   const nowFrac = Math.max(0, Math.min(1, (nowMin - riseMin) / span));
+  const nightNow = nowMin < riseMin || nowMin > setMin; // currently before sunrise / after sunset
+  const nowClock = `${pad(Math.floor(nowMin / 60))}:${pad(nowMin % 60)}`;
 
   const [sim, setSim] = useState<number | null>(null); // null = live (follow clock)
   const [playing, setPlaying] = useState(false);
@@ -191,12 +193,12 @@ export function SunPath({ sun }: { sun: SunInfo }) {
       {/* live readouts at the scrubbed time */}
       <div className="mt-3 grid grid-cols-3 gap-2.5">
         <div className="bg-canvas rounded-2xl px-3 py-2.5 text-center">
-          <div className="text-[12px] text-body">{live ? "เวลาตอนนี้" : "เวลาจำลอง"}</div>
-          <div className="text-[17px] font-extrabold tabnum mt-0.5">{clock}</div>
+          <div className="text-[12px] text-body">{live ? (nightNow ? "ตอนนี้ · กลางคืน" : "เวลาตอนนี้") : "เวลาจำลอง"}</div>
+          <div className="text-[17px] font-extrabold tabnum mt-0.5">{live && nightNow ? nowClock : clock}</div>
         </div>
         <div className="bg-canvas rounded-2xl px-3 py-2.5 text-center">
           <div className="text-[12px] text-body">มุมเงยดวงอาทิตย์</div>
-          <div className="text-[17px] font-extrabold tabnum mt-0.5">{Math.round(elev)}°</div>
+          <div className="text-[17px] font-extrabold tabnum mt-0.5">{live && nightNow ? "—" : `${Math.round(elev)}°`}</div>
         </div>
         <div className="bg-canvas rounded-2xl px-3 py-2.5 text-center">
           <div className="text-[12px] text-body">กำลังผลิตโดยประมาณ</div>

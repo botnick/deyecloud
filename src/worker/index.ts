@@ -62,7 +62,9 @@ async function getWeather(env: Env): Promise<any> {
   const meta = await getStationMeta(env).catch(() => null);
   const lat = String(meta && meta.lat != null ? meta.lat : (env.WEATHER_LAT || 13.7));
   const lng = String(meta && meta.lng != null ? meta.lng : (env.WEATHER_LON || 100.5));
-  const place = env.WEATHER_PLACE || ""; // generic label by default — never expose the station address/name
+  // rough coordinates (1 decimal ≈ 11 km) — locates the area without exposing the exact address
+  const co = (v: string, p: string, n: string) => `${Math.abs(Number(v)).toFixed(1)}°${Number(v) >= 0 ? p : n}`;
+  const place = env.WEATHER_PLACE || `${co(lat, "N", "S")} ${co(lng, "E", "W")}`;
   let data = await fetchTMD(env, lat, lng, place).catch(() => null);
   if (!data || data.temp == null) {
     const fb = await fetchOpenMeteo(env, lat, lng, place).catch(() => null);
