@@ -87,7 +87,7 @@ export function HistoryView({ active, stationId }: { active: boolean; stationId?
       )}
 
       {points === null ? (
-        <div className={`${plate} h-[280px] mt-3 animate-pulse`} />
+        <div className="skeleton h-[280px] rounded-[20px] mt-3" />
       ) : points.length === 0 ? (
         <div className={`${plate} p-4 mt-3`}><p className="text-center text-muted py-12">ไม่มีข้อมูลช่วงนี้</p></div>
       ) : range === "day" ? (

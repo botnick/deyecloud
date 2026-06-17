@@ -10,8 +10,8 @@ import { ProductionRing } from "./ProductionRing";
 function Skeleton() {
   return (
     <>
-      <div className="h-[80px] rounded-[20px] bg-white/70 animate-pulse" />
-      <div className="h-[320px] rounded-[20px] bg-white/70 animate-pulse mt-7" />
+      <div className="skeleton h-[80px] rounded-[20px]" />
+      <div className="skeleton h-[320px] rounded-[20px] mt-7" />
     </>
   );
 }

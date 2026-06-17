@@ -31,7 +31,7 @@ export function WeatherView({ weather }: { weather: Weather | null }) {
     return (
       <>
         <h2 className={h2First}>พยากรณ์อากาศ</h2>
-        <div className="h-48 rounded-[20px] bg-white/70 animate-pulse" />
+        <div className="skeleton h-48 rounded-[20px]" />
       </>
     );
   }

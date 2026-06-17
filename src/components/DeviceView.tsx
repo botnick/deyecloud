@@ -100,7 +100,15 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
             <button onClick={load} className="mt-4 h-11 px-5 rounded-xl bg-primary text-ink font-bold active:scale-95 transition-transform">ลองใหม่</button>
           </div>
         ) : (
-          <div className="h-48 rounded-[20px] bg-white/70 animate-pulse" />
+          <div className="space-y-3.5">
+            <div className="skeleton h-[88px] rounded-[20px]" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="skeleton h-[76px] rounded-2xl" /><div className="skeleton h-[76px] rounded-2xl" />
+              <div className="skeleton h-[76px] rounded-2xl" /><div className="skeleton h-[76px] rounded-2xl" />
+            </div>
+            <div className="skeleton h-[300px] rounded-[20px]" />
+            <div className="skeleton h-[60px] rounded-[20px]" /><div className="skeleton h-[60px] rounded-[20px]" />
+          </div>
         )}
       </>
     );
@@ -111,6 +119,15 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
   const has = (k: string) => !!byKey(k);
   const numOf = (re: RegExp) => { const r = dev.dataList.find((d) => re.test(d.key)); const n = r ? Number(r.value) : NaN; return Number.isNaN(n) ? undefined : n; };
   const temps = { inv: numOf(/AC Temperature|Inverter.*[Tt]emp|Radiator|IGBT|Heat ?[Ss]ink/), batt: numOf(/Temperature.*Battery|Battery.*[Tt]emp/) };
+  const freq = numOf(/[Ff]requenc/);
+
+  // Deye-dashboard summary tiles (real values; "—" when unavailable)
+  const summary = [
+    { label: "ผลิตวันนี้", v: latest ? latest.genToday.toFixed(2) : "—", u: "kWh", a: "#3aa0e6", b: "#2d79cf" },
+    { label: "ผลิตสะสม", v: latest && latest.genTotal ? latest.genTotal.toFixed(0) : "—", u: "kWh", a: "#2bb6a8", b: "#1d9486" },
+    { label: "ความถี่ไฟ", v: freq != null ? freq.toFixed(2) : "—", u: "Hz", a: "#7b86e8", b: "#5860d4" },
+    { label: "กำลังผลิตตอนนี้", v: latest ? String(Math.round(latest.genPower)) : "—", u: "W", a: "#f3a64c", b: "#ed8a36" },
+  ];
 
   // per-phase tables (rows = phases, columns = แรงดัน/กระแส/กำลัง)
   const pvRows = [1, 2, 3, 4].filter((i) => has(`DCVoltagePV${i}`)).map((i) => [`PV${i}`, cell(`DCVoltagePV${i}`), cell(`DCCurrentPV${i}`), cell(`DCPowerPV${i}`)]);
@@ -156,6 +173,16 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
           <div className="text-body">หมายเลขเครื่อง</div><div className="text-right font-semibold tabnum">{dev.sn}</div>
           {has("RatedPower") && (<><div className="text-body">กำลังพิกัด</div><div className="text-right font-semibold tabnum">{(Number(byKey("RatedPower")!.value) / 1000).toFixed(0)} kW</div></>)}
         </div>
+      </div>
+
+      {/* Deye-style summary cards */}
+      <div className="mt-3.5 grid grid-cols-2 gap-3">
+        {summary.map((s, i) => (
+          <div key={i} className="rounded-2xl p-4 text-white shadow-[0_10px_22px_-10px_rgba(17,17,17,0.45)]" style={{ background: `linear-gradient(135deg, ${s.a}, ${s.b})` }}>
+            <div className="text-[13px] font-semibold text-white/85 leading-snug">{s.label}</div>
+            <div className="text-[23px] font-extrabold leading-none mt-2 tabnum">{s.v}<span className="text-[13px] font-semibold text-white/80 ml-1">{s.u}</span></div>
+          </div>
+        ))}
       </div>
 
       {latest && (

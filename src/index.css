@@ -85,6 +85,15 @@ textarea {
 .hscroll::-webkit-scrollbar { height: 6px; }
 .hscroll::-webkit-scrollbar-thumb { background: rgba(17, 17, 17, 0.2); border-radius: 99px; }
 .hscroll::-webkit-scrollbar-track { background: transparent; }
+/* Skeleton — soft block with a smooth light sweep (reads as "loading", not a
+   hard blink like animate-pulse). Shape it like the real content per view. */
+@keyframes skeleton-sweep { 100% { transform: translateX(100%); } }
+.skeleton { position: relative; overflow: hidden; background: rgba(17, 17, 17, 0.06); border-radius: 16px; }
+.skeleton::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: skeleton-sweep 1.5s ease-in-out infinite;
+}
 /* number tween wrapper keeps digits from reflowing the row */
 .tabnum {
   font-variant-numeric: tabular-nums;
@@ -158,7 +167,7 @@ textarea {
 /* Respect the OS "reduce motion" switch — kill the ambient/idle animations. */
 @media (prefers-reduced-motion: reduce) {
   .view-anim, .hero-illus, .hero-rays, .hero-core,
-  .wx-float, .wx-star, .wx-glow, .splash-leave {
+  .wx-float, .wx-star, .wx-glow, .splash-leave, .skeleton::after {
     animation: none !important;
   }
 }
