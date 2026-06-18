@@ -271,6 +271,34 @@ app.post("/api/login", async (c) => {
 
 app.get("/api/session", async (c) => c.json({ authed: await isAuthed(c.req.raw, c.env) }));
 
+// Public cron/health probe — proves the 5-min cron is actually writing to D1.
+// Registered BEFORE the auth gate so it can be opened in a browser without a PIN
+// (returns only counts + timestamps, nothing sensitive). cronHealthy = the newest
+// sample is ≤12 min old (one cron tick is 5 min, so 2 misses still reads healthy).
+app.get("/api/_health", async (c) => {
+  const env = c.env;
+  await ensureSchema(env);
+  const now = Math.floor(Date.now() / 1000);
+  const first = async <T = any>(sql: string) => (await env.DB.prepare(sql).first()) as T | null;
+  const s = await first<{ c: number; m: number }>("SELECT COUNT(*) c, MAX(ts) m FROM samples");
+  const d = await first<{ c: number; m: string }>("SELECT COUNT(*) c, MAX(day) m FROM daily");
+  const ds = await first<{ c: number; m: number }>("SELECT COUNT(*) c, MAX(ts) m FROM device_samples");
+  const lastTs = (s && s.m) || 0;
+  const ageMin = lastTs ? Math.round((now - lastTs) / 60) : null;
+  const healthy = ageMin != null && ageMin <= 12;
+  return c.json({
+    ok: true,
+    serverTime: new Date(now * 1000).toISOString(),
+    cronHealthy: healthy,
+    summary: lastTs
+      ? `cron เขียนล่าสุด ${ageMin} นาทีที่แล้ว · ${(s?.c || 0).toLocaleString()} แถว · ${healthy ? "ปกติ ✅" : "อาจหยุด ⚠️"}`
+      : "ยังไม่มีข้อมูล cron",
+    samples: { count: s?.c || 0, lastTs, lastTime: lastTs ? new Date(lastTs * 1000).toISOString() : null, ageMinutes: ageMin },
+    daily: { count: d?.c || 0, lastDay: (d && d.m) || null },
+    deviceSamples: { count: ds?.c || 0, lastTs: (ds && ds.m) || 0 },
+  });
+});
+
 // auth gate — applies to every /api/* route registered below
 app.use("/api/*", async (c, next) => {
   if (!(await isAuthed(c.req.raw, c.env))) return c.json({ error: "unauthorized" }, 401);
