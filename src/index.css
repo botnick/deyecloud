@@ -180,6 +180,7 @@ textarea {
 @keyframes splashfade { to { opacity: 0; visibility: hidden; } }
 @keyframes viewin { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
 @keyframes sheetup { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 .view-anim { animation: viewin 0.36s cubic-bezier(.22, 1, .36, 1) both; }
 .splash-leave { animation: splashfade 0.45s ease 0.1s forwards; }
 
