@@ -11,3 +11,6 @@ dist/**/.dev.vars
 dist/
 # local review screenshots
 design/shots/
+
+# vite dev server log
+.vite-dev.log
