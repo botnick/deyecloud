@@ -3,21 +3,15 @@ import { condText, solarInfo, DAYLBL, shortDate, isNightAt, isNightNow } from ".
 import { WxIcon } from "../lib/wxicon";
 import { card, cardP, plateP, h2First, h2Mid } from "../lib/ui";
 import { SunPath } from "./SunPath";
+// Meteocons sunrise/sunset (same "fill" family as every other weather icon) so the
+// markers match the hourly strip's style exactly.
+import sunriseSvg from "@meteocons/svg/fill/sunrise.svg";
+import sunsetSvg from "@meteocons/svg/fill/sunset.svg";
 
 const amber = "linear-gradient(90deg,#ffd84d,#ff9d00)";
 
-// Sunrise / sunset glyphs for the hourly strip (line icons, no emoji) — a sun on
-// the horizon with an up/down arrow, iOS-style.
 const SunMarkIcon = ({ up, className }: { up: boolean; className?: string }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="#e0890a" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="3" y1="18" x2="21" y2="18" />
-    <path d="M7 18a5 5 0 0 1 10 0" />
-    <line x1="12" y1="3.6" x2="12" y2="6.4" /><line x1="5.6" y1="7" x2="7" y2="8.4" /><line x1="18.4" y1="7" x2="17" y2="8.4" />
-    <line x1="2.6" y1="13.5" x2="4.6" y2="13.5" /><line x1="19.4" y1="13.5" x2="21.4" y2="13.5" />
-    {up
-      ? <path d="M10.2 21.8 12 20l1.8 1.8" stroke="#18a673" />
-      : <path d="M10.2 20 12 21.8 13.8 20" stroke="#e8603c" />}
-  </svg>
+  <img src={up ? sunriseSvg : sunsetSvg} alt="" draggable={false} className={className} />
 );
 
 // UV index → Thai level + color (WHO scale).
