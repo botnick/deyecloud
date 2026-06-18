@@ -96,11 +96,14 @@ async function pollAndStore(env: Env) {
          peak_ts=CASE WHEN excluded.peak_power > COALESCE(daily.peak_power, -1) THEN excluded.peak_ts ELSE daily.peak_ts END`
     ).bind(day, l.genToday, l.useToday, l.buyToday, l.sellToday, l.chargeToday, l.dischargeToday, l.genPower, ts),
   ];
-  // Prune the bulky telemetry past ~90 days, once per day. samples + daily are
-  // kept forever (small + the basis of all long-term analysis).
+  // Auto-prune so D1 never bloats (runs once/day). Retention:
+  //   • samples (5-min snapshots) → 90 days  (intraday detail; month/year use daily)
+  //   • device_samples (heavy 88-point JSON) → 180 days
+  //   • daily (roll-ups) → kept forever (tiny + power the month/year charts)
   const lp = await env.DB.prepare("SELECT v FROM meta WHERE k='last_prune'").first();
   if (!lp || (lp as any).v !== day) {
-    stmts.push(env.DB.prepare("DELETE FROM device_samples WHERE ts < ?").bind(ts - 90 * 86400));
+    stmts.push(env.DB.prepare("DELETE FROM samples WHERE ts < ?").bind(ts - 90 * 86400));
+    stmts.push(env.DB.prepare("DELETE FROM device_samples WHERE ts < ?").bind(ts - 180 * 86400));
     stmts.push(env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_prune',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(day));
   }
   await env.DB.batch(stmts);
@@ -113,7 +116,39 @@ async function pollAndStore(env: Env) {
   if (!lt || ts - Number((lt as any).v || 0) >= 14 * 60) {
     await captureTelemetry(env, ts).catch((e) => console.error("telemetry capture failed", e));
   }
+
+  // Warm the request-path caches so the app loads instantly from D1 (no live Deye
+  // round-trip on open). The handlers read these same keys (default station).
+  try {
+    const { raw: _raw, ...latestSlim } = l as any;
+    const warm = [
+      env.DB.prepare("INSERT INTO meta (k,v) VALUES ('latest_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data: latestSlim })),
+    ];
+    const dev = await buildDeviceData(env).catch(() => null);
+    if (dev) warm.push(env.DB.prepare("INSERT INTO meta (k,v) VALUES ('device_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data: dev })));
+    await env.DB.batch(warm);
+  } catch (e) { console.error("cache warm failed", e); }
   return l;
+}
+
+// Build the inverter "device" payload (used by /api/device and the cron cache-warm).
+async function buildDeviceData(env: Env, sid?: string) {
+  const devs = await listDevices(env, sid);
+  const inv =
+    devs.find((x: any) => /INVERTER|HYBRID|STORAGE/i.test(x.deviceType || "")) ||
+    devs.find((x: any) => x.deviceType !== "COLLECTOR") || devs[0];
+  if (!inv) return null;
+  const sn = inv.deviceSn || inv.sn;
+  const res = await deviceLatest(env, [String(sn)]);
+  const dd = (res.deviceDataList && res.deviceDataList[0]) || {};
+  const collector = devs.find((x: any) => x.deviceType === "COLLECTOR");
+  return {
+    sn, type: inv.deviceType, state: dd.deviceState,
+    online: inv.connectStatus === 1 || dd.deviceState === 1,
+    collectionTime: dd.collectionTime || inv.collectionTime,
+    collectorSn: collector && collector.deviceSn,
+    dataList: dd.dataList || [],
+  };
 }
 
 // Pull EVERY inverter's full measure-point list (one /device/latest call) and store
@@ -311,9 +346,11 @@ app.get("/api/station", async (c) => c.json(await getStationMeta(c.env)));
 app.get("/api/latest", async (c) => {
   const env = c.env;
   const sid = c.req.query("station");
-  const ck = "latest_cache" + (sid ? "_" + sid : ""); // per-station cache key (cron fills the default/unsuffixed one)
+  const ck = "latest_cache" + (sid ? "_" + sid : ""); // per-station cache key (cron warms the default/unsuffixed one)
   const cached = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first();
-  if (cached) { try { const cc = JSON.parse((cached as any).v); if (Date.now() - cc._at < 60 * 1000) return c.json(cc.data); } catch {} }
+  // 6-min window so the cron-warmed cache (every 5 min) serves the home screen
+  // instantly from D1 — data stays ≤5 min old (≈ Deye's own update cadence).
+  if (cached) { try { const cc = JSON.parse((cached as any).v); if (Date.now() - cc._at < 6 * 60 * 1000) return c.json(cc.data); } catch {} }
   let l;
   try { l = await getLatest(env, sid); }
   catch { return c.json({ error: "unreachable", offline: true }, 503); } // Deye down → let the UI show the offline banner
@@ -329,21 +366,11 @@ app.get("/api/device", async (c) => {
   const sid = c.req.query("station");
   const ck = "device_cache" + (sid ? "_" + sid : "");
   const cached = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first();
-  if (cached) { try { const cc = JSON.parse((cached as any).v); if (Date.now() - cc._at < 60 * 1000) return c.json(cc.data); } catch {} }
-  const devs = await listDevices(env, sid);
-  const inv = devs.find((x: any) => /INVERTER|HYBRID|STORAGE/i.test(x.deviceType || "")) || devs.find((x: any) => x.deviceType !== "COLLECTOR") || devs[0];
-  if (!inv) return c.json({ error: "no device" }, 404);
-  const sn = inv.deviceSn || inv.sn;
-  const res = await deviceLatest(env, [String(sn)]);
-  const dd = (res.deviceDataList && res.deviceDataList[0]) || {};
-  const collector = devs.find((x: any) => x.deviceType === "COLLECTOR");
-  const data = {
-    sn, type: inv.deviceType, state: dd.deviceState,
-    online: inv.connectStatus === 1 || dd.deviceState === 1,
-    collectionTime: dd.collectionTime || inv.collectionTime,
-    collectorSn: collector && collector.deviceSn,
-    dataList: dd.dataList || [],
-  };
+  // 6-min window so the cron-warmed cache (every 5 min) serves instantly — the app
+  // reads device data from D1, never waits on Deye on open.
+  if (cached) { try { const cc = JSON.parse((cached as any).v); if (Date.now() - cc._at < 6 * 60 * 1000) return c.json(cc.data); } catch {} }
+  const data = await buildDeviceData(env, sid);
+  if (!data) return c.json({ error: "no device" }, 404);
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
   return c.json(data);
 });
