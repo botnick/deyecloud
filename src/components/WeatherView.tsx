@@ -1,10 +1,24 @@
-import type { Weather } from "../lib/api";
+import type { Weather, WeatherHour } from "../lib/api";
 import { condText, solarInfo, DAYLBL, shortDate, isNightAt, isNightNow } from "../lib/weather";
 import { WxIcon } from "../lib/wxicon";
 import { card, cardP, plateP, h2First, h2Mid } from "../lib/ui";
 import { SunPath } from "./SunPath";
 
 const amber = "linear-gradient(90deg,#ffd84d,#ff9d00)";
+
+// Sunrise / sunset glyphs for the hourly strip (line icons, no emoji) — a sun on
+// the horizon with an up/down arrow, iOS-style.
+const SunMarkIcon = ({ up, className }: { up: boolean; className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="#e0890a" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="3" y1="18" x2="21" y2="18" />
+    <path d="M7 18a5 5 0 0 1 10 0" />
+    <line x1="12" y1="3.6" x2="12" y2="6.4" /><line x1="5.6" y1="7" x2="7" y2="8.4" /><line x1="18.4" y1="7" x2="17" y2="8.4" />
+    <line x1="2.6" y1="13.5" x2="4.6" y2="13.5" /><line x1="19.4" y1="13.5" x2="21.4" y2="13.5" />
+    {up
+      ? <path d="M10.2 21.8 12 20l1.8 1.8" stroke="#18a673" />
+      : <path d="M10.2 20 12 21.8 13.8 20" stroke="#e8603c" />}
+  </svg>
+);
 
 // UV index → Thai level + color (WHO scale).
 function uvInfo(uv: number): { level: string; color: string } {
@@ -40,6 +54,25 @@ export function WeatherView({ weather }: { weather: Weather | null }) {
   const d0 = w.daily?.[0];
   const s = solarInfo(w.cond, d0?.swdown);
   const sun = w.sun;
+
+  // Merge sunrise/sunset markers into the hourly strip at their real times (iOS-style).
+  type HourItem = { kind: "hour"; d: Date; h: WeatherHour };
+  type SunItem = { kind: "rise" | "set"; d: Date };
+  const hourly: HourItem[] = (w.hourly || []).slice(0, 12).map((h) => ({ kind: "hour", d: new Date(h.time), h }));
+  const hourlyItems: (HourItem | SunItem)[] = [...hourly];
+  if (sun?.rise && sun?.set && hourly.length) {
+    const first = hourly[0].d, last = hourly[hourly.length - 1].d;
+    const at = (base: Date, hhmm: string) => { const [H, M] = hhmm.split(":").map(Number); const x = new Date(base); x.setHours(H, M, 0, 0); return x; };
+    for (const off of [0, 1]) {
+      const base = new Date(first); base.setDate(base.getDate() + off);
+      for (const k of ["rise", "set"] as const) {
+        const t = at(base, k === "rise" ? sun.rise : sun.set);
+        if (t > first && t <= last) hourlyItems.push({ kind: k, d: t });
+      }
+    }
+    hourlyItems.sort((a, b) => a.d.getTime() - b.d.getTime());
+  }
+  const nowMs = hourly[0]?.d.getTime();
 
   return (
     <>
@@ -102,14 +135,22 @@ export function WeatherView({ weather }: { weather: Weather | null }) {
       {/* hourly */}
       <h2 className={h2Mid}>ราย 1 ชั่วโมง</h2>
       <div className="flex gap-2.5 overflow-x-auto hscroll snap-x pb-2.5 -mx-[18px] px-[18px]">
-        {(w.hourly || []).slice(0, 12).map((h, i) => (
-          <div key={i} className="shrink-0 snap-start w-[70px] py-3 px-2 text-center rounded-[18px] bg-white/55 border border-white/70">
-            <div className="text-[13px] font-bold text-body">{i === 0 ? "ตอนนี้" : new Date(h.time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</div>
-            <WxIcon cond={h.cond} night={isNightAt(h.time)} className="w-10 h-10 mx-auto my-1.5" />
-            <div className="text-[17px] font-extrabold">{Math.round(h.tc)}°</div>
-            <div className="text-[11px] font-bold text-grid min-h-[14px] leading-none">{h.rain > 0 ? `${(+h.rain).toFixed(1)}มม` : ""}</div>
-          </div>
-        ))}
+        {hourlyItems.map((it, i) =>
+          it.kind === "hour" ? (
+            <div key={i} className="shrink-0 snap-start w-[70px] py-3 px-2 text-center rounded-[18px] bg-white/55 border border-white/70">
+              <div className="text-[13px] font-bold text-body">{it.d.getTime() === nowMs ? "ตอนนี้" : it.d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</div>
+              <WxIcon cond={it.h.cond} night={isNightAt(it.h.time)} className="w-10 h-10 mx-auto my-1.5" />
+              <div className="text-[17px] font-extrabold">{Math.round(it.h.tc)}°</div>
+              <div className="text-[11px] font-bold text-grid min-h-[14px] leading-none">{it.h.rain > 0 ? `${(+it.h.rain).toFixed(1)}มม` : ""}</div>
+            </div>
+          ) : (
+            <div key={i} className="shrink-0 snap-start w-[70px] py-3 px-2 text-center rounded-[18px] bg-[#fff6e0]/85 border border-[#f3d68c]/70">
+              <div className="text-[13px] font-bold text-[#9a6500]">{it.d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</div>
+              <SunMarkIcon up={it.kind === "rise"} className="w-10 h-10 mx-auto my-1.5" />
+              <div className="text-[11px] font-bold text-[#9a6500] leading-tight min-h-[28px] flex items-center justify-center">{it.kind === "rise" ? "อาทิตย์ขึ้น" : "อาทิตย์ตก"}</div>
+            </div>
+          )
+        )}
       </div>
 
       {/* 7 days */}
