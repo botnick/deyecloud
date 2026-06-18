@@ -321,7 +321,7 @@ app.get("/api/_health", async (c) => {
   const lastTs = (s && s.m) || 0;
   const ageMin = lastTs ? Math.round((now - lastTs) / 60) : null;
   const healthy = ageMin != null && ageMin <= 12;
-  return c.json({
+  const payload = {
     ok: true,
     serverTime: new Date(now * 1000).toISOString(),
     cronHealthy: healthy,
@@ -331,7 +331,10 @@ app.get("/api/_health", async (c) => {
     samples: { count: s?.c || 0, lastTs, lastTime: lastTs ? new Date(lastTs * 1000).toISOString() : null, ageMinutes: ageMin },
     daily: { count: d?.c || 0, lastDay: (d && d.m) || null },
     deviceSamples: { count: ds?.c || 0, lastTs: (ds && ds.m) || 0 },
-  });
+  };
+  // Explicit UTF-8 + pretty-print so the Thai summary reads correctly when opened
+  // raw in a browser (Safari otherwise decodes application/json as Latin-1).
+  return c.body(JSON.stringify(payload, null, 2), 200, { "content-type": "application/json; charset=utf-8" });
 });
 
 // auth gate — applies to every /api/* route registered below
