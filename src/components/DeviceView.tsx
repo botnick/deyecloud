@@ -144,10 +144,14 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
   const temps = { inv: numOf(/AC Temperature|Inverter.*[Tt]emp|Radiator|IGBT|Heat ?[Ss]ink/), batt: numOf(/Temperature.*Battery|Battery.*[Tt]emp/) };
   const freq = numOf(/[Ff]requenc/);
 
+  // ผลิตสะสม (lifetime kWh) ไม่มีใน /station/latest — อ่านจาก inverter measure point
+  // `TotalActiveProduction` (fallback: latest.genTotal เผื่อบางโมเดลส่งมาทาง station)
+  const genTotalKwh = numOf(/^TotalActiveProduction$/) ?? (latest?.genTotal || undefined);
+
   // Deye-dashboard summary tiles (real values; "—" when unavailable)
   const summary = [
     { label: "ผลิตวันนี้", v: latest ? latest.genToday.toFixed(2) : "—", u: "kWh", a: "#3aa0e6", b: "#2d79cf" },
-    { label: "ผลิตสะสม", v: latest && latest.genTotal ? latest.genTotal.toFixed(0) : "—", u: "kWh", a: "#2bb6a8", b: "#1d9486" },
+    { label: "ผลิตสะสม", v: genTotalKwh != null ? Math.round(genTotalKwh).toLocaleString("th-TH") : "—", u: "kWh", a: "#2bb6a8", b: "#1d9486" },
     { label: "ความถี่ไฟ", v: freq != null ? freq.toFixed(2) : "—", u: "Hz", a: "#7b86e8", b: "#5860d4" },
     { label: "กำลังผลิตตอนนี้", v: latest ? String(Math.round(latest.genPower)) : "—", u: "W", a: "#f3a64c", b: "#ed8a36" },
   ];
