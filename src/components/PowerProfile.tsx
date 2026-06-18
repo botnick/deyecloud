@@ -4,6 +4,7 @@
 //   • expand button → fullscreen (rotate phone = landscape, big chart)
 //   • two fingers   → pinch-zoom + pan the time axis (fullscreen)
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface PowerPoint {
   ts: number; // unix SECONDS
@@ -315,7 +316,10 @@ function ChartModal({ points, onClose }: { points: PowerPoint[]; onClose: () => 
   const active = points[idx];
   const zoomed = view.h0 > 0.01 || view.h1 < 23.99;
 
-  return (
+  // Portal to <body> so the full-screen overlay escapes any transformed ancestor
+  // (the app shell uses transforms for view/pull animations → would trap `fixed`
+  // into the phone-width column and shrink the chart on desktop).
+  return createPortal(
     <div className="fixed inset-0 z-[60] bg-[#0b0e14ee] backdrop-blur-sm flex flex-col" style={{ animation: "fade .2s ease both" }}>
       <div className="flex items-center justify-between px-4 pt-[calc(12px+env(safe-area-inset-top))] pb-2 text-white">
         <div className="font-bold text-[16px]">กราฟพลังงาน · <span className="tabnum">{fmtClock(active.ts)}</span></div>
@@ -329,17 +333,18 @@ function ChartModal({ points, onClose }: { points: PowerPoint[]; onClose: () => 
         </div>
       </div>
 
-      <div className="px-4 pb-2"><div className="rounded-2xl bg-white/95 p-3"><Legend p={active} /></div></div>
+      <div className="px-4 pb-2 w-full max-w-[1100px] mx-auto"><div className="rounded-2xl bg-white/95 p-3"><Legend p={active} /></div></div>
 
-      <div className="flex-1 grid place-items-center px-2 min-h-0">
-        <div className="w-full rounded-2xl bg-white p-2">
+      <div className="flex-1 min-h-0 px-3 py-1 flex flex-col justify-center overflow-y-auto">
+        <div className="w-full max-w-[1100px] mx-auto rounded-2xl bg-white p-3">
           <ChartSVG points={points} view={view} setView={setView} vbW={680} vbH={320} cursorOn={cursorHour != null} activeIdx={idx} setCursorHour={setCursorHour} big />
         </div>
       </div>
 
       <div className="text-center text-white/55 text-[12px] pb-[calc(14px+env(safe-area-inset-bottom))] pt-1">
-        ลากนิ้วเพื่อดูค่า · ใช้ 2 นิ้วซูม/เลื่อน · หมุนเครื่องเป็นแนวนอนเพื่อดูเต็มจอ
+        ลากเพื่อดูค่า · 2 นิ้วซูม/เลื่อน · บนมือถือหมุนเป็นแนวนอนเพื่อดูเต็มจอ
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
