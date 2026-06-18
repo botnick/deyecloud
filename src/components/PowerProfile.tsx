@@ -115,8 +115,9 @@ function ChartSVG({
 
   const kwTicks: number[] = [];
   for (let v = kwMin; v <= kwMax + 1e-9; v += kwStep) kwTicks.push(round1(v));
+  // hour-axis ticks: pick a tidy step (≤6 labels) so they never crowd/overlap.
   const xTicks: number[] = [];
-  const stepH = niceStep(span, 5);
+  const stepH = [0.5, 1, 2, 3, 6, 12].find((s) => span / s <= 5) ?? 12;
   for (let h = Math.ceil(h0 / stepH) * stepH; h <= h1 + 1e-9; h += stepH) xTicks.push(round1(h));
 
   // pointer → hour-of-day, via the overlay rect's real screen box (robust to scale)
