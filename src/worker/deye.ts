@@ -196,7 +196,7 @@ async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
   const buyToday = n(t.purchaseValue);
   const selfSuff = useToday > 0 ? Math.max(0, Math.min(100, (1 - buyToday / useToday) * 100)) : 0;
 
-  return {
+  const out: Latest = {
     // accept the common field-name variants across Deye regions/models
     genPower: n(d.generationPower ?? d.pvPower),
     usePower: n(d.consumptionPower ?? d.loadPower),
@@ -216,6 +216,64 @@ async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
     selfSufficiency: selfSuff,
     updatedAt: n(d.lastUpdateTime) || Math.floor(Date.now() / 1000),
     raw: d,
+  };
+
+  // The home Power-Flow mirrors the Deye app, which reads the inverter's OWN live
+  // measure points (these differ from the station aggregate). Override the five
+  // instantaneous fields with inverter values when available; daily-energy totals
+  // (genToday/useToday/…) stay from station/day-history. Best-effort: station
+  // values stand if the device fetch fails. Sign conventions match the station
+  // (verified live): battery −=charge/+=discharge, grid +=import/−=export.
+  try {
+    const inv = await getInverterFlow(env, id);
+    if (inv) {
+      if (inv.genPower != null) out.genPower = inv.genPower;
+      if (inv.usePower != null) out.usePower = inv.usePower;
+      if (inv.gridPower != null) { out.gridPower = inv.gridPower; out.gridStatus = inv.gridPower >= 0 ? "PURCHASE" : "REVERSE"; }
+      if (inv.battPower != null) { out.battPower = inv.battPower; out.battStatus = inv.battPower > 20 ? "DISCHARGE" : inv.battPower < -20 ? "CHARGE" : "STATIC"; }
+      if (inv.soc != null) out.soc = inv.soc;
+      if (inv.genTotal != null) out.genTotal = inv.genTotal; // lifetime kWh (not in station API)
+    }
+  } catch {}
+  return out;
+}
+
+// Pull the first inverter's live measure points and map the flow-relevant ones.
+// SN is cached in D1 (per station) so the extra discovery call only runs once.
+async function getInverterSn(env: Env, stationId: string): Promise<string> {
+  const ck = "inv_sn_" + stationId;
+  const cached = await metaGet(env, ck);
+  if (cached) return cached;
+  const devs = await listDevices(env, stationId);
+  const inv =
+    devs.find((x: any) => /INVERTER|HYBRID|STORAGE/i.test(x.deviceType || "")) ||
+    devs.find((x: any) => x.deviceType !== "COLLECTOR") || devs[0];
+  const sn = inv && (inv.deviceSn || inv.sn);
+  if (sn) await metaSet(env, ck, String(sn));
+  return sn ? String(sn) : "";
+}
+
+async function getInverterFlow(
+  env: Env,
+  stationId: string
+): Promise<{ genPower?: number; usePower?: number; gridPower?: number; battPower?: number; soc?: number; genTotal?: number } | null> {
+  const sn = await getInverterSn(env, stationId);
+  if (!sn) return null;
+  const res = await deviceLatest(env, [sn]);
+  const list = ((res.deviceDataList && res.deviceDataList[0]) || {}).dataList || [];
+  if (!list.length) return null;
+  const num = (k: string) => {
+    const r = list.find((x: any) => x.key === k);
+    const v = r ? Number(r.value) : NaN;
+    return Number.isNaN(v) ? undefined : v;
+  };
+  return {
+    genPower: num("TotalSolarPower"),
+    usePower: num("TotalConsumptionPower"),
+    gridPower: num("TotalGridPower"),
+    battPower: num("BatteryPower"),
+    soc: num("SOC"),
+    genTotal: num("TotalActiveProduction"),
   };
 }
 
