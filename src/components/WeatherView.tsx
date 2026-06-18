@@ -141,7 +141,7 @@ export function WeatherView({ weather }: { weather: Weather | null }) {
             <div key={i} className="shrink-0 snap-start w-[70px] py-3 px-2 text-center rounded-[18px] bg-[#fff6e0]/85 border border-[#f3d68c]/70">
               <div className="text-[13px] font-bold text-[#9a6500]">{it.d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</div>
               <SunMarkIcon up={it.kind === "rise"} className="w-10 h-10 mx-auto my-1.5" />
-              <div className="text-[11px] font-bold text-[#9a6500] leading-tight min-h-[28px] flex items-center justify-center">{it.kind === "rise" ? "อาทิตย์ขึ้น" : "อาทิตย์ตก"}</div>
+              <div className="min-h-[31px]" />
             </div>
           )
         )}
