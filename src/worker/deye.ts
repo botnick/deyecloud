@@ -63,6 +63,7 @@ async function getToken(env: Env, force = false): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000), // never hang the cron/request on a slow Deye
   });
   const data: any = await res.json();
   const token = data.token || data.accessToken;
@@ -81,6 +82,7 @@ async function apiPost(env: Env, path: string, payload: any): Promise<any> {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "bearer " + t },
       body: JSON.stringify(payload || {}),
+      signal: AbortSignal.timeout(15000), // never hang the cron/request on a slow Deye
     }).then((r) => r.json() as Promise<any>);
 
   let data = await call(token);

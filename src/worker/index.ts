@@ -127,6 +127,9 @@ async function pollAndStore(env: Env) {
     const dev = await buildDeviceData(env).catch(() => null);
     if (dev) warm.push(env.DB.prepare("INSERT INTO meta (k,v) VALUES ('device_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data: dev })));
     await env.DB.batch(warm);
+    // Keep the weather cache warm too (getWeather refetches only when its own 30-min
+    // TTL lapses) so the อากาศ tab never waits on TMD/Open-Meteo.
+    await getWeather(env).catch(() => {});
   } catch (e) { console.error("cache warm failed", e); }
   return l;
 }
@@ -234,7 +237,7 @@ async function fetchTMD(env: Env, lat: string, lng: string, place: string): Prom
   if (!env.TMD_TOKEN) return null;
   const base = env.TMD_BASE || TMD_DEFAULT_BASE;
   const q = `lat=${lat}&lon=${lng}`;
-  const opt = { headers: { accept: "application/json", authorization: "Bearer " + env.TMD_TOKEN } };
+  const opt = { headers: { accept: "application/json", authorization: "Bearer " + env.TMD_TOKEN }, signal: AbortSignal.timeout(15000) };
   const [h, d] = await Promise.all([
     fetch(`${base}/hourly/at?${q}&fields=tc,rh,cond,rain,ws10m&duration=12`, opt).then((r) => r.json() as Promise<any>),
     fetch(`${base}/daily/at?${q}&fields=tc_max,tc_min,rh,cond,rain,swdown&duration=7`, opt).then((r) => r.json() as Promise<any>),
@@ -259,7 +262,7 @@ async function fetchOpenMeteo(env: Env, lat: string, lng: string, place: string)
     `&hourly=temperature_2m,weather_code,precipitation` +
     `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,shortwave_radiation_sum` +
     `&timezone=Asia%2FBangkok&forecast_days=7`;
-  const j: any = await fetch(url).then((r) => r.json());
+  const j: any = await fetch(url, { signal: AbortSignal.timeout(15000) }).then((r) => r.json());
   const c = j.current || {};
   const now = Date.now() - 3600 * 1000;
   const H = j.hourly || {};
@@ -282,7 +285,7 @@ async function fetchOpenMeteo(env: Env, lat: string, lng: string, place: string)
 // TMD has no UV field — pull the live UV index from Open-Meteo (free, no key).
 async function fetchUV(lat: string, lng: string): Promise<number | null> {
   const url = `${OPEN_METEO_URL}?latitude=${lat}&longitude=${lng}&current=uv_index&timezone=Asia%2FBangkok&forecast_days=1`;
-  const j: any = await fetch(url).then((r) => r.json());
+  const j: any = await fetch(url, { signal: AbortSignal.timeout(15000) }).then((r) => r.json());
   const uv = j.current && j.current.uv_index;
   return uv != null ? Math.round(uv) : null;
 }
@@ -389,96 +392,122 @@ async function histFromD1(env: Env, range: string, dateStr: string) {
     // bounds = the requested day in Thailand time (UTC+7) → unix seconds
     const start = Math.floor(new Date(dateStr + "T00:00:00+07:00").getTime() / 1000);
     const { results } = await env.DB.prepare("SELECT ts, gen_power, use_power, grid_power, batt_power, soc FROM samples WHERE ts>=? AND ts<? ORDER BY ts").bind(start, start + 86400).all();
-    return { range, points: results, source: "d1" };
+    // certified day totals come from the daily roll-up (cron writes Deye's exact figures)
+    const dr = (await env.DB.prepare("SELECT gen,use,buy,sell,charge,discharge FROM daily WHERE day=?").bind(dateStr).first()) as any;
+    const totals = dr ? { gen: dr.gen || 0, use: dr.use || 0, buy: dr.buy || 0, sell: dr.sell || 0, charge: dr.charge || 0, discharge: dr.discharge || 0 } : null;
+    return { range, date: dateStr, points: results, totals, source: "d1" };
   }
   if (range === "month") {
     const ym = `${y}-${String(mo).padStart(2, "0")}`;
     const nextM = new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 7);
-    const { results } = await env.DB.prepare("SELECT day, gen, use, buy, sell FROM daily WHERE day >= ? AND day < ? ORDER BY day").bind(ym + "-01", nextM + "-01").all();
-    return { range, points: results, source: "d1" };
+    const { results } = await env.DB.prepare("SELECT day, gen, use, buy, sell, charge, discharge FROM daily WHERE day >= ? AND day < ? ORDER BY day").bind(ym + "-01", nextM + "-01").all();
+    return { range, date: dateStr, points: results, source: "d1" };
   }
   const { results } = await env.DB.prepare(
     `SELECT substr(day,1,7) AS month, SUM(gen) gen, SUM(use) use, SUM(buy) buy, SUM(sell) sell FROM daily WHERE day >= ? AND day < ? GROUP BY month ORDER BY month`
   ).bind(`${y}-01-01`, `${y + 1}-01-01`).all();
-  return { range, points: results, source: "d1" };
+  return { range, date: dateStr, points: results, source: "d1" };
+}
+
+// Live Deye fetch for a history period (+ persist daily roll-ups & the meta cache).
+// Used as the cold-start path and as the background revalidator.
+async function fetchHistFromDeye(env: Env, range: string, dateStr: string, sid?: string) {
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  const ref = new Date(dateStr + "T00:00:00Z");
+  const y = ref.getUTCFullYear(), mo = ref.getUTCMonth() + 1;
+  const todayStr = bkkDay();
+  let data: any;
+  if (range === "day") {
+    // frames (granularity 1) = the curve; day energy (granularity 2) = certified totals
+    const nextStr = new Date(ref.getTime() + 86400000).toISOString().slice(0, 10);
+    const [res, tres] = await Promise.all([
+      getHistory(env, 1, dateStr, dateStr, sid),
+      getHistory(env, 2, dateStr, nextStr, sid).catch(() => null),
+    ]);
+    const points = (res.stationDataItems || []).filter((x: any) => x.timeStamp).map((x: any) => ({
+      ts: x.timeStamp, gen_power: x.generationPower ?? 0, use_power: x.consumptionPower ?? 0,
+      grid_power: x.wirePower ?? x.gridPower ?? 0, batt_power: x.batteryPower ?? 0, soc: x.batterySOC ?? null,
+    }));
+    const tot = (tres && tres.stationDataItems && tres.stationDataItems[0]) || null;
+    const totals = tot ? { gen: tot.generationValue ?? 0, use: tot.consumptionValue ?? 0, buy: tot.purchaseValue ?? 0, sell: tot.gridValue ?? 0, charge: tot.chargeValue ?? 0, discharge: tot.dischargeValue ?? 0 } : null;
+    data = { range, date: dateStr, points, totals, source: "deye" };
+  } else if (range === "month") {
+    const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+    const res = await getHistory(env, 2, `${y}-${p2(mo)}-01`, `${y}-${p2(mo)}-${p2(last)}`, sid);
+    const points = (res.stationDataItems || []).map((x: any) => ({
+      day: `${x.year}-${p2(x.month)}-${p2(x.day)}`, gen: x.generationValue ?? 0, use: x.consumptionValue ?? 0,
+      buy: x.purchaseValue ?? 0, sell: x.gridValue ?? 0, charge: x.chargeValue ?? 0, discharge: x.dischargeValue ?? 0,
+    }));
+    data = { range, date: dateStr, points, source: "deye" };
+    // persist past days into daily (today is owned by cron, which is fresher)
+    if (!sid && points.length) {
+      const st = env.DB.prepare("INSERT INTO daily (day,gen,use,buy,sell,charge,discharge) VALUES (?,?,?,?,?,?,?) ON CONFLICT(day) DO UPDATE SET gen=excluded.gen, use=excluded.use, buy=excluded.buy, sell=excluded.sell, charge=excluded.charge, discharge=excluded.discharge");
+      const rows = points.filter((p: any) => p.day !== todayStr && (p.gen || p.use || p.buy || p.sell));
+      if (rows.length) await env.DB.batch(rows.map((p: any) => st.bind(p.day, p.gen, p.use, p.buy, p.sell, p.charge, p.discharge)));
+    }
+  } else {
+    const res = await getHistory(env, 3, `${y}-01`, `${y}-12`, sid);
+    const points = (res.stationDataItems || []).map((x: any) => ({
+      month: `${x.year}-${p2(x.month)}`, gen: x.generationValue ?? 0, use: x.consumptionValue ?? 0, buy: x.purchaseValue ?? 0, sell: x.gridValue ?? 0,
+    }));
+    data = { range, date: dateStr, points, source: "deye" };
+  }
+  const ck = `hist_v2_${range}_${dateStr}${sid ? "_" + sid : ""}`;
+  await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
+  return data;
+}
+
+// Throttled background backfill: pull a period from Deye to fill `daily` gaps
+// (e.g. days before the app was installed) without hammering Deye when many
+// requests land at once. Skips if the period was refreshed in the last 30 min.
+async function revalidateHist(env: Env, range: string, dateStr: string) {
+  const ck = `hist_v2_${range}_${dateStr}`;
+  const row = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first();
+  if (row) { try { const cc = JSON.parse((row as any).v); if (Date.now() - cc._at < 30 * 60 * 1000) return; } catch {} }
+  await fetchHistFromDeye(env, range, dateStr).catch(() => {});
 }
 
 app.get("/api/history", async (c) => {
   const env = c.env;
   const range = c.req.query("range") || "day";
   if (!["day", "month", "year"].includes(range)) return c.json({ error: "bad range" }, 400);
-
-  const p2 = (n: number) => String(n).padStart(2, "0");
   const dateStr = (c.req.query("date") || bkkDay()).slice(0, 10);
+  const sid = c.req.query("station");
   const ref = new Date(dateStr + "T00:00:00Z");
   const y = ref.getUTCFullYear(), mo = ref.getUTCMonth() + 1;
-
-  const sid = c.req.query("station");
-  // hist_v2 — bumped when the day payload gained `totals`; old cached entries lack
-  // it, so a fresh key avoids serving them (which would fall back to integration).
-  const ck = `hist_v2_${range}_${dateStr}${sid ? "_" + sid : ""}`;
-  // Past periods never change → cache a week (instant reloads, no Deye hit); the
-  // current period is still accumulating, so refresh it on a short TTL.
   const todayStr = bkkDay();
   const isCurrent = range === "day" ? dateStr === todayStr
     : range === "month" ? (y === Number(todayStr.slice(0, 4)) && mo === Number(todayStr.slice(5, 7)))
       : y === Number(todayStr.slice(0, 4));
+
+  // ─ Default station: serve from D1 instantly (cron keeps samples/daily fresh from
+  //   Deye in the background). For the current period also fire a background Deye
+  //   revalidate — the user never waits, never knows; the system self-heals if cron
+  //   hiccupped and keeps certified totals exact. Past periods are immutable.
+  if (!sid) {
+    const d1 = await histFromD1(env, range, dateStr);
+    if (d1.points && d1.points.length) {
+      // The current day is fully owned by cron (samples + certified daily), so it
+      // needs no extra revalidate. month/year get a throttled background backfill.
+      if (isCurrent && range !== "day") c.executionCtx.waitUntil(revalidateHist(env, range, dateStr));
+      return c.json({ ...d1, cached: true });
+    }
+  }
+
+  // ─ Cold path (D1 has nothing yet, an old day past the 90-day sample window, or a
+  //   non-default station): use the meta cache, else fetch Deye live this once.
+  const ck = `hist_v2_${range}_${dateStr}${sid ? "_" + sid : ""}`;
   const ttl = range === "day" ? 5 * 60 * 1000 : range === "month" ? 20 * 60 * 1000 : 30 * 60 * 1000;
   const row = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first();
-  // Past periods are immutable → keep them in D1 forever and never re-hit Deye.
-  // The current period uses a short TTL. (Empty cached results are allowed to retry.)
   if (row) { try { const cc = JSON.parse((row as any).v); if (cc.data?.points?.length && (!isCurrent || Date.now() - cc._at < ttl)) return c.json({ ...cc.data, cached: true }); } catch {} }
-
-  let data: any;
   try {
-    if (range === "day") {
-      // frames (granularity 1) drive the curve/peak/timing; exact day energy
-      // (granularity 2) gives certified totals so the analysis numbers match Deye
-      // instead of an integrated approximation.
-      const nextStr = new Date(ref.getTime() + 86400000).toISOString().slice(0, 10);
-      const [res, tres] = await Promise.all([
-        getHistory(env, 1, dateStr, dateStr, sid),
-        getHistory(env, 2, dateStr, nextStr, sid).catch(() => null),
-      ]);
-      const points = (res.stationDataItems || []).filter((x: any) => x.timeStamp).map((x: any) => ({
-        ts: x.timeStamp, gen_power: x.generationPower ?? 0, use_power: x.consumptionPower ?? 0,
-        grid_power: x.wirePower ?? x.gridPower ?? 0, batt_power: x.batteryPower ?? 0, soc: x.batterySOC ?? null,
-      }));
-      const tot = (tres && tres.stationDataItems && tres.stationDataItems[0]) || null;
-      const totals = tot ? {
-        gen: tot.generationValue ?? 0, use: tot.consumptionValue ?? 0, buy: tot.purchaseValue ?? 0,
-        sell: tot.gridValue ?? 0, charge: tot.chargeValue ?? 0, discharge: tot.dischargeValue ?? 0,
-      } : null;
-      data = { range, date: dateStr, points, totals, source: "deye" };
-    } else if (range === "month") {
-      const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
-      const res = await getHistory(env, 2, `${y}-${p2(mo)}-01`, `${y}-${p2(mo)}-${p2(last)}`, sid);
-      const points = (res.stationDataItems || []).map((x: any) => ({
-        day: `${x.year}-${p2(x.month)}-${p2(x.day)}`, gen: x.generationValue ?? 0, use: x.consumptionValue ?? 0,
-        buy: x.purchaseValue ?? 0, sell: x.gridValue ?? 0, charge: x.chargeValue ?? 0, discharge: x.dischargeValue ?? 0,
-      }));
-      data = { range, date: dateStr, points, source: "deye" };
-      // เก็บยาวถาวรลง D1 (daily) — เว้นวันนี้ไว้ให้ cron ที่ข้อมูลสดกว่า เขียนเอง
-      if (!sid && points.length) {
-        const st = env.DB.prepare("INSERT INTO daily (day,gen,use,buy,sell,charge,discharge) VALUES (?,?,?,?,?,?,?) ON CONFLICT(day) DO UPDATE SET gen=excluded.gen, use=excluded.use, buy=excluded.buy, sell=excluded.sell, charge=excluded.charge, discharge=excluded.discharge");
-        const rows = points.filter((p: any) => p.day !== todayStr && (p.gen || p.use || p.buy || p.sell));
-        if (rows.length) await env.DB.batch(rows.map((p: any) => st.bind(p.day, p.gen, p.use, p.buy, p.sell, p.charge, p.discharge)));
-      }
-    } else {
-      const res = await getHistory(env, 3, `${y}-01`, `${y}-12`, sid);
-      const points = (res.stationDataItems || []).map((x: any) => ({
-        month: `${x.year}-${p2(x.month)}`, gen: x.generationValue ?? 0, use: x.consumptionValue ?? 0, buy: x.purchaseValue ?? 0, sell: x.gridValue ?? 0,
-      }));
-      data = { range, date: dateStr, points, source: "deye" };
-    }
-    // D1 fallback holds only the primary (cron) station's samples — use it for
-    // the default station, not when a specific other station is requested.
-    if ((!data.points || !data.points.length) && !sid) { const fb = await histFromD1(env, range, dateStr); if (fb.points && fb.points.length) data = fb; }
+    const data = await fetchHistFromDeye(env, range, dateStr, sid);
+    if ((!data.points || !data.points.length) && !sid) { const fb = await histFromD1(env, range, dateStr); if (fb.points && fb.points.length) return c.json({ ...fb, cached: false }); }
+    return c.json({ ...data, cached: false });
   } catch {
-    data = sid ? { range, date: dateStr, points: [], source: "deye" } : await histFromD1(env, range, dateStr);
+    const fb = sid ? { range, date: dateStr, points: [], source: "deye" } : await histFromD1(env, range, dateStr);
+    return c.json({ ...fb, cached: false });
   }
-  await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
-  return c.json({ ...data, cached: false });
 });
 
 app.get("/api/_debug", async (c) => c.json(await getLatest(c.env)));
