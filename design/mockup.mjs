@@ -4,7 +4,11 @@ import puppeteer from "puppeteer-core";
 import { existsSync, mkdirSync } from "node:fs";
 import sharp from "sharp";
 
-const CHROME = [
+const CHROME = process.env.CHROME || [
+  "/usr/bin/google-chrome-stable",
+  "/usr/bin/google-chrome",
+  "/usr/bin/chromium-browser",
+  "/usr/bin/chromium",
   "C:/Program Files/Google/Chrome/Application/chrome.exe",
   "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
 ].find(existsSync);
@@ -33,6 +37,25 @@ const MASK = [
   ["โซร่าบ้านคุณนิก", "ระบบโซลาร์"],
   ["บ้านคุณนิก", "ระบบโซลาร์"],
 ];
+// also redact whatever the live API actually returns (station name / location / address)
+try {
+  const dyn = await app.evaluate(async () => {
+    const out = { names: [], places: [], addrs: [] };
+    const j = async (u) => { try { return await (await fetch(u)).json(); } catch { return null; } };
+    const w = await j("/api/weather"); if (w && w.place) out.places.push(w.place);
+    const ss = await j("/api/stations"); (Array.isArray(ss) ? ss : []).forEach((s) => { if (s && s.name) out.names.push(s.name); if (s && s.address) out.addrs.push(s.address); });
+    const st = await j("/api/station"); if (st && st.name) out.names.push(st.name); if (st && st.address) out.addrs.push(st.address);
+    return out;
+  });
+  dyn.names.forEach((n) => n && MASK.push([n, "ระบบโซลาร์"]));
+  dyn.addrs.forEach((a) => a && MASK.push([a, "ประเทศไทย"]));
+  dyn.places.forEach((p) => {
+    if (!p) return;
+    MASK.push([p, "ประเทศไทย"]);
+    p.split(/[·,/]/).map((x) => x.trim()).filter((x) => x.length > 1).forEach((part) => MASK.push([part, "ประเทศไทย"]));
+  });
+  console.log("masking", MASK.length, "patterns");
+} catch (e) { console.log("dyn-mask skipped", String(e)); }
 async function capture(path, { hideDev = false } = {}) {
   await app.goto(BASE + path, { waitUntil: "networkidle2" });
   // wait past the 1.7s splash until real content (beyond the header) has rendered
@@ -88,25 +111,28 @@ const pages = [
 const pageMocks = [];
 for (const [name, path] of pages) pageMocks.push(await makeMock(await capture(path), name));
 
-// Energy-flow diagram per scenario (the part that visually differs by state).
+// Energy flow per scenario — now the live house hero (the part that differs by state).
 async function captureFlow(key) {
-  await app.setViewport({ width: 393, height: 1500, deviceScaleFactor: 2 });
+  await app.setViewport({ width: 393, height: 900, deviceScaleFactor: 2 });
   await app.goto(`${BASE}/?sim=${key}`, { waitUntil: "networkidle2" });
   try {
-    await app.waitForFunction(() => [...document.querySelectorAll("h2")].some((e) => e.textContent.includes("พลังงานตอนนี้")), { timeout: 14000 });
+    await app.waitForFunction(() => !!document.querySelector(".solhero"), { timeout: 14000 });
   } catch {}
-  await sleep(1500);
-  await app.addStyleTag({ content: "*{animation:none!important;transition:none!important}" }); // freeze flow anim for a clean clip
-  await sleep(200);
+  await sleep(1600); // let flow orbs spread along the paths
+  await app.evaluate((pairs) => {
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); const ns = [];
+    while (w.nextNode()) ns.push(w.currentNode);
+    for (const n of ns) for (const [a, b] of pairs) if (n.nodeValue.includes(a)) n.nodeValue = n.nodeValue.split(a).join(b);
+  }, MASK);
+  await sleep(150);
   const box = await app.evaluate(() => {
-    const h = [...document.querySelectorAll("h2")].find((e) => e.textContent.includes("พลังงานตอนนี้"));
-    const c = h && h.nextElementSibling;
+    const c = document.querySelector(".solhero");
     if (!c) return null;
     const r = c.getBoundingClientRect();
     return { x: r.left, y: r.top, width: r.width, height: r.height };
   });
   if (box) {
-    await app.screenshot({ path: `${OUT}/flow-${key}.png`, clip: box });
+    await app.screenshot({ path: `${OUT}/flow-${key}.png`, clip: { x: Math.max(0, box.x), y: Math.max(0, box.y), width: box.width, height: box.height } });
     console.log("flow", key);
   }
 }
