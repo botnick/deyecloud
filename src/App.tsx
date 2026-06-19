@@ -210,7 +210,7 @@ export default function App() {
         <div className={`px-[18px] pb-[calc(96px+env(safe-area-inset-bottom))] min-h-[70vh] ${view === "device" ? "pt-[calc(12px+env(safe-area-inset-top))]" : "pt-5"}`}>
           {offline && !sim && <OfflineBanner latest={latest} onRetry={() => refresh(true)} />}
           <div key={view} className="view-anim">
-            {view === "home" && <HomeView latest={shownLatest} weather={weather} capacity={active?.capacity} stationName={active?.name} onWeather={() => go("weather")} onDevice={() => go("device")} />}
+            {view === "home" && <HomeView latest={shownLatest} weather={weather} capacity={active?.capacity} stationName={active?.name} onDevice={() => go("device")} />}
             {view === "today" && <TodayView latest={shownLatest} capacity={active?.capacity} />}
             {view === "weather" && <WeatherView weather={weather} />}
             {view === "device" && <DeviceView latest={shownLatest} active={true} stationId={stations.length > 1 ? selectedId : undefined} onBack={() => go("home")} />}

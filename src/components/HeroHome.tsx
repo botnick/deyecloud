@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, type ReactElement } from "react";
 import type { Latest, Weather } from "../lib/api";
 import { fmtPower } from "../lib/format";
-import { condText, isNightNow } from "../lib/weather";
+import { condText } from "../lib/weather";
 
 /* Photoreal house hero with a live energy-flow overlay + weather/day-night skin.
    Coordinates live in a 390×460 design space; the SVG stretches to the card and
@@ -28,6 +28,21 @@ function arc(a: Pt, b: Pt) {
 type Wx = "clear" | "cloud" | "rain" | "storm" | "fog";
 function condToWx(c: number): Wx { if (c === 8) return "storm"; if (c >= 5 && c <= 7) return "rain"; if (c === 1 || c === 12) return "clear"; return "cloud"; }
 
+// Real day/golden/night from the location's sunrise/sunset (falls back to clock)
+function timeOfDay(weather: Weather | null): "day" | "golden" | "night" {
+  const d = new Date(), mins = d.getHours() * 60 + d.getMinutes();
+  const sun = weather?.sun;
+  if (sun?.rise && sun?.set) {
+    const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return (h || 0) * 60 + (m || 0); };
+    const rise = toMin(sun.rise), set = toMin(sun.set);
+    if (mins < rise || mins >= set) return "night";
+    if (mins < rise + 55 || mins >= set - 70) return "golden"; // ~1h after dawn / before dusk
+    return "day";
+  }
+  const h = d.getHours();
+  return h < 6 || h >= 18 ? "night" : (h < 7 || h >= 17 ? "golden" : "day");
+}
+
 const ICON: Record<NodeKey | "hub", ReactElement> = {
   solar: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19" /></svg>,
   home: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l9-7 9 7" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></svg>,
@@ -40,10 +55,8 @@ export function HeroHome({ latest, weather, title, force }: { latest: Latest; we
   const rainRef = useRef<HTMLCanvasElement>(null);
   const boltRef = useRef<HTMLDivElement>(null);
 
-  // ── scene (time of day + weather) — auto from clock + live weather; `force` overrides (preview) ──
-  const hour = new Date().getHours();
-  const autoTime = isNightNow() ? "night" : (hour === 6 || hour >= 17 ? "golden" : "day");
-  const time = force?.time ?? autoTime;
+  // ── scene (time of day + weather) — auto from sunrise/sunset + live weather; `force` overrides (preview) ──
+  const time = force?.time ?? timeOfDay(weather);
   const night = time === "night";
   const cond = weather?.cond ?? 1;
   const wx = force?.wx ?? condToWx(cond);
@@ -58,12 +71,16 @@ export function HeroHome({ latest, weather, title, force }: { latest: Latest; we
   const gridOff = /OFF|ISLAND|DISCONNECT/i.test(latest.gridStatus || "");
   const buying = (latest.gridPower || 0) >= 0;
 
-  const edges: { key: NodeKey; from: Pt; to: Pt; on: boolean }[] = [
+  const edges: { key: NodeKey; from: Pt; to: Pt; on: boolean; off?: boolean }[] = [
+    // PV → inverter (only while producing; 0 at night)
     { key: "solar", from: POS.solar, to: HUB, on: (latest.genPower || 0) > 20 },
+    // inverter → home (only while there's load)
     { key: "home", from: HUB, to: POS.home, on: (latest.usePower || 0) > 20 },
   ];
+  // battery: hidden only for systems with no battery; else charge (hub→batt) / discharge (batt→hub) / idle (line, no flow)
   if (hasBatt) edges.push({ key: "batt", from: discharging ? POS.batt : HUB, to: discharging ? HUB : POS.batt, on: charging || discharging });
-  if (!gridOff) edges.push({ key: "grid", from: buying ? POS.grid : HUB, to: buying ? HUB : POS.grid, on: Math.abs(latest.gridPower || 0) > 2 });
+  // grid: always part of the diagram — buy (grid→hub) / export (hub→grid) / down or off-grid (disconnected, no flow)
+  edges.push({ key: "grid", from: buying ? POS.grid : HUB, to: buying ? HUB : POS.grid, on: !gridOff && Math.abs(latest.gridPower || 0) > 2, off: gridOff });
   const drawn = edges.map((e) => ({ ...e, ...arc(e.from, e.to), id: `she-${e.key}` }));
 
   // ── ambient particles ───────────────────────────────────────────────────────
@@ -117,7 +134,7 @@ export function HeroHome({ latest, weather, title, force }: { latest: Latest; we
   const value = (k: NodeKey) =>
     k === "solar" ? fmtPower(latest.genPower) : k === "home" ? fmtPower(latest.usePower)
       : k === "batt" ? fmtPower(latest.battPower) : fmtPower(latest.gridPower);
-  const nodeKeys: NodeKey[] = ["solar", "home", ...(hasBatt ? (["batt"] as NodeKey[]) : []), ...(gridOff ? [] : (["grid"] as NodeKey[]))];
+  const nodeKeys: NodeKey[] = ["solar", "home", ...(hasBatt ? (["batt"] as NodeKey[]) : []), "grid"];
 
   return (
     <div className={`solhero t-${time} w-${wx}`}>
@@ -146,8 +163,8 @@ export function HeroHome({ latest, weather, title, force }: { latest: Latest; we
           const dur = Math.max(e.len / 72, 1.1);
           return (
             <g key={e.id}>
-              <path d={e.d} fill="none" stroke={COL[e.key]} strokeOpacity={0.14} strokeWidth={9} strokeLinecap="round" />
-              <path id={e.id} d={e.d} fill="none" stroke={COL[e.key]} strokeOpacity={e.on ? 0.5 : 0.26} strokeWidth={2.4} strokeLinecap="round" />
+              {!e.off && <path d={e.d} fill="none" stroke={COL[e.key]} strokeOpacity={0.14} strokeWidth={9} strokeLinecap="round" />}
+              <path id={e.id} d={e.d} fill="none" stroke={e.off ? "#94a3b8" : COL[e.key]} strokeOpacity={e.off ? 0.55 : e.on ? 0.5 : 0.26} strokeWidth={e.off ? 2 : 2.4} strokeLinecap="round" strokeDasharray={e.off ? "5 7" : undefined} />
               {e.on && [0, 1].map((i) => (
                 <circle key={i} r={5.2} fill={`url(#shg-${e.key})`} stroke="#ffffff" strokeWidth={1.2} strokeOpacity={0.85}>
                   <animateMotion dur={`${dur.toFixed(2)}s`} repeatCount="indefinite" begin={`${(-i * dur / 2).toFixed(2)}s`}>
@@ -163,7 +180,7 @@ export function HeroHome({ latest, weather, title, force }: { latest: Latest; we
       <div className="sh-hub" style={{ left: LEFT(HUB.x), top: TOP(HUB.y) }}>{ICON.hub}</div>
       {nodeKeys.map((k) => (
         <div key={k} className="sh-node" style={{ left: LEFT(POS[k].x), top: TOP(POS[k].y) }}>
-          <div className="sh-badge" style={{ color: COL[k] }}>
+          <div className="sh-badge" style={{ color: k === "grid" && gridOff ? "#94a3b8" : COL[k] }}>
             {ICON[k]}
             {k === "batt" && <span className="sh-soc">{soc}%</span>}
           </div>

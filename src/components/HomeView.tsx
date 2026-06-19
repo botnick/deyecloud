@@ -1,8 +1,6 @@
 import type { Latest, Weather } from "../lib/api";
 import { fmtKwh, timeStr } from "../lib/format";
-import { condText, isNightNow } from "../lib/weather";
-import { IconChevron, IconCheck, IconAlert } from "../lib/icons";
-import { WxIcon } from "../lib/wxicon";
+import { IconAlert } from "../lib/icons";
 import { cardP, h2Mid } from "../lib/ui";
 import { ELECTRICITY_RATE } from "../lib/config";
 import { HeroHome } from "./HeroHome";
@@ -11,13 +9,13 @@ import { ProductionRing } from "./ProductionRing";
 function Skeleton() {
   return (
     <>
-      <div className="skeleton h-[80px] rounded-[20px]" />
+      <div className="skeleton rounded-[22px]" style={{ aspectRatio: "390 / 404" }} />
       <div className="skeleton h-[320px] rounded-[20px] mt-7" />
     </>
   );
 }
 
-export function HomeView({ latest, weather, capacity, stationName, onWeather, onDevice }: { latest: Latest | null; weather: Weather | null; capacity?: number; stationName?: string; onWeather: () => void; onDevice: () => void }) {
+export function HomeView({ latest, weather, capacity, stationName, onDevice }: { latest: Latest | null; weather: Weather | null; capacity?: number; stationName?: string; onDevice: () => void }) {
   if (!latest) return <Skeleton />;
   const ok = (latest.warningStatus || "NORMAL") === "NORMAL";
   const potential = capacity ? capacity * 4.5 : 0; // ~peak-sun-hours in Thailand
@@ -26,21 +24,20 @@ export function HomeView({ latest, weather, capacity, stationName, onWeather, on
 
   return (
     <>
-      {/* live house hero — emotional overview + energy flow + weather/day-night */}
-      <div className="mb-7">
-        <HeroHome latest={latest} weather={weather} title={stationName} />
-      </div>
+      {/* live house hero — the whole system (energy flow + weather + day/night) at a glance */}
+      <HeroHome latest={latest} weather={weather} title={stationName} />
+      <div className="mt-2.5 mb-7 text-center text-[12px] text-muted">อัปเดตล่าสุด {timeStr(latest.updatedAt)}</div>
 
-      {/* status */}
-      <div className={`${cardP} flex items-center gap-3`}>
-        <span className={`grid place-items-center w-11 h-11 rounded-full shrink-0 text-white ${ok ? "bg-ok" : "bg-warn"}`}>
-          {ok ? <IconCheck className="w-6 h-6" /> : <IconAlert className="w-6 h-6" />}
-        </span>
-        <div className="min-w-0">
-          <div className="text-[18px] font-bold leading-tight">{ok ? "ระบบทำงานปกติ" : "มีการแจ้งเตือน"}</div>
-          <div className="text-[14px] text-body mt-0.5">อัปเดตล่าสุด {timeStr(latest.updatedAt)}</div>
-        </div>
-      </div>
+      {/* alert surfaces only when something is wrong — keeps the happy path clean */}
+      {!ok && (
+        <button onClick={onDevice} className={`${cardP} w-full text-left mb-7 flex items-center gap-3 border border-warn/25 active:scale-[.99] transition-transform`}>
+          <span className="grid place-items-center w-11 h-11 rounded-full shrink-0 text-white bg-warn"><IconAlert className="w-6 h-6" /></span>
+          <div className="min-w-0">
+            <div className="text-[17px] font-bold leading-tight">มีการแจ้งเตือน</div>
+            <div className="text-[14px] text-body mt-0.5">ระบบมีสถานะผิดปกติ · แตะดูรายละเอียด</div>
+          </div>
+        </button>
+      )}
 
       {/* production today */}
       <h2 className={h2Mid}>ผลิตไฟวันนี้</h2>
@@ -64,21 +61,6 @@ export function HomeView({ latest, weather, capacity, stationName, onWeather, on
           <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12h16M14 6l6 6-6 6" /></svg>
         </button>
       </div>
-
-      {/* weather */}
-      {weather && weather.temp != null && (
-        <>
-          <h2 className={h2Mid}>อากาศ</h2>
-          <button onClick={onWeather} className={`${cardP} w-full text-left flex items-center gap-4 active:scale-[.99] transition-transform`}>
-            <WxIcon cond={weather.cond} night={isNightNow()} className="w-[52px] h-[52px] shrink-0" />
-            <div className="min-w-0">
-              <div className="text-[24px] font-extrabold leading-none">{Math.round(weather.temp)}°</div>
-              <div className="text-[14px] text-body mt-1 truncate">{condText(weather.cond, isNightNow())} · {weather.place}</div>
-            </div>
-            <div className="ml-auto flex items-center gap-1 text-[14px] font-semibold text-muted shrink-0">ดู 7 วัน<IconChevron className="w-5 h-5" /></div>
-          </button>
-        </>
-      )}
     </>
   );
 }
