@@ -283,6 +283,22 @@ textarea {
 .solhero .sh-dot { width: 7px; height: 7px; border-radius: 50%; background: #18a673; animation: sh-pulse 1.6s infinite; }
 @keyframes sh-pulse { 0% { box-shadow: 0 0 0 0 rgba(24,166,115,.5); } 70% { box-shadow: 0 0 0 7px rgba(24,166,115,0); } 100% { box-shadow: 0 0 0 0 rgba(24,166,115,0); } }
 
+/* house-style picker (bottom-left, unobtrusive) */
+.solhero .sh-pickwrap { position: absolute; left: 12px; bottom: 12px; z-index: 10; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.solhero .sh-pickbtn { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; color: #334155; cursor: pointer; border: 0;
+  background: rgba(255,255,255,.9); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 4px 14px rgba(15,23,42,.2), inset 0 0 0 1px rgba(255,255,255,.5); }
+.solhero .sh-pickbtn svg { width: 20px; height: 20px; }
+.solhero .sh-pickbtn:active { transform: scale(.94); }
+.solhero .sh-pick { display: flex; gap: 7px; padding: 7px; border-radius: 15px;
+  background: rgba(255,255,255,.86); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 8px 22px rgba(15,23,42,.22), inset 0 0 0 1px rgba(255,255,255,.5);
+  animation: sh-pop .2s ease both; }
+@keyframes sh-pop { from { opacity: 0; transform: translateY(6px) scale(.96); } to { opacity: 1; transform: none; } }
+.solhero .sh-thumb { width: 54px; height: 44px; border-radius: 10px; overflow: hidden; padding: 0; cursor: pointer; border: 2px solid transparent; background: #e8edf2; }
+.solhero .sh-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.solhero .sh-thumb.on { border-color: #ffcc00; box-shadow: 0 0 0 2px rgba(255,204,0,.4); }
+.solhero .sh-thumb:active { transform: scale(.95); }
+
 @media (prefers-reduced-motion: reduce) {
   .solhero .sh-dot, .solhero .sh-cloud, .solhero .sh-stars i { animation: none !important; }
+  .solhero .sh-pick { animation: none !important; }
 }
