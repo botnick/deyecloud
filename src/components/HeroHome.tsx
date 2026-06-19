@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useRef, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { Latest, Weather } from "../lib/api";
 import { fmtPower } from "../lib/format";
 import { condText } from "../lib/weather";
+
+const HOUSES = ["1", "2", "3"]; // selectable house illustrations in /public/hero/house-N.webp
+const HOUSE_DEFAULT = "2";
 
 /* Photoreal house hero with a live energy-flow overlay + weather/day-night skin.
    Coordinates live in a 390×460 design space; the SVG stretches to the card and
@@ -51,9 +54,15 @@ const ICON: Record<NodeKey | "hub", ReactElement> = {
   hub: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M6 14c1.5-3 3-3 4.5 0s3 3 4.5 0" /></svg>,
 };
 
-export function HeroHome({ latest, weather, title, force }: { latest: Latest; weather: Weather | null; title?: string; force?: { time?: "day" | "golden" | "night"; wx?: Wx } }) {
+export function HeroHome({ latest, weather, title, imageUrl, force }: { latest: Latest; weather: Weather | null; title?: string; imageUrl?: string; force?: { time?: "day" | "golden" | "night"; wx?: Wx } }) {
   const rainRef = useRef<HTMLCanvasElement>(null);
   const boltRef = useRef<HTMLDivElement>(null);
+
+  // user-selectable house illustration (persisted) — imageUrl prop overrides (preview)
+  const [house, setHouse] = useState<string>(() => { try { return localStorage.getItem("deye_house") || HOUSE_DEFAULT; } catch { return HOUSE_DEFAULT; } });
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const img = imageUrl || `/hero/house-${house}.webp`;
+  const pickHouse = (h: string) => { setHouse(h); setPickerOpen(false); try { localStorage.setItem("deye_house", h); } catch {} };
 
   // ── scene (time of day + weather) — auto from sunrise/sunset + live weather; `force` overrides (preview) ──
   const time = force?.time ?? timeOfDay(weather);
@@ -138,7 +147,7 @@ export function HeroHome({ latest, weather, title, force }: { latest: Latest; we
 
   return (
     <div className={`solhero t-${time} w-${wx}`}>
-      <div className="sh-house" style={{ backgroundImage: "url(/hero/house.webp)" }} />
+      <div className="sh-house" style={{ backgroundImage: `url(${img})` }} />
       <div className="sh-atmos t" /><div className="sh-atmos w" />
       <div className="sh-stars">{stars}</div>
       <div className="sh-sun" /><div className="sh-moon" />
@@ -198,6 +207,24 @@ export function HeroHome({ latest, weather, title, force }: { latest: Latest; we
         </div>
         <div className="sh-live"><span className="sh-dot" />Live</div>
       </div>
+
+      {/* house-style picker — hidden until tapped, choice is remembered */}
+      {!imageUrl && (
+        <div className="sh-pickwrap">
+          {pickerOpen && (
+            <div className="sh-pick">
+              {HOUSES.map((h) => (
+                <button key={h} className={`sh-thumb${h === house ? " on" : ""}`} onClick={() => pickHouse(h)} aria-label={`บ้านแบบ ${h}`}>
+                  <img src={`/hero/house-${h}.webp`} alt="" loading="lazy" />
+                </button>
+              ))}
+            </div>
+          )}
+          <button className="sh-pickbtn" onClick={() => setPickerOpen((o) => !o)} aria-label="เลือกสไตล์บ้าน">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l9-7 9 7" /><path d="M5 10v10h14V10" /></svg>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
