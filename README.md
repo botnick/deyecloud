@@ -1,14 +1,20 @@
-# โซลาร์มอนิเตอร์ — Deye Solar Monitor (PWA)
+# โซลาร์มอนิเตอร์ · Deye Solar Monitor (PWA)
 
-แอปดูระบบโซลาร์เซลล์ **แบบเรียลไทม์ ภาษาไทย ออกแบบเพื่อผู้สูงอายุ** (ฟอนต์ Sarabun, ตัวเลขใหญ่, ปุ่มน้อย)
-ใช้ **Deye Cloud Open API** จริง รันบน **Cloudflare Workers + D1** — ทุน **0 บาท** (free tier ล้วน)
-ทำงาน **offline** ได้ (PWA precache) · อ่านสถานีจาก Deye อัตโนมัติ · รองรับระบบ **on-grid / hybrid / off-grid**
+**แอปดูระบบโซลาร์เซลล์แบบเรียลไทม์ ภาษาไทย** — เห็นกำลังผลิตจากแผงโซลาร์ การใช้ไฟในบ้าน สถานะแบตเตอรี่ และการซื้อ-ขายไฟกับการไฟฟ้า ครบในแอปเดียว ติดตั้งฟรี รันบน Cloudflare ทุน **0 บาท**
+
+ติดตามระบบ **โซลาร์เซลล์ / อินเวอร์เตอร์ Deye** ของคุณได้ทุกที่ทุกเวลาผ่านมือถือ พร้อมผังการไหลของพลังงานแบบสด พยากรณ์อากาศ และช่วงแดดดีสุดของวัน รองรับระบบ **on-grid / hybrid / off-grid** ครบทุกรูปแบบ ออกแบบให้อ่านง่ายสำหรับทุกวัย
+
+- ⚡ **เรียลไทม์** — ผังการไหลของพลังงาน (โซลาร์ ↔ บ้าน ↔ แบตเตอรี่ ↔ กริด) อัปเดตสดจาก **Deye Cloud Open API** จริง
+- 🏡 **ใช้ง่ายสำหรับทุกวัย** — ฟอนต์ Sarabun ตัวเลขใหญ่ ปุ่มน้อย ภาษาไทยกระชับ ออกแบบเพื่อผู้สูงอายุ
+- 💸 **ทุน 0 บาท** — รันบน **Cloudflare Workers + D1** ด้วย free tier ล้วน ไม่มีค่าเซิร์ฟเวอร์รายเดือน
+- 📲 **ติดตั้งเป็นแอป (PWA)** — เพิ่มลงหน้าจอโฮมได้เหมือนแอปจริง ทำงาน offline ได้
+- 🔒 **ปลอดภัย** — กุญแจลับเก็บฝั่ง Worker เท่านั้น ผู้ใช้ไม่ต้องล็อกอินบัญชี Deye
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/botnick/deyecloud)
 
-> ปุ่มนี้ provision D1 + ถาม secret (จาก `.dev.vars.example`) แล้ว deploy ให้อัตโนมัติ — ใส่ค่า Deye / PIN / อากาศ ของคุณเอง · หรือใช้ `npm run setup` (CLI) ก็ได้
+> **เริ่มใช้ใน 1 คลิก** — กดปุ่มด้านบนเพื่อ deploy เป็นของคุณเองบน Cloudflare ฟรี · ระบบ provision D1 + ถาม secret (จาก `.dev.vars.example`) ให้อัตโนมัติ แค่ใส่ค่า Deye / PIN / อากาศ ของคุณ · หรือใช้ `npm run setup` (CLI) ก็ได้
 
-> นักพัฒนา: สถาปัตยกรรมละเอียด **`ARCHITECTURE.md`** · วิธี deploy **`DEPLOY.md`**
+> 👩‍💻 **นักพัฒนา:** สถาปัตยกรรมละเอียด [`ARCHITECTURE.md`](./ARCHITECTURE.md) · วิธี deploy [`DEPLOY.md`](./DEPLOY.md)
 
 ---
 
@@ -156,9 +162,6 @@ npm run setup             # สร้าง D1 + ใส่ id ลง wrangler.js
 
 ---
 
-## หมายเหตุการพัฒนา
-
-- หน้า "เครื่อง" (Device) เข้าผ่านปุ่มบนหน้าหลัก ไม่ใช่แท็บที่ 5
-- คีย์ข้อมูล device จาก Deye เป็น **อังกฤษ** (GridVoltageL1, LoadPhasePowerA …) แมป→ไทยที่ `src/lib/device.ts`
-- คำว่า "**ไฟย้อน**" ตั้งใจใช้ (ไฟย้อนกลับ ไม่ใช่ขายไฟ) — อย่าเปลี่ยนเป็น "ขาย"
-- การคำนวณทุกอย่างเป็นค่าจริงจาก API/สูตรดาราศาสตร์ — ไม่ใส่ค่าสมมติ
+<p align="center">
+  สร้างด้วย ❤️ บน <b>Cloudflare Workers</b> · นักพัฒนา: <a href="./ARCHITECTURE.md">ARCHITECTURE.md</a> · <a href="./DEPLOY.md">DEPLOY.md</a>
+</p>
