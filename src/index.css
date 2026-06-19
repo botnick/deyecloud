@@ -197,3 +197,92 @@ textarea {
 .wx-float { animation: wxfloat 5.5s ease-in-out infinite; }
 .wx-star { animation: wxtwinkle 3.4s ease-in-out infinite; }
 .wx-glow { animation: wxglow 6s ease-in-out infinite; }
+
+/* ===== HeroHome — photoreal house + live energy flow + weather/day-night ===== */
+.solhero { position: relative; width: 100%; aspect-ratio: 390 / 404; border-radius: 22px; overflow: hidden;
+  background: #c4d2dd; box-shadow: 0 14px 38px rgba(17,17,17,.16), 0 0 0 1px rgba(17,17,17,.05), inset 0 1px 1px rgba(255,255,255,.5); }
+/* base colour shows during image load → no flash / CLS */
+.solhero.t-golden { background: #5a3a3f; } .solhero.t-night { background: #0a1230; }
+.solhero .sh-house { position: absolute; inset: 0; background-size: cover; background-position: center 44%; z-index: 0; }
+.solhero .sh-scrim { position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,.20) 0%, rgba(0,0,0,.04) 18%, rgba(0,0,0,0) 60%, rgba(17,17,17,.18) 100%); }
+.solhero .sh-flow { position: absolute; inset: 0; z-index: 4; width: 100%; height: 100%; pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.32)); }
+
+/* atmosphere tint — time-of-day + weather, multiplied over the photo */
+.solhero .sh-atmos { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: multiply; opacity: 0; z-index: 1;
+  transition: opacity .7s ease, background .7s ease; }
+.solhero.t-golden .sh-atmos.t { opacity: 1; background: linear-gradient(180deg, #ffd27a, #ff9a4d 48%, #ff5f7e); }
+.solhero.t-night  .sh-atmos.t { opacity: 1; background: linear-gradient(160deg, #0e2160, #0a1130 55%, #03060f); }
+.solhero.w-cloud  .sh-atmos.w { opacity: .24; background: linear-gradient(180deg, #8b95a1, #b3bcc6); }
+.solhero.w-rain   .sh-atmos.w { opacity: .36; background: linear-gradient(180deg, #5d6772, #828d99); }
+.solhero.w-storm  .sh-atmos.w { opacity: .54; background: linear-gradient(180deg, #1b212c, #3a4250); }
+.solhero.w-fog    .sh-atmos.w { opacity: .20; background: linear-gradient(180deg, #cdd4db, #aeb7c0); }
+
+/* sun / moon */
+.solhero .sh-sun, .solhero .sh-moon { position: absolute; border-radius: 50%; opacity: 0; z-index: 2; pointer-events: none; transition: opacity .7s ease; }
+.solhero .sh-sun { width: 17%; aspect-ratio: 1; left: 62%; top: 9%;
+  background: radial-gradient(circle, #fffaf0, #ffe9a6 36%, #ffd25e 56%, rgba(255,210,94,0) 72%); box-shadow: 0 0 55px 18px rgba(255,213,102,.5); }
+.solhero .sh-moon { width: 11%; aspect-ratio: 1; left: 71%; top: 11%;
+  background: radial-gradient(circle at 36% 36%, #fff, #e3ebf7 50%, #b3c0d8); box-shadow: 0 0 30px 9px rgba(190,210,255,.45); }
+.solhero.t-day.w-clear .sh-sun, .solhero.t-golden.w-clear .sh-sun { opacity: 1; }
+.solhero.t-golden .sh-sun { top: 28%; left: 58%; width: 22%;
+  background: radial-gradient(circle, #fff3d6, #ffb24d 50%, rgba(255,140,60,0) 72%); box-shadow: 0 0 70px 24px rgba(255,140,60,.45); }
+.solhero.t-night.w-clear .sh-moon, .solhero.t-night.w-cloud .sh-moon { opacity: .92; }
+
+/* stars */
+.solhero .sh-stars { position: absolute; left: 0; right: 0; top: 0; height: 55%; z-index: 2; opacity: 0; pointer-events: none; transition: opacity .7s ease; }
+.solhero.t-night.w-clear .sh-stars, .solhero.t-night.w-cloud .sh-stars { opacity: 1; }
+.solhero .sh-stars i { position: absolute; border-radius: 50%; background: #fff; box-shadow: 0 0 3px #fff; animation: sh-tw 3s ease-in-out infinite; }
+@keyframes sh-tw { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
+
+/* clouds */
+.solhero .sh-clouds { position: absolute; inset: 0; z-index: 2; opacity: 0; pointer-events: none; overflow: hidden; transition: opacity .7s ease; }
+.solhero.w-cloud .sh-clouds { opacity: .95; } .solhero.w-rain .sh-clouds { opacity: 1; } .solhero.w-storm .sh-clouds { opacity: 1; }
+.solhero .sh-cloud { position: absolute; border-radius: 50%; filter: blur(9px); animation: sh-drift linear infinite;
+  background: radial-gradient(ellipse 60% 70% at 50% 58%, rgba(255,255,255,.95), rgba(255,255,255,0) 72%); }
+.solhero.w-rain .sh-cloud, .solhero.w-storm .sh-cloud { background: radial-gradient(ellipse 60% 70% at 50% 58%, rgba(94,103,114,.95), rgba(94,103,114,0) 72%); }
+.solhero.t-night .sh-cloud { background: radial-gradient(ellipse 60% 70% at 50% 58%, rgba(120,130,150,.75), rgba(120,130,150,0) 72%); }
+@keyframes sh-drift { from { transform: translateX(-200px); } to { transform: translateX(480px); } }
+
+/* rain / fog / lightning */
+.solhero .sh-rain { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
+.solhero .sh-fog { position: absolute; inset: 0; z-index: 3; opacity: 0; pointer-events: none; transition: opacity .9s ease;
+  background: linear-gradient(180deg, rgba(225,229,234,0), rgba(225,229,234,.55) 42%, rgba(225,229,234,.85)); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.solhero.w-fog .sh-fog { opacity: 1; }
+.solhero .sh-bolt { position: absolute; inset: 0; z-index: 3; opacity: 0; pointer-events: none;
+  background: radial-gradient(circle at 60% 26%, rgba(255,255,255,.95), rgba(220,230,255,.4) 50%, transparent 74%); }
+
+/* inverter hub + entity nodes */
+.solhero .sh-hub { position: absolute; z-index: 6; transform: translate(-50%, -50%); width: 12.5%; aspect-ratio: 1 / .86; border-radius: 14px;
+  display: grid; place-items: center; color: #0d4add; background: linear-gradient(180deg, #fff, #eef2f6);
+  box-shadow: 0 8px 20px rgba(15,23,42,.22), inset 0 0 0 1.5px rgba(255,255,255,.9); }
+.solhero .sh-hub svg { width: 56%; height: 56%; }
+.solhero .sh-node { position: absolute; z-index: 6; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 4px; width: 23%; }
+.solhero .sh-badge { position: relative; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(255,255,255,.95); box-shadow: 0 8px 18px rgba(15,23,42,.18), inset 0 0 0 1.5px rgba(255,255,255,.85); }
+.solhero .sh-badge svg { width: 23px; height: 23px; }
+.solhero .sh-soc { position: absolute; top: -6px; right: -9px; background: #18a673; color: #fff; font-size: 9.5px; font-weight: 800; padding: 2px 5px; border-radius: 7px; box-shadow: 0 3px 8px rgba(22,163,74,.5); }
+/* value chip — keeps numbers readable over any part of the photo (codex/gemini) */
+.solhero .sh-chip { display: flex; flex-direction: column; align-items: center; gap: 1px; margin-top: 1px; padding: 3px 9px 4px; border-radius: 13px;
+  background: rgba(255,255,255,.82); -webkit-backdrop-filter: blur(8px) saturate(150%); backdrop-filter: blur(8px) saturate(150%);
+  box-shadow: 0 4px 12px rgba(15,23,42,.16), inset 0 0 0 1px rgba(255,255,255,.55); }
+.solhero .sh-lb { font-size: 10px; font-weight: 600; color: #5f626a; line-height: 1.05; }
+.solhero .sh-vl { font-size: 13.5px; font-weight: 800; color: #111; line-height: 1; font-variant-numeric: tabular-nums; }
+.solhero.t-night .sh-chip, .solhero.w-storm .sh-chip { background: rgba(15,21,38,.55); box-shadow: 0 4px 12px rgba(0,0,0,.32), inset 0 0 0 1px rgba(255,255,255,.14); }
+.solhero.t-night .sh-lb, .solhero.w-storm .sh-lb { color: #cbd5e1; }
+.solhero.t-night .sh-vl, .solhero.w-storm .sh-vl { color: #f8fafc; }
+
+/* top bar (system name + live + weather) */
+.solhero .sh-top { position: absolute; top: 0; left: 0; right: 0; z-index: 9; display: flex; align-items: flex-start; justify-content: space-between; padding: 14px 14px 0; }
+.solhero .sh-name { font-size: 17px; font-weight: 800; color: #1f2937; letter-spacing: .2px; text-shadow: 0 1px 10px rgba(255,255,255,.65); }
+.solhero .sh-wx { font-size: 12.5px; font-weight: 600; color: #475569; margin-top: 2px; text-shadow: 0 1px 10px rgba(255,255,255,.65); }
+.solhero.t-night .sh-name, .solhero.w-storm .sh-name { color: #f1f5f9; text-shadow: 0 1px 10px rgba(0,0,0,.45); }
+.solhero.t-night .sh-wx, .solhero.w-storm .sh-wx { color: #d6deea; text-shadow: 0 1px 10px rgba(0,0,0,.45); }
+.solhero .sh-live { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,.92); color: #0f172a; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.solhero .sh-dot { width: 7px; height: 7px; border-radius: 50%; background: #18a673; animation: sh-pulse 1.6s infinite; }
+@keyframes sh-pulse { 0% { box-shadow: 0 0 0 0 rgba(24,166,115,.5); } 70% { box-shadow: 0 0 0 7px rgba(24,166,115,0); } 100% { box-shadow: 0 0 0 0 rgba(24,166,115,0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .solhero .sh-dot, .solhero .sh-cloud, .solhero .sh-stars i { animation: none !important; }
+}
