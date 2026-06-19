@@ -3,9 +3,9 @@ import { fmtKwh, timeStr } from "../lib/format";
 import { condText, isNightNow } from "../lib/weather";
 import { IconChevron, IconCheck, IconAlert } from "../lib/icons";
 import { WxIcon } from "../lib/wxicon";
-import { card, cardP, h2Mid } from "../lib/ui";
+import { cardP, h2Mid } from "../lib/ui";
 import { ELECTRICITY_RATE } from "../lib/config";
-import { FlowDiagram } from "./FlowDiagram";
+import { HeroHome } from "./HeroHome";
 import { ProductionRing } from "./ProductionRing";
 
 function Skeleton() {
@@ -17,7 +17,7 @@ function Skeleton() {
   );
 }
 
-export function HomeView({ latest, weather, capacity, onWeather, onDevice }: { latest: Latest | null; weather: Weather | null; capacity?: number; onWeather: () => void; onDevice: () => void }) {
+export function HomeView({ latest, weather, capacity, stationName, onWeather, onDevice }: { latest: Latest | null; weather: Weather | null; capacity?: number; stationName?: string; onWeather: () => void; onDevice: () => void }) {
   if (!latest) return <Skeleton />;
   const ok = (latest.warningStatus || "NORMAL") === "NORMAL";
   const potential = capacity ? capacity * 4.5 : 0; // ~peak-sun-hours in Thailand
@@ -26,6 +26,11 @@ export function HomeView({ latest, weather, capacity, onWeather, onDevice }: { l
 
   return (
     <>
+      {/* live house hero — emotional overview + energy flow + weather/day-night */}
+      <div className="mb-7">
+        <HeroHome latest={latest} weather={weather} title={stationName} />
+      </div>
+
       {/* status */}
       <div className={`${cardP} flex items-center gap-3`}>
         <span className={`grid place-items-center w-11 h-11 rounded-full shrink-0 text-white ${ok ? "bg-ok" : "bg-warn"}`}>
@@ -58,12 +63,6 @@ export function HomeView({ latest, weather, capacity, onWeather, onDevice }: { l
           ดูรายละเอียดเครื่อง
           <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12h16M14 6l6 6-6 6" /></svg>
         </button>
-      </div>
-
-      {/* live energy flow */}
-      <h2 className={h2Mid}>พลังงานตอนนี้</h2>
-      <div className={`${card} px-2 py-3`}>
-        <FlowDiagram latest={latest} />
       </div>
 
       {/* weather */}
