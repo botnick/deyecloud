@@ -50,3 +50,20 @@ export interface HistTotals { gen: number; use: number; buy: number; sell: numbe
 export const getHistory = (range: string, date?: string, station?: number | null) =>
   api<{ range: string; points: any[]; totals?: HistTotals | null; source?: string; date?: string }>(
     "/api/history?range=" + range + (date ? "&date=" + date : "") + (station != null ? "&station=" + station : ""));
+
+// Lifetime aggregate (primary station) — powers the "ตลอด" tab + forecast self-calibration.
+export interface YearTotal { year: string; gen: number; use: number; buy: number; sell: number; }
+export interface Totals {
+  days: number; firstDay: string | null; lastDay: string | null;
+  gen: number; use: number; buy: number; sell: number; charge: number; discharge: number;
+  genTotal: number; peakPower: number; years: YearTotal[];
+}
+export const getTotals = () => api<Totals>("/api/totals");
+
+// User economics, stored server-side (shared across devices). Empty object = defaults.
+export interface RawSettings { rate?: number; sellRate?: number; systemCost?: number | null; }
+export const getSettings = () => api<RawSettings>("/api/settings");
+export const saveSettings = (s: RawSettings) =>
+  api<{ ok: boolean; settings: RawSettings }>("/api/settings", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(s),
+  });

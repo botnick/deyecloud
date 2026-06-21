@@ -1,7 +1,10 @@
-import type { Weather, WeatherHour } from "../lib/api";
+import { useEffect, useState } from "react";
+import { getTotals, type Weather, type WeatherHour } from "../lib/api";
 import { condText, solarInfo, DAYLBL, shortDate, isNightAt, isNightNow } from "../lib/weather";
+import { forecast, effectiveCapacityKw } from "../lib/forecast";
 import { WxIcon } from "../lib/wxicon";
 import { card, cardP, plateP, h2First, h2Mid } from "../lib/ui";
+import { IconSun } from "../lib/icons";
 import { SunPath } from "./SunPath";
 // Meteocons sunrise/sunset (same "fill" family as every other weather icon) so the
 // markers match the hourly strip's style exactly.
@@ -34,7 +37,16 @@ function Stat({ label, value, color, sub }: { label: string; value: string; colo
   );
 }
 
-export function WeatherView({ weather }: { weather: Weather | null }) {
+export function WeatherView({ weather, capacity }: { weather: Weather | null; capacity?: number }) {
+  // Effective capacity for the production forecast: the station's installed kWp, or
+  // — when unknown — derived from the best PV power ever produced (peakPower). Only
+  // fetched (cheaply, cached) when the station never reported its capacity.
+  const [peakW, setPeakW] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    if (capacity && capacity > 0) return;
+    getTotals().then((t) => setPeakW(t.peakPower)).catch(() => {});
+  }, [capacity]);
+
   if (!weather || weather.temp == null) {
     return (
       <>
@@ -44,6 +56,8 @@ export function WeatherView({ weather }: { weather: Weather | null }) {
     );
   }
   const w = weather;
+  const effCap = effectiveCapacityKw(capacity, peakW);
+  const fc = forecast(w, effCap); // expected kWh per available day (today included)
   const night = isNightNow();
   const d0 = w.daily?.[0];
   const s = solarInfo(w.cond, d0?.swdown);
@@ -100,6 +114,27 @@ export function WeatherView({ weather }: { weather: Weather | null }) {
           </div>
         )}
       </div>
+
+      {/* production forecast — what the panels are likely to make next */}
+      {effCap > 0 && fc.length > 1 && (
+        <div className={`${cardP} mt-3`}>
+          <div className="flex items-center gap-2.5">
+            <span className="w-9 h-9 rounded-xl grid place-items-center shrink-0" style={{ background: "var(--color-pv-soft)", color: "var(--color-pv)" }}>
+              <IconSun className="w-5 h-5" />
+            </span>
+            <div className="font-bold text-[16px] text-title">คาดการณ์การผลิตไฟ</div>
+          </div>
+          <div className="grid grid-cols-3 gap-2.5 mt-3">
+            {fc.slice(0, 3).map((f, i) => (
+              <div key={i} className="bg-canvas rounded-2xl px-2 py-3 text-center">
+                <div className="text-[12px] text-body">{DAYLBL[i] || shortDate(f.time)}</div>
+                <div className="text-[19px] font-extrabold tabnum text-pv-high mt-1">{f.kwh.toFixed(1)}<span className="text-[11px] text-body font-semibold ml-0.5">หน่วย</span></div>
+              </div>
+            ))}
+          </div>
+          <div className="text-[11.5px] text-muted mt-2.5 leading-snug">ประมาณการจากขนาดระบบ {effCap.toFixed(1)} kW และสภาพอากาศแต่ละวัน · ค่าจริงขึ้นกับเมฆฝน</div>
+        </div>
+      )}
 
       {/* sun & solar reception */}
       {sun && (
@@ -162,6 +197,9 @@ export function WeatherView({ weather }: { weather: Weather | null }) {
                   <div className="h-full rounded-full" style={{ width: `${si.pct}%`, background: amber }} />
                 </div>
               </div>
+              {effCap > 0 && fc[i] && (
+                <div className="w-[58px] text-right text-[12.5px] font-extrabold tabnum text-pv-high">~{fc[i].kwh.toFixed(0)}<span className="text-[10px] text-muted font-semibold"> หน่วย</span></div>
+              )}
               <div className="w-[46px] text-right text-[12px] font-bold text-grid">{d.rain > 0 ? `${(+d.rain).toFixed(1)}` : "—"}</div>
               <div className="w-[78px] text-right text-[15px] font-extrabold">{Math.round(d.tc_max)}°<small className="text-muted font-semibold"> {Math.round(d.tc_min)}°</small></div>
             </div>

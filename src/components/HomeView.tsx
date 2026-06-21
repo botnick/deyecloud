@@ -2,7 +2,9 @@ import type { Latest, Weather } from "../lib/api";
 import { fmtKwh, timeStr } from "../lib/format";
 import { IconAlert } from "../lib/icons";
 import { cardP, h2Mid } from "../lib/ui";
-import { ELECTRICITY_RATE } from "../lib/config";
+import { useSettings } from "../lib/settings";
+import { savingsOf } from "../lib/economics";
+import { forecast, effectiveCapacityKw } from "../lib/forecast";
 import { HeroHome } from "./HeroHome";
 import { ProductionRing } from "./ProductionRing";
 
@@ -16,11 +18,15 @@ function Skeleton() {
 }
 
 export function HomeView({ latest, weather, capacity, stationName, onDevice }: { latest: Latest | null; weather: Weather | null; capacity?: number; stationName?: string; onDevice: () => void }) {
+  const { settings } = useSettings();
   if (!latest) return <Skeleton />;
   const ok = (latest.warningStatus || "NORMAL") === "NORMAL";
   const potential = capacity ? capacity * 4.5 : 0; // ~peak-sun-hours in Thailand
   const prodPct = potential > 0 ? Math.round(Math.min(100, (latest.genToday / potential) * 100)) : Math.min(100, Math.round(latest.genToday));
-  const savings = Math.max(0, Math.round((latest.useToday - latest.buyToday) * ELECTRICITY_RATE)); // self-consumed kWh × tariff
+  // shared economics formula (self-consumption + export income, user's own rates)
+  const savings = Math.round(savingsOf({ use: latest.useToday, buy: latest.buyToday, sell: latest.sellToday }, settings));
+  // tomorrow's expected production (shown only when capacity is known here)
+  const tomorrow = capacity ? forecast(weather, effectiveCapacityKw(capacity))[1] : undefined;
 
   return (
     <>
@@ -45,7 +51,10 @@ export function HomeView({ latest, weather, capacity, stationName, onDevice }: {
         <div className="w-[160px] mx-auto mb-1.5">
           <ProductionRing pct={prodPct} center={fmtKwh(latest.genToday)} unit="หน่วยวันนี้" />
         </div>
-        <div className="text-center text-[13px] text-body mb-4">ผลิตได้ {prodPct}% ของศักยภาพวันนี้</div>
+        <div className="text-center text-[13px] text-body mb-4">
+          ผลิตได้ {prodPct}% ของศักยภาพวันนี้
+          {tomorrow && tomorrow.kwh > 0 && <> · พรุ่งนี้คาดผลิต <b className="text-pv-high">~{tomorrow.kwh.toFixed(0)} หน่วย</b></>}
+        </div>
         <div className="grid grid-cols-2 gap-2.5">
           <div className="bg-canvas rounded-2xl px-4 py-3">
             <div className="text-[12px] text-body">ขนาดระบบ</div>

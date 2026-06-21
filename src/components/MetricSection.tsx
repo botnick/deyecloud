@@ -6,7 +6,7 @@ import { cardP } from "../lib/ui";
 // compact chart), kept in our glass design. Deliberately low-clutter for the
 // elderly users this app targets.
 export function MetricSection({
-  icon, title, accent, soft, value, unit, sub, legend, children,
+  icon, title, accent, soft, value, unit, sub, caption, legend, children,
 }: {
   icon: ReactNode;
   title: string;
@@ -15,6 +15,7 @@ export function MetricSection({
   value?: string;
   unit?: string;
   sub?: ReactNode;
+  caption?: ReactNode;       // one plain-language line: what the chart actually means
   legend?: [string, string][];
   children: ReactNode;
 }) {
@@ -34,6 +35,9 @@ export function MetricSection({
           {sub && <div className="text-[11.5px] text-muted mt-1">{sub}</div>}
         </div>
       </div>
+
+      {/* plain-language takeaway — so the chart isn't "just a graph" */}
+      {caption && <div className="text-[13.5px] text-body mt-2 leading-snug">{caption}</div>}
 
       {legend && legend.length > 0 && (
         <div className="flex gap-4 mt-2.5 flex-wrap">
