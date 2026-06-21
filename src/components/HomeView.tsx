@@ -5,6 +5,7 @@ import { cardP, h2Mid } from "../lib/ui";
 import { useSettings } from "../lib/settings";
 import { savingsOf } from "../lib/economics";
 import { forecast, effectiveCapacityKw } from "../lib/forecast";
+import { InfoTip } from "./InfoTip";
 import { HeroHome } from "./HeroHome";
 import { ProductionRing } from "./ProductionRing";
 
@@ -61,7 +62,10 @@ export function HomeView({ latest, weather, capacity, stationName, onDevice }: {
             <div className="text-[18px] font-extrabold tabnum mt-0.5">{capacity ? `${capacity} kW` : "—"}</div>
           </div>
           <div className="bg-canvas rounded-2xl px-4 py-3">
-            <div className="text-[12px] text-body">ประหยัดวันนี้</div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[12px] text-body">ประหยัดวันนี้</span>
+              <InfoTip text={`ไฟที่ใช้เองจากโซล่า/แบตวันนี้ (ไม่ได้ซื้อจากการไฟฟ้า) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายคืน ${settings.sellRate} บาท/หน่วย` : ""} · ปรับค่าได้ในแท็บ 'ตลอด'`} />
+            </div>
             <div className="text-[18px] font-extrabold tabnum mt-0.5 text-secondary">฿{savings}</div>
           </div>
         </div>

@@ -8,6 +8,7 @@ import { IconChevron, IconSun, IconHouse, IconBattery, IconGrid } from "../lib/i
 import { BarChart, LineMini, Legend } from "./Chart";
 import { MetricSection } from "./MetricSection";
 import { Collapsible } from "./Collapsible";
+import { InfoTip } from "./InfoTip";
 import { PowerProfile } from "./PowerProfile";
 import { LifetimeView } from "./LifetimeView";
 import { InsightList } from "./InsightList";
@@ -250,7 +251,10 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
               {saved != null && periodTotals && (periodTotals.use || 0) > 0 && (
                 <div className={`${cardP} mt-3 flex items-center gap-4`}>
                   <div className="flex-1">
-                    <div className="text-[12.5px] text-body">ช่วงนี้ประหยัดค่าไฟ</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[12.5px] text-body">ช่วงนี้ประหยัดค่าไฟ</span>
+                      <InfoTip text={`เงินที่ประหยัด = ไฟที่ใช้เองจากโซล่า/แบต (ไม่ได้ซื้อจากการไฟฟ้า) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + รายได้ขายคืน ${settings.sellRate} บาท/หน่วย` : ""} · ปรับค่าได้ในแท็บ 'ตลอด'`} />
+                    </div>
                     <div className="text-[26px] font-extrabold tabnum leading-none mt-0.5 text-secondary">{baht(saved)}</div>
                   </div>
                   <div className="text-right">
