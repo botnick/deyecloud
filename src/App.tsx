@@ -212,7 +212,7 @@ export default function App() {
           <div key={view} className="view-anim">
             {view === "home" && <HomeView latest={shownLatest} weather={weather} capacity={active?.capacity} stationName={active?.name} onDevice={() => go("device")} />}
             {view === "today" && <TodayView latest={shownLatest} capacity={active?.capacity} />}
-            {view === "weather" && <WeatherView weather={weather} />}
+            {view === "weather" && <WeatherView weather={weather} capacity={active?.capacity} />}
             {view === "device" && <DeviceView latest={shownLatest} active={true} stationId={stations.length > 1 ? selectedId : undefined} onBack={() => go("home")} />}
           </div>
           <div className={view === "history" ? "view-anim" : "hidden"}>

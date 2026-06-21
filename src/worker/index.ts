@@ -404,7 +404,7 @@ async function histFromD1(env: Env, range: string, dateStr: string) {
     return { range, date: dateStr, points: results, source: "d1" };
   }
   const { results } = await env.DB.prepare(
-    `SELECT substr(day,1,7) AS month, SUM(gen) gen, SUM(use) use, SUM(buy) buy, SUM(sell) sell FROM daily WHERE day >= ? AND day < ? GROUP BY month ORDER BY month`
+    `SELECT substr(day,1,7) AS month, SUM(gen) gen, SUM(use) use, SUM(buy) buy, SUM(sell) sell, SUM(charge) charge, SUM(discharge) discharge FROM daily WHERE day >= ? AND day < ? GROUP BY month ORDER BY month`
   ).bind(`${y}-01-01`, `${y + 1}-01-01`).all();
   return { range, date: dateStr, points: results, source: "d1" };
 }
@@ -449,6 +449,7 @@ async function fetchHistFromDeye(env: Env, range: string, dateStr: string, sid?:
     const res = await getHistory(env, 3, `${y}-01`, `${y}-12`, sid);
     const points = (res.stationDataItems || []).map((x: any) => ({
       month: `${x.year}-${p2(x.month)}`, gen: x.generationValue ?? 0, use: x.consumptionValue ?? 0, buy: x.purchaseValue ?? 0, sell: x.gridValue ?? 0,
+      charge: x.chargeValue ?? 0, discharge: x.dischargeValue ?? 0,
     }));
     data = { range, date: dateStr, points, source: "deye" };
   }
@@ -508,6 +509,64 @@ app.get("/api/history", async (c) => {
     const fb = sid ? { range, date: dateStr, points: [], source: "deye" } : await histFromD1(env, range, dateStr);
     return c.json({ ...fb, cached: false });
   }
+});
+
+// Lifetime aggregate across every stored daily roll-up — powers the "ตลอด" tab
+// (total production, savings, CO₂, payback). One cheap SUM over the tiny daily
+// table, lightly cached. peakPower (best PV watts ever) lets the production
+// forecast self-calibrate even when the station never reported its installed kWp.
+// (daily holds the cron's primary station only, so lifetime = primary station.)
+app.get("/api/totals", async (c) => {
+  const env = c.env;
+  const cached = await env.DB.prepare("SELECT v FROM meta WHERE k='totals_cache'").first();
+  if (cached) { try { const cc = JSON.parse((cached as any).v); if (Date.now() - cc._at < 30 * 60 * 1000) return c.json(cc.data); } catch {} }
+  const agg = (await env.DB.prepare(
+    `SELECT COUNT(*) days, MIN(day) firstDay, MAX(day) lastDay,
+            SUM(gen) gen, SUM(use) use, SUM(buy) buy, SUM(sell) sell,
+            SUM(charge) charge, SUM(discharge) discharge, MAX(peak_power) peak FROM daily`
+  ).first()) as any;
+  // genTotal = the inverter's own lifetime kWh meter (more accurate than summing
+  // daily, which only goes back to install) — prefer it, fall back to the sum.
+  const last = (await env.DB.prepare("SELECT gen_total FROM samples ORDER BY ts DESC LIMIT 1").first()) as any;
+  // per-year breakdown for the lifetime bar chart
+  const yrs = (await env.DB.prepare(
+    `SELECT substr(day,1,4) year, SUM(gen) gen, SUM(use) use, SUM(buy) buy, SUM(sell) sell FROM daily GROUP BY year ORDER BY year`
+  ).all()).results || [];
+  const data = {
+    days: agg?.days || 0, firstDay: agg?.firstDay || null, lastDay: agg?.lastDay || null,
+    gen: agg?.gen || 0, use: agg?.use || 0, buy: agg?.buy || 0, sell: agg?.sell || 0,
+    charge: agg?.charge || 0, discharge: agg?.discharge || 0,
+    genTotal: (last && last.gen_total) || 0,
+    peakPower: agg?.peak || 0, // W — best PV power ever seen (≈ system AC capacity)
+    years: yrs,
+  };
+  await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('totals_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();
+  return c.json(data);
+});
+
+// User-tunable economics (฿/หน่วย ค่าไฟ, ค่าขายคืน, ทุนติดตั้ง) stored server-side
+// in D1 so every device sharing the PIN sees the same figures. The frontend merges
+// these over its built-in defaults; an empty object = use defaults everywhere.
+app.get("/api/settings", async (c) => {
+  const row = await c.env.DB.prepare("SELECT v FROM meta WHERE k='settings'").first();
+  let s: any = {};
+  if (row) { try { s = JSON.parse((row as any).v); } catch {} }
+  return c.json(s);
+});
+app.post("/api/settings", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const clean: any = {};
+  // whitelist + coerce: a finite number ≥0 is stored; an explicit null clears the
+  // field (back to default); anything else is ignored so junk never lands in D1.
+  for (const k of ["rate", "sellRate", "systemCost"]) {
+    const raw = (body as any)[k];
+    if (raw === null) { clean[k] = null; continue; }
+    if (raw === "" || raw === undefined) continue;
+    const n = Number(raw);
+    if (isFinite(n) && n >= 0) clean[k] = n;
+  }
+  await c.env.DB.prepare("INSERT INTO meta (k,v) VALUES ('settings',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify(clean)).run();
+  return c.json({ ok: true, settings: clean });
 });
 
 app.get("/api/_debug", async (c) => c.json(await getLatest(c.env)));
