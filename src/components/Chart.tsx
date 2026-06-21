@@ -38,6 +38,50 @@ export function BarChart({ labels, series }: { labels: string[]; series: Series[
   );
 }
 
+// Compact single-metric line — one section's worth of the day profile.
+// Handles negative values (zero baseline) and an optional secondary series on a
+// fixed 0..secMax right axis (used for battery SOC %).
+export function LineMini({
+  values, color, area = true, secondary,
+}: {
+  values: number[];
+  color: string;
+  area?: boolean;
+  secondary?: { values: number[]; color: string; max: number };
+}) {
+  const W = 340, H = 132, l = 8, t = 10, b = 16;
+  const r = secondary ? 30 : 8;
+  const iw = W - l - r, ih = H - t - b;
+  const vals = values.length ? values : [0];
+  const max = Math.max(0.001, ...vals);
+  const min = Math.min(0, ...vals);
+  const span = max - min || 1;
+  const X = (i: number) => l + (i / (vals.length - 1 || 1)) * iw;
+  const Y = (v: number) => t + ih - ((v - min) / span) * ih;
+  const line = vals.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join(" ");
+  const zeroY = Y(0);
+  const areaPath = `${line} L${X(vals.length - 1).toFixed(1)} ${zeroY.toFixed(1)} L${X(0).toFixed(1)} ${zeroY.toFixed(1)} Z`;
+  const sec = secondary;
+  const SY = (v: number) => t + ih - (Math.max(0, Math.min(sec!.max, v)) / sec!.max) * ih;
+  const secLine = sec ? sec.values.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${SY(v).toFixed(1)}`).join(" ") : "";
+  const uid = color.replace(/[^a-z0-9]/gi, "");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[120px]" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={`g${uid}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* baseline (zero) */}
+      <line x1={l} y1={zeroY} x2={W - r} y2={zeroY} stroke="var(--color-line)" />
+      {area && <path d={areaPath} fill={`url(#g${uid})`} />}
+      <path d={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      {sec && <path d={secLine} fill="none" stroke={sec.color} strokeWidth="2" strokeDasharray="5 4" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />}
+    </svg>
+  );
+}
+
 export function Legend({ items }: { items: [string, string][] }) {
   return (
     <div className="flex gap-5 justify-center mt-2 flex-wrap">

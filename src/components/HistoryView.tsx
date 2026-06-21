@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getHistory, type HistTotals } from "../lib/api";
 import { useSmartPoll } from "../lib/usePoll";
 import { cardSm, plate, h2First, h2Mid } from "../lib/ui";
-import { IconChevron } from "../lib/icons";
-import { BarChart, Legend } from "./Chart";
-import { PowerProfile } from "./PowerProfile";
+import { IconChevron, IconSun, IconHouse, IconBattery, IconGrid } from "../lib/icons";
+import { BarChart, LineMini } from "./Chart";
+import { MetricSection } from "./MetricSection";
 import { InsightList } from "./InsightList";
 import { analyzeHistory } from "../lib/analysis";
 
@@ -68,17 +68,86 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
     : range === "month" ? ref.toLocaleDateString("th-TH-u-ca-gregory", { month: "long", year: "numeric" })
       : "ปี " + ref.getFullYear();
 
-  const energy = range !== "day";
-  const tot = energy && points ? points.reduce((a, p) => ({ gen: a.gen + (p.gen || 0), use: a.use + (p.use || 0) }), { gen: 0, use: 0 }) : null;
+  const sum = (k: string) => (points || []).reduce((a, p) => a + (Number(p[k]) || 0), 0);
+  const lastSoc = points && points.length ? Math.round(Number(points[points.length - 1].soc) || 0) : 0;
   const insights = useMemo(
     () => (points && points.length ? analyzeHistory(range, points, capacity, totals) : []),
     [range, points, capacity, totals],
   );
 
+  // Per-metric sections — mirrors the official Deye app (Production / Grid /
+  // Consumption / Battery). Day → compact line of instantaneous power; month/year
+  // → bars of daily/monthly energy. Each section owns its headline total. Kept
+  // low-clutter (1 headline number + short legend + short chart) for elderly users.
+  const fmt = (v: number) => v.toFixed(1);
+  function sections() {
+    if (!points || !points.length) return null;
+    if (range === "day") {
+      const kw = (k: string) => points!.map((p) => (Number(p[k]) || 0) / 1000);
+      return (
+        <>
+          <MetricSection icon={<IconSun className="w-5 h-5" />} title="การผลิต" accent="var(--color-pv)" soft="var(--color-pv-soft)"
+            value={totals ? fmt(totals.gen) : undefined} unit="หน่วย">
+            <LineMini values={kw("gen_power")} color="var(--color-pv)" />
+          </MetricSection>
+
+          <MetricSection icon={<IconHouse className="w-5 h-5" />} title="การใช้ไฟ" accent="var(--color-use)" soft="var(--color-use-soft)"
+            value={totals ? fmt(totals.use) : undefined} unit="หน่วย">
+            <LineMini values={kw("use_power")} color="var(--color-use)" />
+          </MetricSection>
+
+          <MetricSection icon={<IconGrid className="w-5 h-5" />} title="กริด (ไฟหลวง)" accent="var(--color-grid)" soft="var(--color-grid-soft)"
+            value={totals ? fmt(totals.buy) : undefined} unit="ซื้อ"
+            sub={totals ? `ขาย ${fmt(totals.sell)} หน่วย` : undefined}>
+            <LineMini values={kw("grid_power")} color="var(--color-grid)" />
+          </MetricSection>
+
+          <MetricSection icon={<IconBattery className="w-5 h-5" />} title="แบตเตอรี่" accent="var(--color-batt)" soft="var(--color-batt-soft)"
+            value={String(lastSoc)} unit="%"
+            legend={[["กำลังแบต (kW)", "var(--color-batt)"], ["แบต % (SOC)", "#0b6b48"]]}>
+            <LineMini values={kw("batt_power")} color="var(--color-batt)"
+              secondary={{ values: points!.map((p) => Number(p.soc) || 0), color: "#0b6b48", max: 100 }} />
+          </MetricSection>
+        </>
+      );
+    }
+    // month / year — energy bars
+    const labels = points.map((p) => range === "month" ? String(p.day || "").slice(8) : String(p.month || "").slice(5));
+    const col = (k: string) => points!.map((p) => Number(p[k]) || 0);
+    const hasBatt = range === "month"; // the year rollup carries no charge/discharge
+    return (
+      <>
+        <MetricSection icon={<IconSun className="w-5 h-5" />} title="การผลิต" accent="var(--color-pv)" soft="var(--color-pv-soft)"
+          value={fmt(sum("gen"))} unit="หน่วย">
+          <BarChart labels={labels} series={[{ color: "var(--color-pv)", data: col("gen") }]} />
+        </MetricSection>
+
+        <MetricSection icon={<IconHouse className="w-5 h-5" />} title="การใช้ไฟ" accent="var(--color-use)" soft="var(--color-use-soft)"
+          value={fmt(sum("use"))} unit="หน่วย">
+          <BarChart labels={labels} series={[{ color: "var(--color-use)", data: col("use") }]} />
+        </MetricSection>
+
+        <MetricSection icon={<IconGrid className="w-5 h-5" />} title="กริด (ไฟหลวง)" accent="var(--color-grid)" soft="var(--color-grid-soft)"
+          value={fmt(sum("buy"))} unit="ซื้อ" sub={`ขาย ${fmt(sum("sell"))} หน่วย`}
+          legend={[["ซื้อ", "var(--color-grid)"], ["ขาย", "var(--color-warn)"]]}>
+          <BarChart labels={labels} series={[{ color: "var(--color-grid)", data: col("buy") }, { color: "var(--color-warn)", data: col("sell") }]} />
+        </MetricSection>
+
+        {hasBatt && (
+          <MetricSection icon={<IconBattery className="w-5 h-5" />} title="แบตเตอรี่" accent="var(--color-batt)" soft="var(--color-batt-soft)"
+            value={fmt(sum("charge"))} unit="ชาร์จ" sub={`จ่าย ${fmt(sum("discharge"))} หน่วย`}
+            legend={[["ชาร์จเข้า", "var(--color-batt)"], ["จ่ายออก", "#8fd8bf"]]}>
+            <BarChart labels={labels} series={[{ color: "var(--color-batt)", data: col("charge") }, { color: "#8fd8bf", data: col("discharge") }]} />
+          </MetricSection>
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       <h2 className={h2First}>ย้อนหลัง</h2>
-      <div className={`flex ${cardSm} p-1.5 gap-1.5`}>
+      <div className={`flex ${cardSm} p-1.5 gap-1.5 sticky top-2 z-10`}>
         {TABS.map((t) => (
           <button key={t.k} onClick={() => changeRange(t.k)}
             className={`flex-1 min-h-12 rounded-xl text-[17px] font-bold transition-colors ${range === t.k ? "bg-primary text-ink" : "text-body"}`}>
@@ -98,34 +167,11 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
         </button>
       </div>
 
-      {tot && (
-        <div className="grid grid-cols-2 gap-2.5 mt-3">
-          <div className={`${cardSm} px-4 py-3`}>
-            <div className="text-[12px] text-body">ผลิตรวม</div>
-            <div className="text-[18px] font-extrabold tabnum text-pv-high mt-0.5">{tot.gen.toFixed(1)} <span className="text-[13px] text-body font-semibold">หน่วย</span></div>
-          </div>
-          <div className={`${cardSm} px-4 py-3`}>
-            <div className="text-[12px] text-body">ใช้รวม</div>
-            <div className="text-[18px] font-extrabold tabnum text-use mt-0.5">{tot.use.toFixed(1)} <span className="text-[13px] text-body font-semibold">หน่วย</span></div>
-          </div>
-        </div>
-      )}
-
       {points === null ? (
         <div className="skeleton h-[280px] rounded-[20px] mt-3" />
       ) : points.length === 0 ? (
         <div className={`${plate} p-4 mt-3`}><p className="text-center text-muted py-12">ไม่มีข้อมูลช่วงนี้</p></div>
-      ) : range === "day" ? (
-        <div className="mt-3"><PowerProfile points={points} /></div>
-      ) : (
-        <div className={`${plate} p-4 mt-3`}>
-          <BarChart labels={points.map((p) => (range === "month" ? String(p.day || "").slice(8) : String(p.month || "").slice(5)))} series={[
-            { color: "var(--color-pv)", data: points.map((p) => p.gen || 0) },
-            { color: "var(--color-use)", data: points.map((p) => p.use || 0) },
-          ]} />
-          <Legend items={[["ผลิต (หน่วย)", "var(--color-pv)"], ["ใช้ (หน่วย)", "var(--color-use)"]]} />
-        </div>
-      )}
+      ) : sections()}
 
       {insights.length > 0 && (
         <>
