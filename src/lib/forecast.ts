@@ -30,6 +30,14 @@ export function forecastDayKwh(day: WeatherDay, pshClear: number, capKw: number)
   return capKw * pshClear * skyFactor(day.cond);
 }
 
+// Expected production (kWh) within one hour: panels track the sun, so output ≈
+// installed kWp × the clear-sky irradiance fraction sin(sun elevation) × the
+// hour's sky factor. Zero when the sun is down.
+export function hourlyKwh(elevDeg: number, cond: number, capKw: number): number {
+  if (!capKw || elevDeg <= 0) return 0;
+  return capKw * Math.sin((elevDeg * Math.PI) / 180) * skyFactor(cond);
+}
+
 export interface ForecastItem { time: string; kwh: number; }
 
 // Forecast kWh for each day the weather payload covers (today included).

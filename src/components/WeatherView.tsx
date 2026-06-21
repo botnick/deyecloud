@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { getTotals, type Weather, type WeatherHour } from "../lib/api";
 import { condText, solarInfo, DAYLBL, shortDate, isNightAt, isNightNow } from "../lib/weather";
-import { forecast, effectiveCapacityKw } from "../lib/forecast";
+import { forecast, hourlyKwh, effectiveCapacityKw } from "../lib/forecast";
 import { WxIcon } from "../lib/wxicon";
 import { card, cardP, plateP, h2First, h2Mid } from "../lib/ui";
 import { IconSun } from "../lib/icons";
+import { InfoTip } from "./InfoTip";
 import { SunPath } from "./SunPath";
 // Meteocons sunrise/sunset (same "fill" family as every other weather icon) so the
 // markers match the hourly strip's style exactly.
@@ -62,6 +63,18 @@ export function WeatherView({ weather, capacity }: { weather: Weather | null; ca
   const d0 = w.daily?.[0];
   const s = solarInfo(w.cond, d0?.swdown);
   const sun = w.sun;
+
+  // Sun elevation at any clock time, interpolated from the sunrise→sunset arc, so
+  // the hourly strip can show a small per-hour production estimate. 0 at night.
+  const elevAt = (date: Date): number => {
+    if (!sun?.rise || !sun?.set || !sun.arc?.length) return 0;
+    const mins = (hm: string) => { const [h, m] = hm.split(":").map(Number); return h * 60 + m; };
+    const r = mins(sun.rise), st = mins(sun.set), t = date.getHours() * 60 + date.getMinutes();
+    if (st <= r || t <= r || t >= st) return 0;
+    const idx = ((t - r) / (st - r)) * (sun.arc.length - 1);
+    const lo = Math.floor(idx), hi = Math.min(sun.arc.length - 1, lo + 1);
+    return sun.arc[lo] + (sun.arc[hi] - sun.arc[lo]) * (idx - lo);
+  };
 
   // Merge sunrise/sunset markers into the hourly strip at their real times (iOS-style).
   type HourItem = { kind: "hour"; d: Date; h: WeatherHour };
@@ -123,6 +136,7 @@ export function WeatherView({ weather, capacity }: { weather: Weather | null; ca
               <IconSun className="w-5 h-5" />
             </span>
             <div className="font-bold text-[16px] text-title">คาดการณ์การผลิตไฟ</div>
+            <InfoTip className="ml-1" text={`ค่าประมาณการผลิตไฟแต่ละวัน คิดจากขนาดระบบ ${effCap.toFixed(1)} kW × ปริมาณแสงแดดที่คาดไว้ ค่าจริงขึ้นกับเมฆ ฝน และการใช้งานจริงครับ`} />
           </div>
           <div className="grid grid-cols-3 gap-2.5 mt-3">
             {fc.slice(0, 3).map((f, i) => (
@@ -132,7 +146,6 @@ export function WeatherView({ weather, capacity }: { weather: Weather | null; ca
               </div>
             ))}
           </div>
-          <div className="text-[11.5px] text-muted mt-2.5 leading-snug">ประมาณการจากขนาดระบบ {effCap.toFixed(1)} kW และสภาพอากาศแต่ละวัน · ค่าจริงขึ้นกับเมฆฝน</div>
         </div>
       )}
 
@@ -162,7 +175,10 @@ export function WeatherView({ weather, capacity }: { weather: Weather | null; ca
       )}
 
       {/* hourly */}
-      <h2 className={h2Mid}>ราย 1 ชั่วโมง</h2>
+      <div className={`${h2Mid} flex items-center gap-2`}>
+        <span>ราย 1 ชั่วโมง</span>
+        {effCap > 0 && <InfoTip text="ตัวเลขสีส้ม (~หน่วย) ใต้แต่ละชั่วโมง คือไฟที่คาดว่าจะผลิตได้ในชั่วโมงนั้น คิดจากมุมแสงแดด × สภาพอากาศครับ" />}
+      </div>
       <div className="flex gap-2.5 overflow-x-auto hscroll snap-x pb-2.5 -mx-[18px] px-[18px]">
         {hourlyItems.map((it, i) =>
           it.kind === "hour" ? (
@@ -170,7 +186,10 @@ export function WeatherView({ weather, capacity }: { weather: Weather | null; ca
               <div className="text-[13px] font-bold text-body">{it.d.getTime() === nowMs ? "ตอนนี้" : it.d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</div>
               <WxIcon cond={it.h.cond} night={isNightAt(it.h.time)} className="w-10 h-10 mx-auto my-1.5" />
               <div className="text-[17px] font-extrabold">{Math.round(it.h.tc)}°</div>
-              <div className="text-[11px] font-bold text-grid min-h-[14px] leading-none">{it.h.rain > 0 ? `${(+it.h.rain).toFixed(1)}มม` : ""}</div>
+              {effCap > 0 && (() => { const kwh = hourlyKwh(elevAt(it.d), it.h.cond, effCap); return (
+                <div className="text-[10px] font-bold text-pv-high leading-none mt-1 min-h-[12px] whitespace-nowrap">{kwh > 0.05 ? `~${kwh.toFixed(1)} หน่วย` : ""}</div>
+              ); })()}
+              <div className="text-[11px] font-bold text-grid min-h-[14px] leading-none mt-1">{it.h.rain > 0 ? `${(+it.h.rain).toFixed(1)}มม` : ""}</div>
             </div>
           ) : (
             <div key={i} className="shrink-0 snap-start w-[70px] py-3 px-2 text-center rounded-[18px] bg-[#fff6e0]/85 border border-[#f3d68c]/70">
@@ -183,25 +202,28 @@ export function WeatherView({ weather, capacity }: { weather: Weather | null; ca
       </div>
 
       {/* 7 days */}
-      <h2 className={h2Mid}>7 วันข้างหน้า</h2>
+      <div className={`${h2Mid} flex items-center gap-2`}>
+        <span>7 วันข้างหน้า</span>
+        {effCap > 0 && <InfoTip text="ตัวเลขสีส้ม (~หน่วย) คือไฟที่คาดว่าจะผลิตได้ในแต่ละวัน · แถบสีส้มคือปริมาณแสงแดด · ไอคอนบอกสภาพอากาศครับ" />}
+      </div>
       <div className={`${card} px-5`}>
         {(w.daily || []).map((d, i) => {
           const si = solarInfo(d.cond, d.swdown);
           return (
-            <div key={i} className="flex items-center gap-3 py-3.5 border-b border-line last:border-0">
-              <div className="w-[58px] font-bold text-[14px]">{DAYLBL[i] || shortDate(d.time)}</div>
-              <WxIcon cond={d.cond} className="w-10 h-10 shrink-0" />
+            <div key={i} className="flex items-center gap-2.5 py-3.5 border-b border-line last:border-0">
+              <div className="w-[50px] font-bold text-[14px] shrink-0">{DAYLBL[i] || shortDate(d.time)}</div>
+              <WxIcon cond={d.cond} className="w-9 h-9 shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="text-[13px] text-body truncate">{condText(d.cond)}</div>
-                <div className="h-1.5 rounded-full bg-canvas mt-1 overflow-hidden max-w-[110px]">
+                {/* lead with the production estimate (the headline); the icon carries the sky condition */}
+                {effCap > 0 && fc[i]
+                  ? <div className="text-[14px] font-extrabold tabnum text-pv-high leading-none">~{fc[i].kwh.toFixed(0)}<span className="text-[11px] text-muted font-semibold"> หน่วย</span></div>
+                  : <div className="text-[13px] text-body truncate">{condText(d.cond)}</div>}
+                <div className="h-1.5 rounded-full bg-canvas mt-1.5 overflow-hidden max-w-[120px]">
                   <div className="h-full rounded-full" style={{ width: `${si.pct}%`, background: amber }} />
                 </div>
               </div>
-              {effCap > 0 && fc[i] && (
-                <div className="w-[58px] text-right text-[12.5px] font-extrabold tabnum text-pv-high">~{fc[i].kwh.toFixed(0)}<span className="text-[10px] text-muted font-semibold"> หน่วย</span></div>
-              )}
-              <div className="w-[46px] text-right text-[12px] font-bold text-grid">{d.rain > 0 ? `${(+d.rain).toFixed(1)}` : "—"}</div>
-              <div className="w-[78px] text-right text-[15px] font-extrabold">{Math.round(d.tc_max)}°<small className="text-muted font-semibold"> {Math.round(d.tc_min)}°</small></div>
+              <div className="w-[38px] text-right text-[12px] font-bold text-grid shrink-0">{d.rain > 0 ? `${(+d.rain).toFixed(1)}` : "—"}</div>
+              <div className="w-[66px] text-right text-[15px] font-extrabold shrink-0">{Math.round(d.tc_max)}°<small className="text-muted font-semibold"> {Math.round(d.tc_min)}°</small></div>
             </div>
           );
         })}

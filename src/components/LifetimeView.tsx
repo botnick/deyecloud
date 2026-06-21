@@ -5,15 +5,19 @@ import { savingsOf, co2Of, treesOf, baht } from "../lib/economics";
 import { cardP, plate, h2Mid } from "../lib/ui";
 import { IconSun } from "../lib/icons";
 import { BarChart, Legend } from "./Chart";
+import { InfoTip } from "./InfoTip";
 import { SettingsCard } from "./SettingsCard";
 
 const kInt = (n: number) => Math.round(Math.max(0, n)).toLocaleString("th-TH");
 const thDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("th-TH-u-ca-gregory", { day: "numeric", month: "short", year: "numeric" });
 
-function Stat({ label, value, unit, color, sub }: { label: string; value: string; unit?: string; color?: string; sub?: string }) {
+function Stat({ label, value, unit, color, sub, info }: { label: string; value: string; unit?: string; color?: string; sub?: string; info?: string }) {
   return (
     <div className="bg-canvas rounded-2xl px-4 py-3.5">
-      <div className="text-[12px] text-body">{label}</div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[12px] text-body">{label}</span>
+        {info && <InfoTip text={info} />}
+      </div>
       <div className="text-[20px] font-extrabold tabnum mt-0.5 leading-none" style={color ? { color } : undefined}>
         {value}{unit && <span className="text-[12px] text-body font-semibold ml-1">{unit}</span>}
       </div>
@@ -66,15 +70,20 @@ export function LifetimeView({ active }: { active: boolean }) {
 
       {/* impact stats */}
       <div className="grid grid-cols-2 gap-2.5 mt-3">
-        <Stat label="ประหยัดค่าไฟรวม" value={baht(saved)} color="var(--color-secondary)" sub={`ที่ ${settings.rate} บาท/หน่วย`} />
-        <Stat label="ลดคาร์บอน (CO₂)" value={kInt(co2)} unit="กก." color="#18a673" sub={`≈ ปลูกต้นไม้ ${kInt(trees)} ต้น/ปี`} />
+        <Stat label="ประหยัดค่าไฟรวม" value={baht(saved)} color="var(--color-secondary)" sub={`ที่ ${settings.rate} บาท/หน่วย`}
+          info={`รวมเงินที่ประหยัดได้ตั้งแต่เริ่มบันทึก = ไฟที่ใช้เองจากระบบ × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายคืน ${settings.sellRate} บาท/หน่วย` : ""}`} />
+        <Stat label="ลดคาร์บอน (CO₂)" value={kInt(co2)} unit="กก." color="#18a673" sub={`≈ ปลูกต้นไม้ ${kInt(trees)} ต้น/ปี`}
+          info="คาร์บอนที่ลดได้ = ไฟที่ผลิตจากแสงอาทิตย์ทั้งหมด × 0.5 กก./หน่วย (ค่ามาตรฐานไฟไทย) เทียบเท่าการดูดซับของต้นไม้ ~21 กก./ต้น/ปี" />
       </div>
 
       {/* payback — only when a system cost is set */}
       {paid && (
         <section className={`${cardP} mt-3`}>
-          <div className="flex items-baseline justify-between">
-            <div className="font-bold text-[16px] text-title">ระยะคืนทุน</div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-[16px] text-title">ระยะคืนทุน</span>
+              <InfoTip text="เทียบเงินที่ประหยัดสะสมกับทุนติดตั้งที่ใส่ไว้ · ปีที่คาดคืนทุนครบ คำนวณจากอัตราประหยัดเฉลี่ยต่อปีที่ผ่านมา" />
+            </div>
             <div className="text-[15px] font-extrabold tabnum text-secondary">{Math.round(pct)}%</div>
           </div>
           <div className="h-2.5 rounded-full bg-canvas mt-2.5 overflow-hidden">
