@@ -70,7 +70,7 @@ export function HomeView({ latest, weather, capacity, stationName, onDevice }: {
           <div className="bg-canvas rounded-2xl px-4 py-3">
             <div className="flex items-center gap-1.5">
               <span className="text-[12px] text-body">{sv.label}</span>
-              <InfoTip text={`ไฟที่ใช้เองจากโซล่า/แบตวันนี้ (ไม่ได้ซื้อจากการไฟฟ้า) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายคืน ${settings.sellRate} บาท/หน่วย` : ""} · ปรับค่าได้ในแท็บ 'ตลอด'`} />
+              <InfoTip text={`(ไฟที่ใช้วันนี้ − ไฟที่ซื้อวันนี้) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายคืน × ${settings.sellRate} บาท/หน่วย` : ""} · ซื้อมากกว่าใช้ (เช่น ชาร์จแบตจากกริดกลางคืน) = ค่าไฟเพิ่มสุทธิ · ปรับค่าได้ในแท็บ 'ตลอด'`} />
             </div>
             <div className={`text-[18px] font-extrabold tabnum mt-0.5 ${sv.negative ? "text-warn" : "text-secondary"}`}>{sv.text}</div>
           </div>

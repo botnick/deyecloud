@@ -30,6 +30,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   const [ref, setRef] = useState(() => new Date());
   const [points, setPoints] = useState<any[] | null>(null);
   const [totals, setTotals] = useState<HistTotals | null>(null);
+  const [prev, setPrev] = useState<{ points: any[]; totals: HistTotals | null } | null>(null); // previous period, for the compare row
   const { settings } = useSettings();
 
   // Monotonic request id — a slow older fetch (after a fast range/station switch or
@@ -45,8 +46,18 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
 
   useEffect(() => {
     if (!active || range === "lifetime") return;
-    setPoints(null); setTotals(null);
+    setPoints(null); setTotals(null); setPrev(null);
     load(true);
+    // Previous period (yesterday / last month / last year) — cached server-side,
+    // immutable, one extra request. Failure just hides the compare row.
+    const p = new Date(ref);
+    if (range === "day") p.setDate(p.getDate() - 1);
+    else if (range === "month") { p.setDate(1); p.setMonth(p.getMonth() - 1); }
+    else { p.setDate(1); p.setFullYear(p.getFullYear() - 1); }
+    const id = reqRef.current;
+    getHistory(range, isoLocal(p), stationId)
+      .then((r) => { if (id === reqRef.current) setPrev({ points: r.points || [], totals: r.totals ?? null }); })
+      .catch(() => {});
   }, [active, load, range]);
 
   // Auto-refresh the CURRENT period every 60s (เสมือน realtime) — past periods are
@@ -91,6 +102,43 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
     : { gen: sum("gen"), use: sum("use"), buy: sum("buy"), sell: sum("sell"), charge: sum("charge"), discharge: sum("discharge") };
   const saved = periodTotals ? savingsOf(periodTotals, settings) : null;
   const co2 = periodTotals ? co2Of(periodTotals.gen || 0, settings) : null;
+
+  // ── compare with the previous period, like for like ──
+  // A month/year still in progress is compared with the SAME elapsed slice of the
+  // previous one (day 1..today's date, month 1..this month), never with the whole
+  // of it. A day is compared with the whole of yesterday (labelled so).
+  const compare = useMemo(() => {
+    if (!prev || !periodTotals) return null;
+    let pts = prev.points;
+    if (range === "month" && isCurrent) { const dom = new Date().getDate(); pts = pts.filter((p) => Number(String(p.day).slice(8, 10)) <= dom); }
+    if (range === "year" && isCurrent) { const mo = new Date().getMonth() + 1; pts = pts.filter((p) => Number(String(p.month).slice(5, 7)) <= mo); }
+    const ps = (k: string) => pts.reduce((a, p) => a + (Number(p[k]) || 0), 0);
+    let pt: { gen?: number; use?: number; buy?: number; sell?: number } | null;
+    if (range === "day" && isCurrent) {
+      // Yesterday up to THIS time of day, integrated from its 5-min power samples
+      // (kWh = W × h / 1000) — comparing a half-day with a full day would be unfair.
+      const nowTod = (Date.now() / 1000 + 7 * 3600) % 86400;
+      const rows = pts.filter((p) => ((Number(p.ts) + 7 * 3600) % 86400) <= nowTod).sort((a, b) => Number(a.ts) - Number(b.ts));
+      const acc = { gen: 0, use: 0, buy: 0, sell: 0 };
+      for (let i = 1; i < rows.length; i++) {
+        const h = Math.min(0.25, Math.max(0, (Number(rows[i].ts) - Number(rows[i - 1].ts)) / 3600)); // cap gaps at 15 min
+        acc.gen += (Number(rows[i].gen_power) || 0) * h / 1000; acc.use += (Number(rows[i].use_power) || 0) * h / 1000;
+        const g = Number(rows[i].grid_power) || 0; acc.buy += Math.max(0, g) * h / 1000; acc.sell += Math.max(0, -g) * h / 1000;
+      }
+      pt = rows.length > 1 ? acc : null;
+    } else pt = range === "day" ? prev.totals : { gen: ps("gen"), use: ps("use"), buy: ps("buy"), sell: ps("sell") };
+    if (!pt) return null;
+    const pSaved = savingsOf(pt, settings);
+    const d = (a: number, b: number) => (b > 0 ? Math.round(((a - b) / b) * 100) : null);
+    return {
+      label: range === "day" ? (isCurrent ? "เมื่อวานถึงเวลานี้" : "วันก่อนหน้า") : range === "month" ? (isCurrent ? `${new Date().getDate()} วันแรกของเดือนก่อน` : "เดือนก่อน") : (isCurrent ? `ช่วงเดียวกันของปีก่อน` : "ปีก่อน"),
+      gen: { now: periodTotals.gen || 0, prev: pt.gen || 0, pct: d(periodTotals.gen || 0, pt.gen || 0) },
+      use: { now: periodTotals.use || 0, prev: pt.use || 0, pct: d(periodTotals.use || 0, pt.use || 0) },
+      buy: { now: periodTotals.buy || 0, prev: pt.buy || 0, pct: d(periodTotals.buy || 0, pt.buy || 0) },
+      saved: { now: saved || 0, prev: pSaved },
+    };
+  }, [prev, periodTotals, range, isCurrent, settings, saved]);
+  const exportHref = `/api/export?range=${range}&date=${isoLocal(ref)}`;
 
   // Only show the battery section when the system actually has a battery in this
   // period — fixes the year (now carries charge/discharge) and hides it for on-grid.
@@ -253,7 +301,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
                   <div className="flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[12.5px] text-body">{saved != null && saved < -0.5 ? "ช่วงนี้ค่าไฟเพิ่มสุทธิ" : "ช่วงนี้ประหยัดค่าไฟ"}</span>
-                      <InfoTip text={`เงินที่ประหยัด = ไฟที่ใช้เองจากโซล่า/แบต (ไม่ได้ซื้อจากการไฟฟ้า) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + รายได้ขายคืน ${settings.sellRate} บาท/หน่วย` : ""} · ปรับค่าได้ในแท็บ 'ตลอด'`} />
+                      <InfoTip text={`คิดจาก (ไฟที่ใช้ − ไฟที่ซื้อ) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายคืน × ${settings.sellRate} บาท/หน่วย` : ""} · ถ้าซื้อมากกว่าใช้ (เช่น ชาร์จแบตจากกริด) จะติดลบ = ค่าไฟเพิ่มสุทธิ · แบตที่ชาร์จวันหนึ่งแล้วใช้อีกวันทำให้ตัวเลขรายวันคลาดเคลื่อนได้เล็กน้อย แต่รายเดือน/ปีถัวเฉลี่ยกันไป · ปรับค่าได้ในแท็บ 'ตลอด'`} />
                     </div>
                     <div className={`text-[26px] font-extrabold tabnum leading-none mt-0.5 ${saved != null && saved < -0.5 ? "text-warn" : "text-secondary"}`}>{savingsLabel(saved || 0).text}</div>
                   </div>
@@ -263,11 +311,42 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
                   </div>
                 </div>
               )}
+              {compare && (compare.gen.prev > 0 || compare.use.prev > 0) && (
+                <div className={`${cardP} mt-3`}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className="text-[12.5px] text-body">เทียบกับ{compare.label}</span>
+                    <InfoTip text={`เทียบช่วงเวลาเท่ากัน: ${compare.label} — ผลิต/ใช้/ซื้อจากยอดจริงที่ระบบบันทึก และเงินคิดด้วยค่าไฟเดียวกัน`} />
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    {([
+                      ["ผลิต", compare.gen, true], ["ใช้ไฟ", compare.use, null], ["ซื้อไฟ", compare.buy, false],
+                    ] as [string, { now: number; prev: number; pct: number | null }, boolean | null][]).map(([lab, v, goodUp]) => (
+                      <div key={lab}>
+                        <div className="text-[11.5px] text-muted">{lab}</div>
+                        <div className={`text-[16px] font-extrabold tabnum leading-tight ${v.pct == null ? "text-body" : goodUp == null ? "text-title" : (v.pct >= 0) === goodUp ? "text-ok" : "text-warn"}`}>
+                          {v.pct == null ? `${v.now - v.prev >= 0 ? "+" : "−"}${Math.abs(v.now - v.prev).toFixed(0)} หน่วย` : `${v.pct > 0 ? "+" : ""}${v.pct}%`}
+                        </div>
+                        <div className="text-[10.5px] text-muted tabnum">{v.prev.toFixed(0)}→{v.now.toFixed(0)}</div>
+                      </div>
+                    ))}
+                    <div>
+                      <div className="text-[11.5px] text-muted">ประหยัด</div>
+                      <div className={`text-[16px] font-extrabold tabnum leading-tight ${compare.saved.now - compare.saved.prev >= 0 ? "text-ok" : "text-warn"}`}>
+                        {compare.saved.now - compare.saved.prev >= 0 ? "+" : "−"}฿{Math.round(Math.abs(compare.saved.now - compare.saved.prev)).toLocaleString("th-TH")}
+                      </div>
+                      <div className="text-[10.5px] text-muted tabnum">฿{Math.round(compare.saved.prev).toLocaleString("th-TH")}→฿{Math.round(compare.saved.now).toLocaleString("th-TH")}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
               {overview()}
               {/* per-metric breakdown — folded by default, tap to expand */}
               <Collapsible variant="bare" title="ดูแยกแต่ละค่า" subtitle="ผลิต · ใช้ไฟ · กริด · แบต">
                 {sections()}
               </Collapsible>
+              <a href={exportHref} download className="mt-3 flex items-center justify-center gap-2 h-11 rounded-2xl bg-canvas text-body text-[14px] font-semibold active:scale-[.99] transition-transform">
+                ⬇ ดาวน์โหลด CSV ({range === "day" ? "ทุก 5 นาที" : range === "month" ? "รายวัน" : "รายเดือน"}) — เปิดใน Excel ได้
+              </a>
             </>
           )}
 

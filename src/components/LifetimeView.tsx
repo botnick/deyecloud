@@ -116,6 +116,9 @@ export function LifetimeView({ active }: { active: boolean }) {
 
       {/* economics editor — drives every ฿ figure in the app */}
       <SettingsCard settings={settings} raw={raw} onSave={save} />
+      <a href="/api/export?range=all" download className="mt-3 flex items-center justify-center gap-2 h-11 rounded-2xl bg-canvas text-body text-[14px] font-semibold active:scale-[.99] transition-transform">
+        ⬇ ดาวน์โหลดข้อมูลรายวันทั้งหมด (CSV)
+      </a>
     </>
   );
 }

@@ -308,7 +308,8 @@ async function buildDeviceData(env: Env, sid?: string) {
     const nowS = Math.floor(Date.now() / 1000);
     const list = await stationAlerts(env, sid || (await getStationId(env)), nowS - ALARM_LOOKBACK_S, nowS);
     const mine = list.filter((a) => !sn || !a.deviceSn || a.deviceSn === String(sn));
-    alarms = { active: mine.filter((a) => a.end == null), recent: mine.slice(0, 20) };
+    // active = still ongoing anywhere in the 180-day window; recent = last 7 days for the UI log
+    alarms = { active: mine.filter((a) => a.end == null), recent: mine.filter((a) => a.start >= nowS - 7 * 86400).slice(0, 20) };
   } catch (e) { console.warn("alertList unavailable", (e as Error).message); }
   if (st === 2 && !(alarms && alarms.active.length)) attention.unshift("Deye รายงานสถานะ alarm ที่ตัวเครื่อง (ดูรายละเอียดในแอป Deye)");
   return {
@@ -333,7 +334,7 @@ function applyWarnings(l: any, dev: any) {
   l.warningReasons = reasons;
   if (dev && dev.availability) l.availability = dev.availability;
 }
-const ALARM_LOOKBACK_S = 7 * 86400; // long enough that an alarm still ongoing since last week is seen
+const ALARM_LOOKBACK_S = 180 * 86400; // the API's max window — an alarm ongoing since months ago must still be seen
 
 // Pull EVERY inverter's full measure-point list (one /device/latest call) and store
 // each as its own JSON row — works for single- or multi-inverter sites, any model.
@@ -588,6 +589,40 @@ app.get("/api/latest", async (c) => {
   return c.json(l);
 });
 
+// CSV export of what D1 holds — day = 5-min samples, month = daily rows, year =
+// monthly roll-up, all = every daily row. UTF-8 BOM so Excel opens Thai headers
+// correctly. Same auth as the rest of /api.
+app.get("/api/export", async (c) => {
+  const env = c.env;
+  const range = c.req.query("range") || "month";
+  const dateStr = (c.req.query("date") || bkkDay()).slice(0, 10);
+  if (!["day", "month", "year", "all"].includes(range)) return c.json({ error: "bad range" }, 400);
+  if (!exactDay(dateStr)) return c.json({ error: "bad date" }, 400);
+  const csvCell = (v: any) => { const t = v == null ? "" : String(v); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  const rows: any[][] = [];
+  let name = `deye-${range}-${dateStr}.csv`;
+  if (range === "day") {
+    const d = await histFromD1(env, "day", dateStr);
+    rows.push(["time (Asia/Bangkok)", "unix_ts", "pv_w", "load_w", "grid_w (+import/−export)", "battery_w (+discharge/−charge)", "soc_%"]);
+    for (const p of d.points as any[]) rows.push([new Date(p.ts * 1000 + 7 * 3600 * 1000).toISOString().slice(0, 19).replace("T", " "), p.ts, p.gen_power, p.use_power, p.grid_power, p.batt_power, p.soc]);
+  } else if (range === "month" || range === "all") {
+    let sql = "SELECT day, gen, use, buy, sell, charge, discharge, peak_power, peak_ts FROM daily";
+    const bind: any[] = [];
+    if (range === "month") { const ym = dateStr.slice(0, 7); const [y, m] = ym.split("-").map(Number); sql += " WHERE day >= ? AND day < ?"; bind.push(`${ym}-01`, new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10)); }
+    sql += " ORDER BY day";
+    const { results } = await env.DB.prepare(sql).bind(...bind).all();
+    rows.push(["day", "pv_kwh", "load_kwh", "grid_import_kwh", "grid_export_kwh", "battery_charge_kwh", "battery_discharge_kwh", "peak_pv_w", "peak_time"]);
+    for (const r of results as any[]) rows.push([r.day, r.gen, r.use, r.buy, r.sell, r.charge, r.discharge, r.peak_power, r.peak_ts ? new Date(r.peak_ts * 1000 + 7 * 3600 * 1000).toISOString().slice(11, 16) : ""]);
+    if (range === "all") name = `deye-daily-all.csv`;
+  } else {
+    const d = await histFromD1(env, "year", dateStr);
+    rows.push(["month", "pv_kwh", "load_kwh", "grid_import_kwh", "grid_export_kwh", "battery_charge_kwh", "battery_discharge_kwh"]);
+    for (const p of d.points as any[]) rows.push([p.month, ...[p.gen, p.use, p.buy, p.sell, p.charge, p.discharge].map((v: any) => (v == null ? "" : Math.round(Number(v) * 100) / 100))]);
+  }
+  const body = "\ufeff" + rows.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
+  return c.body(body, 200, { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="${name}"`, "cache-control": "no-store" });
+});
+
 app.get("/api/weather", async (c) => c.json(await getWeather(c.env)));
 
 // Trend of selected measure points from device_samples (the 15-min telemetry the
@@ -600,8 +635,9 @@ app.get("/api/device/history", async (c) => {
   const env = c.env;
   const days = Math.min(DEVICE_RETENTION_DAYS, Math.max(1, Math.round(Number(c.req.query("days")) || 7)));
   const keys = String(c.req.query("keys") || "").split(",").map((k) => k.trim()).filter(Boolean).slice(0, 12);
-  if (!keys.length) return c.json({ error: "keys required" }, 400);
-  const mk = `${days}|${keys.join(",")}`;
+  const sn = String(c.req.query("sn") || "").trim();
+  if (!keys.length || !sn) return c.json({ error: "sn and keys required" }, 400);
+  const mk = `${sn}|${days}|${keys.join(",")}`;
   const hit = devHistMemo.get(mk);
   if (hit && Date.now() - hit.at < 10 * 60 * 1000) return c.json(await hit.p);
   const p = (async () => {
@@ -618,9 +654,9 @@ app.get("/api/device/history", async (c) => {
               MAX(CAST(json_extract(j.value, '$.value') AS REAL)) AS max,
               MAX(json_extract(j.value, '$.unit')) AS unit
        FROM device_samples, json_each(device_samples.data) AS j
-       WHERE ts >= ? AND ((ts / 900) % ?) = 0 AND json_extract(j.value, '$.key') IN (${ph})
+       WHERE device_samples.sn = ? AND ts >= ? AND ((ts / 900) % ?) = 0 AND json_extract(j.value, '$.key') IN (${ph})
        GROUP BY b, k ORDER BY b`
-    ).bind(bucket, bucket, from, stride, ...keys).all();
+    ).bind(bucket, bucket, sn, from, stride, ...keys).all();
     const series: Record<string, { unit: string | null; points: { t: number; avg: number; min: number; max: number }[] }> = {};
     for (const k of keys) series[k] = { unit: null, points: [] };
     for (const r of results as any[]) {
@@ -628,7 +664,7 @@ app.get("/api/device/history", async (c) => {
       if (r.unit && !sr.unit) sr.unit = r.unit;
       sr.points.push({ t: r.b, avg: Math.round(r.avg * 100) / 100, min: r.min, max: r.max });
     }
-    return { days, bucketSeconds: bucket, from, to: now, series };
+    return { sn, days, bucketSeconds: bucket, from, to: now, series };
   })();
   devHistMemo.set(mk, { at: Date.now(), p });
   p.catch(() => devHistMemo.delete(mk));
