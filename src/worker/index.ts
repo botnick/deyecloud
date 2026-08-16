@@ -98,32 +98,35 @@ async function isOperator(req: Request, env: Env): Promise<boolean> {
   return !!env.APP_PIN && (await isAuthed(req, env));
 }
 
-// PIN brute-force guard. Every attempt first CLAIMS a slot atomically (one
-// UPSERT … RETURNING on a single meta row "count|windowStart"), so concurrent
-// requests can never all observe "0 failures" — the race a read-then-write
-// counter has. Attempt n is allowed no earlier than windowStart + the sum of the
-// holds of the attempts before it: the first PIN_FREE_FAILS are free (typos), then
-// the gap doubles up to PIN_HOLD_MAX_S. A correct PIN deletes the row. Global,
-// not per-IP: single-household app, and per-IP buckets are what a botnet defeats.
+// PIN brute-force guard. One meta row 'pin_guard' = "fails|nextAllowed". A
+// request first CLAIMS an attempt: allowed only when now >= nextAllowed, and the
+// claim is a compare-and-swap (UPDATE … WHERE v = <what we read>) so concurrent
+// requests cannot all observe the same state — exactly one wins a slot, the rest
+// are denied WITHOUT touching the row. A denied request never advances anything,
+// so a flood cannot push the owner's wait past PIN_HOLD_MAX_S. Holds: the first
+// PIN_FREE_FAILS misses are free (typos), then doubling to the ceiling. Success
+// deletes the row. Global, not per-IP: single-household app, and per-IP buckets
+// are what a botnet defeats.
 const PIN_FREE_FAILS = 3;
 const PIN_HOLD_BASE_S = 5;
 const PIN_HOLD_MAX_S = 15 * 60;
-const pinHoldFor = (n: number) => (n < PIN_FREE_FAILS ? 0 : Math.min(PIN_HOLD_MAX_S, PIN_HOLD_BASE_S * 2 ** (n - PIN_FREE_FAILS)));
-function pinAllowedAt(n: number, since: number): number {
-  let t = since;
-  for (let i = PIN_FREE_FAILS; i < n; i++) t += pinHoldFor(i);
-  return t;
-}
-async function pinClaim(env: Env): Promise<{ n: number; retryAfter: number }> {
+const pinHoldFor = (fails: number) => (fails < PIN_FREE_FAILS ? 0 : Math.min(PIN_HOLD_MAX_S, PIN_HOLD_BASE_S * 2 ** (fails - PIN_FREE_FAILS)));
+async function pinClaim(env: Env): Promise<{ ok: boolean; fails: number; retryAfter: number }> {
   const now = Math.floor(Date.now() / 1000);
-  const row = (await env.DB.prepare(
-    `INSERT INTO meta (k, v) VALUES ('pin_guard', ?)
-     ON CONFLICT(k) DO UPDATE SET v = (CAST(substr(v, 1, instr(v, '|') - 1) AS INTEGER) + 1) || substr(v, instr(v, '|'))
-     RETURNING v`
-  ).bind(`1|${now}`).first()) as { v: string } | null;
-  const [nRaw, sinceRaw] = String((row && row.v) || `1|${now}`).split("|");
-  const n = Number(nRaw) || 1, since = Number(sinceRaw) || now;
-  return { n, retryAfter: Math.max(0, pinAllowedAt(n, since) - now) };
+  for (let attempt = 0; attempt < 3; attempt++) { // CAS retry — loses only to another live claim
+    const row = (await env.DB.prepare("SELECT v FROM meta WHERE k='pin_guard'").first()) as { v: string } | null;
+    const [fRaw, naRaw] = row ? String(row.v).split("|") : ["0", "0"];
+    const fails = Number(fRaw) || 0, nextAllowed = Number(naRaw) || 0;
+    if (now < nextAllowed) return { ok: false, fails, retryAfter: nextAllowed - now };
+    // Claim slot fails+1, and pre-book the hold that a miss would earn. (Success
+    // deletes the row, so a correct PIN never waits on its own hold.)
+    const nv = `${fails + 1}|${now + pinHoldFor(fails + 1)}`;
+    const r = row
+      ? await env.DB.prepare("UPDATE meta SET v=? WHERE k='pin_guard' AND v=?").bind(nv, row.v).run()
+      : await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('pin_guard',?) ON CONFLICT(k) DO NOTHING").bind(nv).run();
+    if (r.meta.changes > 0) return { ok: true, fails: fails + 1, retryAfter: 0 };
+  }
+  return { ok: false, fails: -1, retryAfter: PIN_HOLD_BASE_S }; // contended: deny without changing state
 }
 
 // Retention windows, declared once so the prune and the backfill's lower bound
@@ -146,6 +149,20 @@ async function pollAndStore(env: Env) {
   const l = await getLatest(env);
   const ts = Math.floor(Date.now() / 60000) * 60;
   const day = bkkDay();
+  // Day totals unavailable (Deye history call failed): keep the live sample, but
+  // do NOT write today's `daily` row (it would be zeros) and carry the last known
+  // today-energies forward in the served cache instead of showing 0.
+  if (!l.totalsOk) {
+    const cc = (await env.DB.prepare("SELECT v FROM meta WHERE k='latest_cache'").first()) as { v: string } | null;
+    try {
+      const prevL = cc ? JSON.parse(cc.v) : null;
+      if (prevL && prevL.data && bkkDayOf(prevL._at) === day) {
+        for (const k of ["genToday", "useToday", "buyToday", "sellToday", "chargeToday", "dischargeToday", "genTotal"] as const) (l as any)[k] = prevL.data[k];
+        l.selfSufficiency = prevL.data.selfSufficiency;
+      }
+    } catch {}
+    console.warn("poll: day totals unavailable — sample stored, daily upsert skipped");
+  }
   // One transactional D1 batch = one round trip (sample + daily, + prune once/day).
   const stmts = [
     env.DB.prepare(
@@ -155,7 +172,13 @@ async function pollAndStore(env: Env) {
          batt_power=excluded.batt_power, soc=excluded.soc, gen_today=excluded.gen_today, use_today=excluded.use_today,
          buy_today=excluded.buy_today, sell_today=excluded.sell_today, charge_today=excluded.charge_today,
          discharge_today=excluded.discharge_today, gen_total=excluded.gen_total`
-    ).bind(ts, l.genPower, l.usePower, l.gridPower, l.battPower, l.soc, l.genToday, l.useToday, l.buyToday, l.sellToday, l.chargeToday, l.dischargeToday, l.genTotal),
+    ).bind(ts, l.genPower, l.usePower, l.gridPower, l.battPower, l.soc,
+           ...(l.totalsOk ? [l.genToday, l.useToday, l.buyToday, l.sellToday, l.chargeToday, l.dischargeToday] : [null, null, null, null, null, null]), l.genTotal),
+    // The poll succeeded, so any recorded cron failure is history (one statement
+    // in the same batch — no extra round trip).
+    env.DB.prepare("DELETE FROM meta WHERE k='last_poll_error'"),
+  ];
+  if (l.totalsOk) stmts.push(
     env.DB.prepare(
       // peak_power/peak_ts track the day's highest PV power (COALESCE handles the
       // pre-migration NULL on a row's first update of the day).
@@ -164,10 +187,7 @@ async function pollAndStore(env: Env) {
          peak_power=CASE WHEN excluded.peak_power > COALESCE(daily.peak_power, -1) THEN excluded.peak_power ELSE daily.peak_power END,
          peak_ts=CASE WHEN excluded.peak_power > COALESCE(daily.peak_power, -1) THEN excluded.peak_ts ELSE daily.peak_ts END`
     ).bind(day, l.genToday, l.useToday, l.buyToday, l.sellToday, l.chargeToday, l.dischargeToday, l.genPower, ts),
-    // The poll succeeded, so any recorded cron failure is history (one statement
-    // in the same batch — no extra round trip).
-    env.DB.prepare("DELETE FROM meta WHERE k='last_poll_error'"),
-  ];
+  );
   // Auto-prune so D1 never bloats (runs once/day). Retention:
   //   • samples (5-min snapshots) → 90 days  (intraday detail; month/year use daily)
   //   • device_samples (heavy 88-point JSON) → 180 days
@@ -400,12 +420,12 @@ app.post("/api/login", async (c) => {
   const { pin } = await c.req.json().catch(() => ({ pin: undefined }));
   if (env.APP_PIN) {
     const g = await pinClaim(env); // claim BEFORE comparing — see pinClaim
-    if (g.retryAfter > 0) {
+    if (!g.ok) {
       c.header("Retry-After", String(g.retryAfter));
       return c.json({ ok: false, error: `ลองผิดหลายครั้ง — รออีก ${g.retryAfter} วินาที`, retryAfter: g.retryAfter }, 429);
     }
     if (typeof pin !== "string" || !timingSafeEq(pin, env.APP_PIN)) {
-      const next = pinHoldFor(g.n);
+      const next = pinHoldFor(g.fails);
       return c.json({ ok: false, error: next ? `PIN ไม่ถูกต้อง — ลองใหม่ได้ในอีก ${next} วินาที` : "PIN ไม่ถูกต้อง", retryAfter: next }, 401);
     }
     await env.DB.prepare("DELETE FROM meta WHERE k='pin_guard'").run();
@@ -798,7 +818,7 @@ async function backfillRange(env: Env, from: string, to: string, maxDays = BACKF
     try {
       const [fres, tres] = await Promise.all([
         getHistory(env, 1, day, day, sid),
-        getHistory(env, 2, day, next, sid).catch(() => null),
+        getHistory(env, 2, day, next, sid).catch((e: any) => ({ __rejected: e })), // keep the rejection, don't flatten it
       ]);
       // A Deye error envelope still returns HTTP 200 with no stationDataItems —
       // without this it would look like "0 frames, success" and hide the failure.
@@ -806,8 +826,11 @@ async function backfillRange(env: Env, from: string, to: string, maxDays = BACKF
       if (fErr) { const e: any = new Error(`frames: ${fErr}`); e.auth = isAuthEnvelope(fres); throw e; }
       // The day-totals call is allowed to fail on its own (frames are still worth
       // keeping) but it must be REPORTED — silently dropping it is how a partial
-      // backfill gets mistaken for a complete one.
-      const tErr = tres === null ? "request failed" : deyeFailed(tres);
+      // backfill gets mistaken for a complete one — and an auth failure there is
+      // just as fatal for the remaining days as one on the frames call.
+      if (tres && tres.__rejected && isAuthHold(tres.__rejected)) throw tres.__rejected;
+      if (isAuthEnvelope(tres)) { const e: any = new Error(`totals: ${deyeFailed(tres)}`); e.auth = true; throw e; }
+      const tErr = tres && tres.__rejected ? `request failed: ${String(tres.__rejected.message || tres.__rejected)}` : deyeFailed(tres);
 
       // Canonicalise to the cron's minute grid. Deye stamps frames at :08-ish
       // seconds; the cron writes Math.floor(now/60000)*60, so raw seconds would
@@ -882,6 +905,7 @@ async function backfillRange(env: Env, from: string, to: string, maxDays = BACKF
       if (tErr) { failed++; if (firstFailedMs == null) firstFailedMs = ms; }
       report.push({ day, framesSeen: rows.length, samplesInserted: wrote, totals: !!t, ...(tErr ? { totalsError: tErr } : {}) });
       if (stmts.length) touched.push(day);
+      lastErr = null; // a good day breaks any "consecutive identical failure" streak
     } catch (e: any) {
       failed++;
       if (firstFailedMs == null) firstFailedMs = ms;
