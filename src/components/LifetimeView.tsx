@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getTotals, type Totals } from "../lib/api";
 import { useSettings } from "../lib/settings";
-import { savingsOf, co2Of, treesOf, baht } from "../lib/economics";
+import { savingsOf, savingsLabel, co2Of, treesOf, baht } from "../lib/economics";
 import { cardP, plate, h2Mid } from "../lib/ui";
 import { IconSun } from "../lib/icons";
 import { BarChart, Legend } from "./Chart";
@@ -73,7 +73,7 @@ export function LifetimeView({ active }: { active: boolean }) {
 
       {/* impact stats */}
       <div className="grid grid-cols-2 gap-2.5 mt-3">
-        <Stat label={`ประหยัดค่าไฟ${t.firstDay ? "ตั้งแต่เริ่มบันทึก" : "รวม"}`} value={baht(saved)} color="var(--color-secondary)" sub={`ที่ ${settings.rate} บาท/หน่วย`}
+        <Stat label={`${savingsLabel(saved).label}${t.firstDay ? "ตั้งแต่เริ่มบันทึก" : "รวม"}`} value={savingsLabel(saved).text} color={savingsLabel(saved).negative ? "var(--color-warn)" : "var(--color-secondary)"} sub={`ที่ ${settings.rate} บาท/หน่วย`}
           info={`รวมเงินที่ประหยัดได้ตั้งแต่เริ่มบันทึก (${t.firstDay ? thDate(t.firstDay) : "-"}) = ไฟที่ใช้เองจากระบบ × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายคืน ${settings.sellRate} บาท/หน่วย` : ""}`} />
         <Stat label={`ลดคาร์บอน${t.firstDay ? "ตั้งแต่เริ่มบันทึก" : " (CO₂)"}`} value={kInt(co2)} unit="กก." color="#18a673" sub={`≈ ปลูกต้นไม้ ${kInt(trees)} ต้น/ปี`}
           info={`คาร์บอนที่ลดได้ในช่วงที่ระบบบันทึก = ไฟที่ผลิตได้ ${kInt(t.gen)} หน่วย × ${settings.co2Factor} กก./หน่วย (ค่า emission factor ตั้งได้ในตั้งค่า) เทียบเท่าการดูดซับของต้นไม้ ~21 กก./ต้น/ปี · ตัวเลขผลิตสะสมด้านบนมาจากมิเตอร์ของอินเวอร์เตอร์ซึ่งอาจนับก่อนติดตั้งแอป`} />

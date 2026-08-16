@@ -2,10 +2,10 @@
 // D1, realtime polling on a cron schedule. The SPA is served via the ASSETS
 // binding (configured by @cloudflare/vite-plugin).
 import { Hono } from "hono";
-import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, isAuthHold, isAuthEnvelope, bkkDay, type Env } from "./deye";
+import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, isAuthHold, isAuthEnvelope, stationAlerts, type DeyeAlert, bkkDay, type Env } from "./deye";
 import { sunInfo } from "./sun";
 import { analyzeDevice } from "../lib/diagnostics";
-import { evaluateAlerts, notify, alertsConfigured } from "./alerts";
+import { evaluateAlerts, notify, alertsConfigured, delivered } from "./alerts";
 
 // --- External endpoints + defaults — centralized, not scattered as inline literals.
 //     Per-account/site values (email, coords) come from env; stable public API
@@ -245,7 +245,7 @@ async function pollAndStore(env: Env) {
     if (alertsConfigured(env)) {
       const cap = await capacityW(env).catch(() => null);
       const sm = await getStationMeta(env).catch(() => null);
-      await evaluateAlerts(env, { latest: l, dev, sun: wx && wx.sun ? wx.sun : null, capacityW: cap, stationName: sm?.name }).catch((e) => console.error("alerts failed", e));
+      await evaluateAlerts(env, { latest: l, dev, sun: wx && wx.sun ? wx.sun : null, weatherCond: wx && wx.cond != null ? Number(wx.cond) : null, capacityW: cap, stationName: sm?.name }).catch((e) => console.error("alerts failed", e));
     }
   } catch (e) { console.error("cache warm failed", e); }
   return l;
@@ -301,11 +301,20 @@ async function buildDeviceData(env: Env, sid?: string) {
     : st === 1 || st === 2 || inv.connectStatus === 1 ? { status: "online", reason: st === 2 ? "Deye รายงานสถานะ alarm ที่ตัวเครื่อง" : "" }
     : { status: "unknown", reason: "" };
   const attention = analyzeDevice(dataList, gridNominal).filter((i) => i.tone === "warn").map((i) => i.title);
-  if (st === 2) attention.unshift("Deye รายงานสถานะ alarm ที่ตัวเครื่อง (ดูรายละเอียดในแอป Deye)");
+  // Deye's OWN alarm log (real faults/warnings the inverter raised). Ongoing =
+  // no end time. One memoised call; failure just leaves alarms undefined (unknown).
+  let alarms: { active: DeyeAlert[]; recent: DeyeAlert[] } | undefined;
+  try {
+    const nowS = Math.floor(Date.now() / 1000);
+    const list = await stationAlerts(env, sid || (await getStationId(env)), nowS - ALARM_LOOKBACK_S, nowS);
+    const mine = list.filter((a) => !sn || !a.deviceSn || a.deviceSn === String(sn));
+    alarms = { active: mine.filter((a) => a.end == null), recent: mine.slice(0, 20) };
+  } catch (e) { console.warn("alertList unavailable", (e as Error).message); }
+  if (st === 2 && !(alarms && alarms.active.length)) attention.unshift("Deye รายงานสถานะ alarm ที่ตัวเครื่อง (ดูรายละเอียดในแอป Deye)");
   return {
     sn, type: inv.deviceType, state: dd.deviceState,
     online: availability.status === "online",
-    availability, attention,
+    availability, attention, alarms,
     collectionTime: dd.collectionTime || inv.collectionTime,
     collectorSn: collector && collector.deviceSn,
     gridNominal,
@@ -315,12 +324,16 @@ async function buildDeviceData(env: Env, sid?: string) {
 
 // Fold the device snapshot's findings into Latest (no extra Deye call: the snapshot
 // is the one buildDeviceData already fetched / the 30-s memo already holds).
+// ALARM = Deye itself has an ongoing fault/warning; ATTENTION = only our heuristics.
 function applyWarnings(l: any, dev: any) {
-  const reasons: string[] = dev && Array.isArray(dev.attention) ? dev.attention : [];
-  l.warningStatus = reasons.length ? "ATTENTION" : "NORMAL";
+  const active: DeyeAlert[] = dev && dev.alarms ? dev.alarms.active : [];
+  const heur: string[] = dev && Array.isArray(dev.attention) ? dev.attention : [];
+  const reasons = [...active.map((a) => `${a.level >= 2 ? "Fault" : "Warning"} ${a.name}`), ...heur];
+  l.warningStatus = active.length ? "ALARM" : heur.length ? "ATTENTION" : "NORMAL";
   l.warningReasons = reasons;
   if (dev && dev.availability) l.availability = dev.availability;
 }
+const ALARM_LOOKBACK_S = 7 * 86400; // long enough that an alarm still ongoing since last week is seen
 
 // Pull EVERY inverter's full measure-point list (one /device/latest call) and store
 // each as its own JSON row — works for single- or multi-inverter sites, any model.
@@ -576,6 +589,51 @@ app.get("/api/latest", async (c) => {
 });
 
 app.get("/api/weather", async (c) => c.json(await getWeather(c.env)));
+
+// Trend of selected measure points from device_samples (the 15-min telemetry the
+// cron has been storing for DEVICE_RETENTION_DAYS). Bucketed server-side to ≤~240
+// points per key so a 180-day range is still one small response; rows are
+// subsampled before json_each when the range is long so the query stays cheap.
+const DEVICE_HISTORY_TARGET_POINTS = 240;
+const devHistMemo = new Map<string, { at: number; p: Promise<any> }>();
+app.get("/api/device/history", async (c) => {
+  const env = c.env;
+  const days = Math.min(DEVICE_RETENTION_DAYS, Math.max(1, Math.round(Number(c.req.query("days")) || 7)));
+  const keys = String(c.req.query("keys") || "").split(",").map((k) => k.trim()).filter(Boolean).slice(0, 12);
+  if (!keys.length) return c.json({ error: "keys required" }, 400);
+  const mk = `${days}|${keys.join(",")}`;
+  const hit = devHistMemo.get(mk);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return c.json(await hit.p);
+  const p = (async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const from = now - days * 86400;
+    const bucket = Math.max(900, Math.ceil((days * 86400) / DEVICE_HISTORY_TARGET_POINTS / 900) * 900);
+    // keep every k-th 15-min row so json_each never walks more than ~30 days' worth
+    const stride = Math.max(1, Math.ceil(days / 30));
+    const ph = keys.map(() => "?").join(",");
+    const { results } = await env.DB.prepare(
+      `SELECT (ts / ?) * ? AS b, json_extract(j.value, '$.key') AS k,
+              AVG(CAST(json_extract(j.value, '$.value') AS REAL)) AS avg,
+              MIN(CAST(json_extract(j.value, '$.value') AS REAL)) AS min,
+              MAX(CAST(json_extract(j.value, '$.value') AS REAL)) AS max,
+              MAX(json_extract(j.value, '$.unit')) AS unit
+       FROM device_samples, json_each(device_samples.data) AS j
+       WHERE ts >= ? AND ((ts / 900) % ?) = 0 AND json_extract(j.value, '$.key') IN (${ph})
+       GROUP BY b, k ORDER BY b`
+    ).bind(bucket, bucket, from, stride, ...keys).all();
+    const series: Record<string, { unit: string | null; points: { t: number; avg: number; min: number; max: number }[] }> = {};
+    for (const k of keys) series[k] = { unit: null, points: [] };
+    for (const r of results as any[]) {
+      const sr = series[r.k]; if (!sr) continue;
+      if (r.unit && !sr.unit) sr.unit = r.unit;
+      sr.points.push({ t: r.b, avg: Math.round(r.avg * 100) / 100, min: r.min, max: r.max });
+    }
+    return { days, bucketSeconds: bucket, from, to: now, series };
+  })();
+  devHistMemo.set(mk, { at: Date.now(), p });
+  p.catch(() => devHistMemo.delete(mk));
+  return c.json(await p);
+});
 
 app.get("/api/device", async (c) => {
   const env = c.env;
@@ -1029,7 +1087,7 @@ app.post("/api/_backfill", async (c) => {
 app.post("/api/_alert_test", async (c) => {
   if (!alertsConfigured(c.env)) return c.json({ ok: false, error: "no alert channel configured (ALERT_WEBHOOK_URL / TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID)" }, 400);
   const r = await notify(c.env, "🔔 ทดสอบการแจ้งเตือนจาก Solar Monitor — ถ้าเห็นข้อความนี้แปลว่าช่องทางใช้ได้");
-  return c.json({ ok: true, delivered: r });
+  return c.json({ ok: delivered(r), delivered: r }, delivered(r) ? 200 : 502);
 });
 app.get("/api/_dev", async (c) => {
   const env = c.env;

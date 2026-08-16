@@ -102,8 +102,8 @@ export function analyze(l: Latest, capacityKw?: number, settings?: Settings): In
     const cost = l.buyToday * st.rate; // จ่ายจริง
     const saved = savingsOf({ use: l.useToday, buy: l.buyToday, sell: l.sellToday }, st);
     out.push({
-      tone: "ok",
-      title: `วันนี้ประหยัด ~${b(saved)} บาท`,
+      tone: saved < 0 ? "info" : "ok",
+      title: saved < 0 ? `วันนี้ค่าไฟเพิ่มสุทธิ ~${b(-saved)} บาท (ซื้อไฟมากกว่าที่ใช้ เช่น ชาร์จแบตจากกริด)` : `วันนี้ประหยัด ~${b(saved)} บาท`,
       detail: `ถ้าไม่มีโซลาร์ต้องจ่าย ~${b(woSolar)} บาท · จ่ายจริงแค่ ~${b(cost)} บาท`,
       sub: [rateNote(st)],
     });
@@ -286,8 +286,9 @@ function analyzeDay(points: any[], cap: number, st: Settings, totals?: DayTotals
   // 6) เงินที่ประหยัด
   if (useKwh > 0.1) {
     const woSolar = useKwh * st.rate, cost = impKwh * st.rate;
+    const sv = savingsOf({ use: useKwh, buy: impKwh, sell: expKwh }, st);
     out.push({
-      tone: "ok", title: `วันนี้ประหยัด ~${b(savingsOf({ use: useKwh, buy: impKwh, sell: expKwh }, st))} บาท`,
+      tone: sv < 0 ? "info" : "ok", title: sv < 0 ? `วันนี้ค่าไฟเพิ่มสุทธิ ~${b(-sv)} บาท` : `วันนี้ประหยัด ~${b(sv)} บาท`,
       detail: `ถ้าไม่มีโซลาร์ต้องจ่าย ~${b(woSolar)} · จ่ายจริง ~${b(cost)} บาท`,
       sub: [rateNote(st)],
     });
@@ -398,14 +399,14 @@ function analyzeSpan(range: "month" | "year", points: any[], cap: number, st: Se
       const projGen = (s.gen / n) * total, projSaved = (saved / n) * total;
       out.push({
         tone: "info", title: `คาดทั้ง${range === "month" ? "เดือน" : "ปี"} ~${u(projGen)} หน่วย`,
-        detail: `ผ่านไป ${n}/${total} ${unit} · ประหยัดได้แล้ว ~${b(saved)} บาท → ทั้ง${range === "month" ? "เดือน" : "ปี"}คาด ~${b(projSaved)} บาท`,
+        detail: `ผ่านไป ${n}/${total} ${unit} · ${saved < 0 ? "ค่าไฟเพิ่มสุทธิ" : "ประหยัดได้แล้ว"} ~${b(Math.abs(saved))} บาท → ทั้ง${range === "month" ? "เดือน" : "ปี"}คาด ~${b(Math.abs(projSaved))} บาท`,
         sub: ["คาดการณ์จากค่าเฉลี่ยที่ผ่านมา — ขึ้นกับสภาพอากาศจริง"],
       });
     }
   }
 
   out.push({
-    tone: "ok", title: `${span}ประหยัดค่าไฟ ~${b(saved)} บาท`,
+    tone: saved < 0 ? "info" : "ok", title: saved < 0 ? `${span}ค่าไฟเพิ่มสุทธิ ~${b(-saved)} บาท (ซื้อมากกว่าที่ใช้)` : `${span}ประหยัดค่าไฟ ~${b(saved)} บาท`,
     detail: `ถ้าไม่มีโซลาร์ต้องจ่าย ~${b(s.use * st.rate)} บาท · จ่ายจริง ~${b(s.buy * st.rate)} บาท`,
     sub: [`${rateNote(st)} · ลดการปล่อย CO₂ ~${b(co2)} กก.`],
   });

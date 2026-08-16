@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getHistory, type HistTotals } from "../lib/api";
 import { useSmartPoll } from "../lib/usePoll";
 import { useSettings } from "../lib/settings";
-import { savingsOf, co2Of, baht } from "../lib/economics";
+import { savingsOf, savingsLabel, co2Of } from "../lib/economics";
 import { cardP, cardSm, plate, h2First, h2Mid } from "../lib/ui";
 import { IconChevron, IconSun, IconHouse, IconBattery, IconGrid } from "../lib/icons";
 import { BarChart, LineMini, Legend } from "./Chart";
@@ -252,10 +252,10 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
                 <div className={`${cardP} mt-3 flex items-center gap-4`}>
                   <div className="flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[12.5px] text-body">ช่วงนี้ประหยัดค่าไฟ</span>
+                      <span className="text-[12.5px] text-body">{saved != null && saved < -0.5 ? "ช่วงนี้ค่าไฟเพิ่มสุทธิ" : "ช่วงนี้ประหยัดค่าไฟ"}</span>
                       <InfoTip text={`เงินที่ประหยัด = ไฟที่ใช้เองจากโซล่า/แบต (ไม่ได้ซื้อจากการไฟฟ้า) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + รายได้ขายคืน ${settings.sellRate} บาท/หน่วย` : ""} · ปรับค่าได้ในแท็บ 'ตลอด'`} />
                     </div>
-                    <div className="text-[26px] font-extrabold tabnum leading-none mt-0.5 text-secondary">{baht(saved)}</div>
+                    <div className={`text-[26px] font-extrabold tabnum leading-none mt-0.5 ${saved != null && saved < -0.5 ? "text-warn" : "text-secondary"}`}>{savingsLabel(saved || 0).text}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-[12.5px] text-body">ลดคาร์บอน</div>

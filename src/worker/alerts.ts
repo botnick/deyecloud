@@ -41,6 +41,9 @@ async function saveState(env: Env, st: AlertState) {
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('alert_state',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify(st)).run();
 }
 
+export const delivered = (r: { webhook?: number; telegram?: number }) =>
+  [r.webhook, r.telegram].some((s) => typeof s === "number" && s >= 200 && s < 300);
+
 export async function notify(env: AlertEnv, text: string): Promise<{ webhook?: number; telegram?: number }> {
   const out: { webhook?: number; telegram?: number } = {};
   const jobs: Promise<any>[] = [];
@@ -70,10 +73,12 @@ export interface EvalInput {
   latest: any | null;            // Latest (with warningReasons/availability applied) or null when the poll failed
   dev: any | null;               // buildDeviceData() result
   sun: { peakStart: string; peakEnd: string } | null;
+  weatherCond?: number | null;   // TMD cond code of the current weather (5+ = rain) — gates no_production
   capacityW: number | null;      // installed kWp×1000, else peakPower — null = unknown
   stationName?: string;
   pollError?: string | null;     // set by the scheduled catch path
 }
+const RAINY_COND = 5; // TMD cond ≥5 = rain/thunder: near-zero PV is expected, not a fault
 
 // Evaluate every rule against this tick, update state, send what changed.
 export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<void> {
@@ -98,14 +103,17 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
   if (l && inp.sun && inp.capacityW && inp.capacityW > 0) {
     const t = hhmm(Date.now());
     const inPeak = t >= inp.sun.peakStart && t <= inp.sun.peakEnd;
+    const rainy = inp.weatherCond != null && inp.weatherCond >= RAINY_COND;
     const np = st.no_production || { since: now, lastSent: 0, sent: false, ticks: 0 };
-    const zero = inPeak && Number(l.genPower) < inp.capacityW * NO_PROD_FRACTION;
-    np.ticks = zero ? np.ticks + 1 : 0;
+    // Rain/thunder pauses the counter (doesn't reset it): a storm passing over a
+    // dead array shouldn't clear the alarm, but it must not raise it either.
+    const zero = inPeak && !rainy && Number(l.genPower) < inp.capacityW * NO_PROD_FRACTION;
+    np.ticks = zero ? np.ticks + 1 : rainy && inPeak ? np.ticks : 0;
     if (zero && np.ticks === 1) np.since = now;
     st.no_production = np;
     conds.push({
-      key: "no_production", title: "แดดจัดแต่ไม่ผลิตไฟ",
-      detail: `ผลิต ${Math.round(Number(l.genPower))} W ในช่วง peak ${inp.sun.peakStart}–${inp.sun.peakEnd} ติดกัน ${np.ticks} รอบ`,
+      key: "no_production", title: "ช่วงกลางวันแต่ไม่ผลิตไฟเลย",
+      detail: `ผลิต ${Math.round(Number(l.genPower))} W ในช่วงแดด (คำนวณจากตำแหน่งดวงอาทิตย์) ${inp.sun.peakStart}–${inp.sun.peakEnd} ฝนไม่ตก ติดกัน ${np.ticks} รอบ`,
       active: np.ticks >= CONSECUTIVE_TICKS,
     });
   }
@@ -119,10 +127,22 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
     }
   }
 
+  // SOC from the inverter's own measure point when present (0 there is a real 0 %,
+  // whereas Latest.soc is 0 when the field is simply missing).
   const socMin = Number(env.ALERT_SOC_MIN);
-  if (l && env.ALERT_SOC_MIN && Number.isFinite(socMin) && socMin > 0 && Number(l.soc) > 0) {
-    conds.push({ key: "soc_low", title: `แบตต่ำกว่า ${socMin}%`, detail: `SOC ${Math.round(Number(l.soc))}%`, active: Number(l.soc) < socMin });
+  if (env.ALERT_SOC_MIN && Number.isFinite(socMin) && socMin > 0) {
+    const mp = dev && Array.isArray(dev.dataList) ? dev.dataList.find((x: any) => x.key === "BMSSOC" || x.key === "SOC") : null;
+    const soc = mp ? Number(mp.value) : l && Number(l.soc) > 0 ? Number(l.soc) : NaN;
+    if (Number.isFinite(soc)) conds.push({ key: "soc_low", title: `แบตต่ำกว่า ${socMin}%`, detail: `SOC ${Math.round(soc)}%`, active: soc < socMin });
   }
+
+  // Deye's own alarm log — one condition per ongoing alarm, cleared when it ends.
+  const seenAl = new Set<string>();
+  for (const a of (dev && dev.alarms && dev.alarms.active) || []) {
+    const k = "deye:" + a.alertId; seenAl.add(k);
+    conds.push({ key: k, title: `${a.level >= 2 ? "Fault" : "Warning"} จากอินเวอร์เตอร์: ${a.name}`, detail: `เริ่ม ${hhmm(a.start * 1000)}${a.impact ? " · กระทบการทำงาน" : ""}`, active: true });
+  }
+  if (dev && dev.alarms) for (const k of Object.keys(st)) if (k.startsWith("deye:") && !seenAl.has(k)) conds.push({ key: k, title: st[k].title || k, detail: "", active: false });
 
   // attention:* — one condition per finding; findings that vanished are "cleared"
   const seenAtt = new Set<string>();
@@ -132,27 +152,34 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
   }
   for (const k of Object.keys(st)) if (k.startsWith("attention:") && !seenAtt.has(k)) conds.push({ key: k, title: st[k].title || k, detail: "", active: false });
 
-  // Diff against state → messages
+  // Diff against state → messages. State transitions that mean "the user has been
+  // told" are COMMITTED ONLY IF a channel actually accepted the message (2xx);
+  // otherwise they are retried next tick. Tick counters are always persisted.
   const name = inp.stationName ? `[${inp.stationName}] ` : "";
   const msgs: string[] = [];
+  const onDelivered: (() => void)[] = [];
+  const isTransient = (k: string) => k.startsWith("attention:") || k.startsWith("deye:");
   for (const c of conds) {
     const s = st[c.key] || { since: now, lastSent: 0, sent: false, ticks: 0 };
     if (c.active) {
       if (!st[c.key] || (!s.sent && !s.since)) s.since = now;
-      if (!s.sent || now - s.lastSent >= repeatS) {
-        msgs.push(`${s.sent ? "🔁" : "🚨"} ${name}${c.title}${c.detail ? `\n${c.detail}` : ""}${s.sent ? `\nยังไม่หาย · เริ่ม ${hhmm(s.since * 1000)} (${mins(now - s.since)})` : ""}`);
-        s.sent = true; s.lastSent = now;
-      }
       s.title = c.title;
       st[c.key] = s;
+      if (!s.sent || now - s.lastSent >= repeatS) {
+        msgs.push(`${s.sent ? "🔁" : "🚨"} ${name}${c.title}${c.detail ? `\n${c.detail}` : ""}${s.sent ? `\nยังไม่หาย · เริ่ม ${hhmm(s.since * 1000)} (${mins(now - s.since)})` : ""}`);
+        onDelivered.push(() => { s.sent = true; s.lastSent = now; });
+      }
     } else if (s.sent) {
       msgs.push(`✅ ${name}กลับมาปกติ: ${c.title} (นาน ${mins(now - s.since)})`);
-      if (c.key.startsWith("attention:")) delete st[c.key];
-      else st[c.key] = { since: 0, lastSent: 0, sent: false, ticks: 0 };
-    } else if (!c.key.startsWith("attention:") && (c.key === "poll_failed" || c.key === "no_production")) {
+      onDelivered.push(() => { if (isTransient(c.key)) delete st[c.key]; else st[c.key] = { since: 0, lastSent: 0, sent: false, ticks: 0 }; });
+    } else if (c.key === "poll_failed" || c.key === "no_production") {
       st[c.key] = s; // keep tick counters
     }
   }
+  if (msgs.length) {
+    const r = await notify(env, msgs.join("\n\n"));
+    if (delivered(r)) onDelivered.forEach((f) => f());
+    else console.error("alert delivery failed", JSON.stringify(r), "— will retry next tick");
+  }
   await saveState(env, st);
-  if (msgs.length) await notify(env, msgs.join("\n\n"));
 }

@@ -192,7 +192,7 @@ export async function loginStatus(env: Env): Promise<{ fails: number; failAt: nu
 // seconds; each repeat costs a Deye call + a token read. Memoised per payload for a
 // window far shorter than the 5-min poll, so nothing user-visible goes stale.
 const MEMO_TTL_MS = 30_000;
-const MEMO_PATHS = new Set(["/device/latest", "/station/device", "/station/list"]);
+const MEMO_PATHS = new Set(["/device/latest", "/station/device", "/station/list", "/station/alertList"]);
 const memo = new Map<string, { at: number; p: Promise<any> }>();
 
 async function apiPost(env: Env, path: string, payload: any): Promise<any> {
@@ -437,6 +437,22 @@ async function getInverterFlow(
 export async function getHistory(env: Env, granularity: number, startAt: string, endAt: string, stationId?: string): Promise<any> {
   const id = stationId || (await getStationId(env));
   return apiPost(env, "/station/history", { stationId: Number(id), granularity, startAt, endAt });
+}
+
+// ----- Alerts (Deye's own alarm log) -----
+// POST /station/alertList {stationId, startTimestamp, endTimestamp (unix SECONDS —
+// verified: a ms value trips the "within 180 days" check), page, size}. Items:
+// {deviceSn, alertName "F56 DC_VoltLow_Fault", level 1=warning 2=fault, impact,
+// alertStartTime, alertEndTime (0/absent while ongoing), status, alertId}.
+export interface DeyeAlert { alertId: string; deviceSn: string; name: string; level: number; impact: number; start: number; end: number | null; status: number; }
+export async function stationAlerts(env: Env, stationId: string, fromS: number, toS: number): Promise<DeyeAlert[]> {
+  const res = await apiPost(env, "/station/alertList", { stationId: Number(stationId), startTimestamp: fromS, endTimestamp: toS, page: 1, size: 100 });
+  if (!res || res.success === false) throw new Error(`alertList: ${res && (res.msg || res.code)}`);
+  return (res.stationAlertItems || []).map((a: any) => ({
+    alertId: String(a.alertId), deviceSn: String(a.deviceSn || ""), name: String(a.alertName || "").replace(/\u00a0/g, " ").trim(),
+    level: Number(a.level) || 0, impact: Number(a.impact) || 0,
+    start: Number(a.alertStartTime) || 0, end: Number(a.alertEndTime) > 0 ? Number(a.alertEndTime) : null, status: Number(a.status) || 0,
+  }));
 }
 
 // ----- Devices -----

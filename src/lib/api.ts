@@ -46,12 +46,21 @@ export const postLogin = (pin: string) =>
     body: JSON.stringify({ pin }),
   });
 export interface DeviceData { key: string; value: string; unit: string; }
-export interface Device { sn: string; type: string; online: boolean; collectionTime: number; collectorSn?: string; gridNominal?: { v?: number; hz?: number }; dataList: DeviceData[]; error?: string; }
+export interface DeyeAlert { alertId: string; deviceSn: string; name: string; level: number; impact: number; start: number; end: number | null; status: number; }
+export interface Device {
+  sn: string; type: string; online: boolean; collectionTime: number; collectorSn?: string;
+  gridNominal?: { v?: number; hz?: number }; dataList: DeviceData[]; error?: string;
+  availability?: { status: "online" | "offline" | "unknown"; reason: string };
+  attention?: string[];                                  // warn-level findings from our analysis
+  alarms?: { active: DeyeAlert[]; recent: DeyeAlert[] }; // Deye's own alarm log (undefined = unavailable)
+}
 
 export const getStation = () => api<Station>("/api/station");
 export const getStations = () => api<Station[]>("/api/stations");
 // `station` is sent only for multi-station accounts; omitting it keeps the
 // single-station path identical (server falls back to the default station).
+export interface DeviceHistory { days: number; bucketSeconds: number; from: number; to: number; series: Record<string, { unit: string | null; points: { t: number; avg: number; min: number; max: number }[] }>; }
+export const getDeviceHistory = (days: number, keys: string[]) => api<DeviceHistory>(`/api/device/history?days=${days}&keys=${encodeURIComponent(keys.join(","))}`);
 export const getDevice = (station?: number | null) => api<Device>("/api/device" + (station != null ? "?station=" + station : ""));
 export const getLatest = (station?: number | null) => api<Latest>("/api/latest" + (station != null ? "?station=" + station : ""));
 export const getWeather = () => api<Weather>("/api/weather");
