@@ -54,8 +54,8 @@ export function LifetimeView({ active }: { active: boolean }) {
   const yearsElapsed = Math.max(t.days / 365, 0.05);
   const annual = saved / yearsElapsed;
   const paid = cost && cost > 0;
-  const pct = paid ? Math.min(100, (saved / cost!) * 100) : 0;
-  const yearsLeft = paid && annual > 0 && saved < cost! ? (cost! - saved) / annual : 0;
+  const pct = paid ? Math.max(0, Math.min(100, (saved / cost!) * 100)) : 0; // clamped: net-cost periods can't go negative width
+  const yearsLeft = paid && annual > 0 && saved < cost! ? (cost! - saved) / annual : null; // null = no positive savings rate yet
 
   const years = (t.years || []).filter((y) => y.gen > 0 || y.use > 0);
 
@@ -74,7 +74,7 @@ export function LifetimeView({ active }: { active: boolean }) {
       {/* impact stats */}
       <div className="grid grid-cols-2 gap-2.5 mt-3">
         <Stat label={`${savingsLabel(saved).label}${t.firstDay ? "ตั้งแต่เริ่มบันทึก" : "รวม"}`} value={savingsLabel(saved).text} color={savingsLabel(saved).negative ? "var(--color-warn)" : "var(--color-secondary)"} sub={`ที่ ${settings.rate} บาท/หน่วย`}
-          info={`รวมเงินที่ประหยัดได้ตั้งแต่เริ่มบันทึก (${t.firstDay ? thDate(t.firstDay) : "-"}) = ไฟที่ใช้เองจากระบบ × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายคืน ${settings.sellRate} บาท/หน่วย` : ""}`} />
+          info={`ตั้งแต่เริ่มบันทึก (${t.firstDay ? thDate(t.firstDay) : "-"}): (ไฟที่ใช้ − ไฟที่ซื้อ) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายคืน × ${settings.sellRate} บาท/หน่วย` : ""} · ถ้าซื้อมากกว่าใช้ (ชาร์จแบตจากกริด) จะเป็นค่าไฟเพิ่มสุทธิ`} />
         <Stat label={`ลดคาร์บอน${t.firstDay ? "ตั้งแต่เริ่มบันทึก" : " (CO₂)"}`} value={kInt(co2)} unit="กก." color="#18a673" sub={`≈ ปลูกต้นไม้ ${kInt(trees)} ต้น/ปี`}
           info={`คาร์บอนที่ลดได้ในช่วงที่ระบบบันทึก = ไฟที่ผลิตได้ ${kInt(t.gen)} หน่วย × ${settings.co2Factor} กก./หน่วย (ค่า emission factor ตั้งได้ในตั้งค่า) เทียบเท่าการดูดซับของต้นไม้ ~21 กก./ต้น/ปี · ตัวเลขผลิตสะสมด้านบนมาจากมิเตอร์ของอินเวอร์เตอร์ซึ่งอาจนับก่อนติดตั้งแอป`} />
       </div>
@@ -95,7 +95,9 @@ export function LifetimeView({ active }: { active: boolean }) {
           <div className="text-[13px] text-body mt-2.5 leading-snug">
             {saved >= cost!
               ? <>คืนทุนครบแล้ว 🎉 — ตอนนี้ประหยัดเกินทุน {baht(saved - cost!)} แล้ว</>
-              : <>คืนทุนแล้ว {baht(saved)} จาก {baht(cost!)} · คาดคืนทุนครบในอีก ~{yearsLeft.toFixed(1)} ปี (ประหยัดเฉลี่ย {baht(annual)}/ปี)</>}
+              : yearsLeft == null
+                ? <>ยังไม่มีเงินประหยัดสุทธิ (ช่วงที่บันทึกซื้อไฟมากกว่าที่ใช้ เช่น ชาร์จแบตจากกริด) — ยังประเมินปีคืนทุนไม่ได้</>
+                : <>คืนทุนแล้ว {baht(saved)} จาก {baht(cost!)} · คาดคืนทุนครบในอีก ~{yearsLeft.toFixed(1)} ปี (ประหยัดเฉลี่ย {baht(annual)}/ปี)</>}
           </div>
         </section>
       )}
@@ -117,7 +119,7 @@ export function LifetimeView({ active }: { active: boolean }) {
       {/* economics editor — drives every ฿ figure in the app */}
       <SettingsCard settings={settings} raw={raw} onSave={save} />
       <a href="/api/export?range=all" download className="mt-3 flex items-center justify-center gap-2 h-11 rounded-2xl bg-canvas text-body text-[14px] font-semibold active:scale-[.99] transition-transform">
-        ⬇ ดาวน์โหลดข้อมูลรายวันทั้งหมด (CSV)
+        ⬇ ดาวน์โหลดข้อมูลรายวันทั้งหมด (CSV · สถานีหลักที่ระบบบันทึก)
       </a>
     </>
   );

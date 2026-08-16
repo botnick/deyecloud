@@ -113,7 +113,11 @@ npx wrangler d1 execute deye-monitor --remote --command "SELECT COUNT(*) FROM sa
 | `getOrgUser url error` / เรียก token บ่อยเด้ง | เรียก `/account/token` ถี่เกินจน Deye limit — **หยุดสักพักแล้วลองใหม่** (token cache อยู่ ~60 วัน ไม่ต้องขอบ่อย) |
 | ไม่เจอสถานี / ข้อมูลว่าง | บัญชี Deye นั้นไม่มีสถานีผูกอยู่ หรือใช้ Open API กับบัญชีผิด · ลองใส่ `DEYE_STATION_ID` ให้ชัด |
 | อากาศไม่ขึ้น | ไม่ใส่ `TMD_TOKEN` ไม่เป็นไร (ใช้ Open-Meteo) · ถ้าใส่แล้วยังไม่ขึ้น เช็ก token ที่ data.tmd.go.th |
-| cron ไม่เขียนข้อมูลตอน dev | **cron ไม่ทำงานใน `vite dev`** เป็นปกติ → เปิด `GET /api/_poll` 1 ครั้งเพื่อ seed ข้อมูลแรก |
+| cron ไม่เขียนข้อมูลตอน dev | **cron ไม่ทำงานใน `vite dev`** เป็นปกติ → เปิด `GET /api/_poll` 1 ครั้งเพื่อ seed ข้อมูลแรก (ต้อง login PIN ก่อน) |
+| แอปขึ้นแถบเหลือง "ระบบเก็บข้อมูลหยุด" | เปิด `/api/_health` (ไม่ต้อง PIN) — ดู `lastPollError` และ `deyeLogin` · ถ้า `deyeLogin.ok=false` = รหัส/secret Deye ผิด → แก้ secret แล้วรอ `holdUntil` หรือ deploy ใหม่ (isolate ใหม่จะลอง login เมื่อ hold หมด) · ระบบเติมข้อมูลช่วงที่หายให้เองเมื่อกลับมา (ย้อนหลังได้ 2 วัน/รอบ) — เก่ากว่านั้น `POST /api/_backfill?from=YYYY-MM-DD` |
+| ใส่ PIN แล้วบอก "ลองผิดหลายครั้ง — รออีก N วินาที" | มีการเดา PIN (หรือพิมพ์ผิดเกิน 3 ครั้ง) → รอตามที่บอก (สูงสุด 15 นาที) · ใส่ถูกครั้งเดียวจะรีเซ็ต |
+| `/api/_poll` `/api/_backfill` ตอบ 403 | ต้องตั้ง `APP_PIN` และ login ก่อน — route ผู้ดูแลไม่เปิดสาธารณะแม้ไม่ตั้ง PIN |
+| แจ้งเตือนไม่มา | `POST /api/_alert_test` (login แล้ว) → ต้องได้ `ok:true` · ถ้า `delivered.webhook` ไม่ใช่ 2xx เช็ค URL webhook · กติกาส่วนใหญ่ต้องเกิดติดกัน 3 รอบ (15 นาที) ก่อนเตือน |
 
 ---
 
@@ -141,3 +145,5 @@ npx wrangler d1 execute deye-monitor --remote --command "SELECT COUNT(*) FROM sa
 - ถ้าเชื่อม Deye ไม่ได้ชั่วคราว แอปขึ้นแถบ "เชื่อมต่อระบบไม่ได้" + คงข้อมูลล่าสุด + ลองใหม่อัตโนมัติ
 - บัญชีที่มีหลายสถานี: มีตัวสลับสถานีบนหัวจอให้อัตโนมัติ
 - ตัวเลขผังพลังงาน (solar/บ้าน/กริด/แบต) อ่านจาก inverter ให้ตรงกับแอป Deye · ยอดพลังงานรายวันมาจาก station
+- deploy ครั้งแรกหลังอัปเดตระบบ PIN (ส.ค. 2026) ทุกเครื่องต้องใส่ PIN ใหม่ 1 ครั้ง (รูปแบบ cookie เปลี่ยน)
+- ต่อ uptime monitor (เช่น UptimeRobot/Better Stack) ที่ `GET /api/_health` — ตอบ 503 เมื่อระบบเก็บข้อมูลหยุด

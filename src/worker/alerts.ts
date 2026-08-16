@@ -41,6 +41,9 @@ async function saveState(env: Env, st: AlertState) {
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('alert_state',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify(st)).run();
 }
 
+// Delivery semantics are AT-LEAST-ONE channel: webhook and Telegram are redundant
+// paths to the same person, so a 2xx from either commits the "sent" transition;
+// per-channel retry would double-post the same alert on the surviving channel.
 export const delivered = (r: { webhook?: number; telegram?: number }) =>
   [r.webhook, r.telegram].some((s) => typeof s === "number" && s >= 200 && s < 300);
 

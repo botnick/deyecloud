@@ -82,25 +82,42 @@ PWA ดูข้อมูลระบบโซลาร์เซลล์แบ�
 | `GET /api/latest` | realtime + พลังงานวันนี้ (cache 60s) · **503 `{offline:true}`** ถ้าเชื่อม Deye ไม่ได้ · รับ `?station=` |
 | `GET /api/device` | ค่าเครื่อง (เฟส/PV/BMS) cache 60s · รับ `?station=` |
 | `GET /api/weather` | TMD/Open-Meteo + UV (cache 30 นาที) |
-| `GET /api/history?range=day\|month\|year` | กราฟย้อนหลัง (live Deye → fallback D1) · รับ `?station=` |
+| `GET /api/history?range=day\|month\|year` | กราฟย้อนหลัง (D1 ก่อน → Deye) · รับ `?station=` |
+| `GET /api/device/history?sn=&days=&keys=` | แนวโน้มค่าเครื่องจาก `device_samples` (bucket ≤240 จุด/คีย์, memo 10 นาที) |
+| `GET /api/export?range=day\|month\|year\|all&date=` | CSV จาก D1 ของสถานีหลัก (BOM, attachment) — สำหรับสคริปต์ · ปุ่มในแอปสร้าง CSV ฝั่ง client จากข้อมูลที่แสดงอยู่ (ทุกสถานี) |
+| `GET /api/settings` / `POST /api/settings` | ค่าไฟ/ขายคืน/ทุน/CO₂ (whitelist) |
+| `GET /api/_health` | **public** — `ok:false` + **503** เมื่อ sample ล่าสุดเก่ากว่า `STALE_AFTER_S` (2 รอบ cron + 120 วิ) · `lastPollError` · `deyeLogin` (fails/hold) |
+| `POST /api/_backfill?from=&to=` | **operator** — เติมข้อมูลจาก Deye history (json_each 1 statement/วัน, cap วัน/ครั้งคำนวณจากงบ D1+fetch, หยุดเมื่อ auth พัง, `nextFrom/retryFrom`) |
+| `POST /api/_alert_test` | **operator** — ส่งข้อความทดสอบทุกช่องทาง (`ok` เฉพาะเมื่อได้ 2xx) |
 
-middleware: `ensureSchema` (สร้าง table) + auth gate (`/api/*` ยกเว้น login/session) · debug: `/api/_poll` `/api/_debug` `/api/_hist` `/api/_dev`
+middleware: `ensureSchema` → auth gate (`/api/*` ยกเว้น login/session/_health) → **operator gate** (`/api/_*` ต้องมี `APP_PIN` ตั้งไว้ + login — ไม่ตั้ง PIN = ดูได้แต่เขียน/ดู raw ไม่ได้) · debug: `/api/_poll` `/api/_debug` `/api/_hist` `/api/_dev` · `onError` ส่งข้อความเต็มเฉพาะ operator
 
-**ความทนทาน (resilience):** token หมดอายุ/เสีย → `apiPost` refresh + retry เอง · `/station/latest` ส่ง power ที่ top-level (จับให้ถูก ไม่งั้นขึ้น offline ผิด) · เชื่อมไม่ได้ → frontend ขึ้นแถบ "เชื่อมต่อระบบไม่ได้" + คงข้อมูลล่าสุด + ลองใหม่ทุก 20s · cron **ไม่บันทึกค่า 0** ตอน Deye ล่ม
+**ความทนทาน (resilience):**
+- **token**: memory → D1 → login · login เป็น single-flight และมี **hold ทวีคูณ 60 วิ→6 ชม.** หลังล้มเหลว (6 ชม.ทันทีถ้า Deye บอกเหลือ ≤2 attempt) · error ทั่วไป ≥400 จะ re-login เฉพาะเมื่อ token อายุ ≥10 นาที · token ใหม่ที่ถูกปฏิเสธซ้ำนับเป็น fail · ล้าง fail เมื่อ API call สำเร็จจริง
+- **memo 30 วิ** สำหรับ `/device/latest` `/station/device` `/station/list` `/station/alertList` — cron 1 รอบเรียก inverter ครั้งเดียว
+- `/station/latest` ส่ง power ที่ top-level (จับให้ถูก ไม่งั้นขึ้น offline ผิด) · เชื่อมไม่ได้ → frontend ขึ้นแถบ "เชื่อมต่อระบบไม่ได้" + คงข้อมูลล่าสุด + ลองใหม่ทุก 20s
+- cron **ไม่บันทึกค่า 0** ตอน Deye ล่ม · day-totals ล้มเหลว → เก็บ sample แต่**ไม่**ทับ `daily` (`Latest.totalsOk`) · scheduled catch เก็บ `last_poll_error` · **self-heal**: กลับมาแล้วเห็นช่องว่าง > STALE → `backfillRange` เติมวันล่าสุด (cap คำนวณจากงบของ tick)
+- **PIN**: claim ที่นั่งแบบ CAS ก่อนเทียบ (`meta.pin_guard = fails|nextAllowed`) → 3 ครั้งฟรี แล้วหน่วง 5 วิ ×2 ≤15 นาที; คำขอที่ถูกปฏิเสธไม่แตะ state · cookie = `iat.HMAC(APP_PIN, scheme+iat)` หมดอายุเอง เทียบ constant-time
 
 ---
 
 ## 6. D1 schema (auto-migrate แบบ versioned — `schema_v` ใน `meta`, รันเองตอน request แรก ไม่ต้องสั่ง migration)
-- `meta(k,v)` — token + expiry, station cache, latest/weather cache, `schema_v`, `last_prune`, telemetry
-- `samples(ts, gen_power, use_power, grid_power, batt_power, soc, gen_today, use_today)` — snapshot ทุก 5 นาที (กราฟย้อนหลัง)
-- `device_samples(ts, …)` — ค่าเครื่องละเอียด (เฟส/PV/BMS) เก็บถาวร **prune อัตโนมัติ >90 วัน**
-- `daily(day, gen, use, buy, sell, charge, discharge)` — สรุปรายวัน (rollup)
+- `meta(k,v)` — token (+`_exp`,`_at`), login guard (`deye_login_fails/_at/_msg`), station cache, latest/device/weather cache, `schema_v`, `last_prune`, `last_telemetry`, `last_poll_error`, `pin_guard`, `alert_state`, `settings`, hist cache
+- `samples(ts, gen_power, use_power, grid_power, batt_power, soc, *_today, gen_total)` — snapshot ทุก 5 นาที · **prune >90 วัน** (`SAMPLES_RETENTION_DAYS`) — backfill/self-heal เขียนด้วย DO NOTHING (แถวจาก cron ชนะ)
+- `device_samples(sn, ts, data)` — measure point ทั้งหมดของทุก inverter ทุก ~15 นาที · **prune >180 วัน** (`DEVICE_RETENTION_DAYS`) — อ่านโดย `/api/device/history`
+- `daily(day, gen, use, buy, sell, charge, discharge, peak_power, peak_ts)` — สรุปรายวัน เก็บถาวร · peak ขยับขึ้นเท่านั้น
 
 ---
 
 ## 7. Auth
-PIN → `HMAC-SHA256(APP_PIN)` เป็น cookie `deye_auth` (HttpOnly, Secure เฉพาะ https).
-ไม่มี PIN = เปิด public. secret ฝั่ง Deye อยู่ใน Worker เท่านั้น — ผู้ใช้ไม่ต้อง login บัญชี Deye
+PIN → cookie `deye_auth` = `iat.HMAC-SHA256(APP_PIN, "deye-monitor-v2:"+iat)` (HttpOnly, Secure เฉพาะ https, หมดอายุตาม iat, เทียบ constant-time). ล็อกอินมี brute-force guard (ดู §5).
+ไม่มี PIN = หน้าแอปเปิด public แต่ route ผู้ดูแล `/api/_*` ปิด (ยกเว้น `_health`). secret ฝั่ง Deye อยู่ใน Worker เท่านั้น — ผู้ใช้ไม่ต้อง login บัญชี Deye
+
+## 7b. สถานะ / แจ้งเตือน (แยก 3 เรื่อง ไม่ปนกัน)
+- **availability** (`dev.availability`) — เครื่องส่งข้อมูลอยู่ไหม: `deviceState/connectStatus` + อายุ `collectionTime` → online/offline/unknown (unknown = ไม่เดา) · ฝั่งแอป `StaleBanner` เป็นเจ้าของเรื่องนี้
+- **ALARM** — Deye's own alarm log: `POST /station/alertList` (unix **วินาที**, หน้าต่าง ≤180 วัน, paged) → `dev.alarms{active,recent}` · `Latest.warningStatus="ALARM"`
+- **ATTENTION** — heuristics ของเราจาก measure point (`src/lib/diagnostics.ts` เฉพาะ tone `warn`) → `warningReasons` — ป้ายบอกชัดว่า "วิเคราะห์จากค่าที่วัดได้" ไม่ใช่ alarm ของ Deye
+- **outbound alerts** (`src/worker/alerts.ts`) — ประเมินท้าย `pollAndStore` จากข้อมูลที่มีอยู่แล้ว (ไม่เรียก Deye เพิ่ม) + จาก scheduled catch (poll_failed) · state 1 แถวใน `meta.alert_state` · **commit สถานะ "ส่งแล้ว" เฉพาะเมื่อมีช่องทางตอบ 2xx** ไม่งั้นลองใหม่รอบถัดไป · กติกาทุกข้อ "เงียบเมื่อไม่มีข้อมูล"
 
 ---
 
@@ -126,14 +143,17 @@ scripts/setup.mjs       one-command setup (D1 + secrets + deploy)
 src/
   main.tsx App.tsx index.css
   lib/      api.ts (ApiError + ?station=) format.ts weather.ts analysis.ts device.ts
-            config.ts (ค่าไฟ/CO₂) ui.ts (glass/plate tokens) icons.tsx wxicon.tsx (Meteocons) haptics.ts scenarios.ts brand.ts
+            diagnostics.ts (สุขภาพเครื่อง — config-or-silent) forecast.ts (PSH จาก sun) useCapacity.ts (kWp หรือ peakPower)
+            economics.ts (savings signed + savingsLabel, co2Of(settings)) settings.ts (rate/sellRate/systemCost/co2Factor)
+            config.ts (ค่าเริ่มต้น) ui.ts (glass/plate tokens) icons.tsx wxicon.tsx (Meteocons) haptics.ts scenarios.ts brand.ts
   components/ Splash PinGate Header BottomNav StationSwitcher PullToRefresh DevPanel InstallPrompt
-              HomeView TodayView WeatherView HistoryView DeviceView
+              HomeView TodayView WeatherView HistoryView (compare + CSV) LifetimeView DeviceView (alarm log + DeviceTrends)
               FlowDiagram ProductionRing PowerProfile SunPath SelfConsumption
               AnalysisCard InsightList Tile AnimatedNumber Chart
   worker/
-    index.ts  Hono app + /api/* + cron + weather (+UV) + D1 schema/prune
-    deye.ts   Deye client (Open API only) + station discovery + token recovery (Env config)
+    index.ts  Hono app + /api/* + cron (poll, self-heal, telemetry, cache warm, alerts) + weather (+UV) + D1 schema/prune + backfill + export
+    deye.ts   Deye client (Open API only) + station discovery + token lifecycle/hold + memo + alertList (Env config)
+    alerts.ts กติกาแจ้งเตือน + ช่องทาง (webhook/telegram) + state
     sun.ts    NOAA sunrise + Haurwitz clear-sky (การรับแดดคำนวณจริง)
 ```
 
@@ -171,3 +191,7 @@ table สร้างเองตอน request แรก. cron เริ่ม�
 - คีย์ข้อมูลหน้า "เครื่อง" (Device) จาก Deye เป็น **ภาษาอังกฤษ** (`GridVoltageL1`, `LoadPhasePowerA` …) แมป → ไทย ที่ `src/lib/device.ts`
 - หน้า "เครื่อง" เข้าผ่านปุ่ม "รายละเอียด" บน Home ไม่ใช่แท็บที่ 5
 - การคำนวณทุกอย่างเป็น **ค่าจริง** จาก API / สูตรดาราศาสตร์ — ไม่ใส่ค่าสมมติ
+- **"ไม่ hardcode" ≠ "เดาจากข้อมูลที่กำลังตรวจ"** — เกณฑ์ที่ได้จากค่าที่มันเองต้องตัดสิน (เช่น เดา nominal จากแรงดันที่วัด) จะซ่อนความผิดปกติแบบทั้งไซต์ → ให้ **ตั้งค่า** และ **เงียบเมื่อไม่ตั้ง** เสมอ (`GRID_NOMINAL_*`)
+- ขีดจำกัดต่อ invocation (D1 query / subrequest) ต้อง **คำนวณ** ในโค้ด (`BACKFILL_MAX_DAYS`, `SELF_HEAL_MAX_DAYS`) ไม่ใช่ตัวเลขลอย
+- ทุก batch คิดว่า "แต่ละ statement = 1 query" · ห้าม batch หลายร้อย statement — ใช้ `json_each` 1 statement
+- ข้อมูลที่ Deye ให้ไม่ได้ = **unknown** ไม่ใช่ 0 (`Latest.totalsOk`, `availability.unknown`, `alarms undefined`)
