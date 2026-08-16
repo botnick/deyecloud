@@ -14,10 +14,17 @@ export interface PeriodTotals { use?: number; buy?: number; sell?: number; gen?:
 // out of (use − buy) — no double count. The only leak is at period boundaries
 // (charged in one day, used the next), which averages out over a month/lifetime;
 // the day view can be off by up to one battery-cycle's worth of kWh on such days.
+// SIGNED: (use − buy) can be negative when the grid supplied more than the house
+// used (battery charged from grid, or the daily counters straddle midnight); a
+// negative result is a real net cost for the period, and clamping it to 0 would
+// overstate savings. Callers show "ค่าไฟเพิ่มสุทธิ" for negatives (see savingsLabel).
 export function savingsOf(t: PeriodTotals, s: Settings): number {
-  const selfUsed = Math.max(0, (t.use || 0) - (t.buy || 0));
+  const selfUsed = (t.use || 0) - (t.buy || 0);
   return selfUsed * s.rate + (t.sell || 0) * s.sellRate;
 }
+// Label + magnitude for a signed savings figure, so every screen words it the same.
+export const savingsLabel = (saved: number, positive = "ประหยัดค่าไฟ"): { label: string; text: string; negative: boolean } =>
+  saved < -0.5 ? { label: "ค่าไฟเพิ่มสุทธิ", text: "−" + baht(-saved), negative: true } : { label: positive, text: baht(saved), negative: false };
 
 // CO₂ (kg) avoided ≈ all solar energy produced × the grid emission factor. The
 // factor is the user's (settings.co2Factor — grids differ; Thailand ≈0.5), with

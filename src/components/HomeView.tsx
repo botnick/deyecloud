@@ -3,7 +3,7 @@ import { fmtKwh, timeStr } from "../lib/format";
 import { IconAlert } from "../lib/icons";
 import { cardP, h2Mid } from "../lib/ui";
 import { useSettings } from "../lib/settings";
-import { savingsOf } from "../lib/economics";
+import { savingsOf, savingsLabel } from "../lib/economics";
 import { forecast, clearSkyPsh } from "../lib/forecast";
 import { useEffectiveCapacity } from "../lib/useCapacity";
 import { InfoTip } from "./InfoTip";
@@ -29,7 +29,7 @@ export function HomeView({ latest, weather, capacity, stationName, onDevice }: {
   const potential = effCap * clearSkyPsh(weather);
   const prodPct = potential > 0 ? Math.round(Math.min(100, (latest.genToday / potential) * 100)) : Math.min(100, Math.round(latest.genToday));
   // shared economics formula (self-consumption + export income, user's own rates)
-  const savings = Math.round(savingsOf({ use: latest.useToday, buy: latest.buyToday, sell: latest.sellToday }, settings));
+  const sv = savingsLabel(savingsOf({ use: latest.useToday, buy: latest.buyToday, sell: latest.sellToday }, settings), "ประหยัดวันนี้");
   // tomorrow's expected production (shown only when capacity is known here)
   const tomorrow = effCap ? forecast(weather, effCap)[1] : undefined;
 
@@ -69,10 +69,10 @@ export function HomeView({ latest, weather, capacity, stationName, onDevice }: {
           </div>
           <div className="bg-canvas rounded-2xl px-4 py-3">
             <div className="flex items-center gap-1.5">
-              <span className="text-[12px] text-body">ประหยัดวันนี้</span>
+              <span className="text-[12px] text-body">{sv.label}</span>
               <InfoTip text={`ไฟที่ใช้เองจากโซล่า/แบตวันนี้ (ไม่ได้ซื้อจากการไฟฟ้า) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายคืน ${settings.sellRate} บาท/หน่วย` : ""} · ปรับค่าได้ในแท็บ 'ตลอด'`} />
             </div>
-            <div className="text-[18px] font-extrabold tabnum mt-0.5 text-secondary">฿{savings}</div>
+            <div className={`text-[18px] font-extrabold tabnum mt-0.5 ${sv.negative ? "text-warn" : "text-secondary"}`}>{sv.text}</div>
           </div>
         </div>
         <button onClick={onDevice} className="mt-3.5 w-full h-[52px] bg-primary rounded-[16px] flex items-center justify-center gap-2 text-[16px] font-bold text-ink shadow-[0_8px_20px_-7px_rgba(255,204,0,0.6)] active:scale-[.98] transition-transform">

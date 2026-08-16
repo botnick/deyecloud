@@ -8,6 +8,7 @@ import { card, cardP, h2 } from "../lib/ui";
 import { FlowDiagram } from "./FlowDiagram";
 import { InsightList } from "./InsightList";
 import { analyzeDevice } from "../lib/diagnostics";
+import { DeviceTrends } from "./DeviceTrends";
 
 const tcol = (t: number) => (t >= 60 ? "#e8603c" : t >= 45 ? "#d98c00" : "#18a673");
 function TempChip({ label, t }: { label: string; t: number }) {
@@ -241,12 +242,36 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
         ))}
       </div>
 
+      {/* Deye's own alarm log — real faults/warnings the inverter raised */}
+      {dev.alarms && (dev.alarms.active.length > 0 || dev.alarms.recent.length > 0) && (
+        <div className="mt-3.5">
+          <div className="text-[15px] font-bold mb-2">แจ้งเตือนจากอินเวอร์เตอร์ (Deye)</div>
+          <div className={`${card} divide-y divide-line`}>
+            {[...dev.alarms.active, ...dev.alarms.recent.filter((r) => !dev.alarms!.active.some((a) => a.alertId === r.alertId))].slice(0, 8).map((a) => (
+              <div key={a.alertId} className="flex items-start gap-3 px-4 py-3">
+                <span className={`mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${a.end == null ? (a.level >= 2 ? "bg-[#e5484d]" : "bg-warn") : "bg-muted/50"}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[14px] font-semibold leading-tight">{a.name} <span className="text-[12px] font-normal text-muted">· {a.level >= 2 ? "Fault" : "Warning"}</span></div>
+                  <div className="text-[12.5px] text-muted mt-0.5">
+                    {a.end == null ? "กำลังเกิดอยู่ · เริ่ม " : ""}{new Date(a.start * 1000).toLocaleString("th-TH-u-ca-gregory", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    {a.end != null && ` → หายเมื่อ ${new Date(a.end * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} (${Math.max(1, Math.round((a.end - a.start) / 60))} นาที)`}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="text-[12px] text-muted mt-1.5 px-1">รหัส F = fault, W = warning ตามคู่มือ Deye · แสดงย้อนหลัง 7 วัน</div>
+        </div>
+      )}
+
       {diag.length > 0 && (
         <div className="mt-3.5">
-          <div className="text-[15px] font-bold mb-2">ตรวจสุขภาพระบบ</div>
+          <div className="text-[15px] font-bold mb-2">ตรวจสุขภาพระบบ <span className="text-[12px] font-normal text-muted">(วิเคราะห์จากค่าที่วัดได้)</span></div>
           <InsightList items={diag} />
         </div>
       )}
+
+      <div className="mt-3.5"><DeviceTrends dev={dev} /></div>
 
       {latest && (
         <div className="mt-3.5 space-y-3">

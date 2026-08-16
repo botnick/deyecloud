@@ -61,8 +61,10 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {})
     const s = spread(load.map(Math.abs));
     if (s.sum > 500 && s.pct >= 40) {
       const heavy = phases[load.map(Math.abs).indexOf(s.max)];
+      // warn (→ Home card + alert) only when the imbalance carries real power:
+      // a lone 1 kW appliance on one phase is normal life, not a wiring problem.
       out.push({
-        tone: s.pct >= 65 ? "warn" : "info",
+        tone: s.pct >= 65 && s.sum >= 2000 ? "warn" : "info",
         title: `โหลด 3 เฟสไม่สมดุล (${Math.round(s.pct)}%)`,
         detail:
           `เฟส ${heavy} รับหนักสุด ${w(s.max)} W คิดเป็น ${Math.round((s.max / s.sum) * 100)}% ของโหลดทั้งบ้าน` +
