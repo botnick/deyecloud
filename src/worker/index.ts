@@ -58,18 +58,61 @@ async function ensureSchema(env: Env) {
 }
 
 // --- Auth (PIN -> signed cookie) ---------------------------------------
-async function authToken(env: Env): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(env.APP_PIN || ""), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode("deye-monitor-v1"));
+// Cookie = `<issuedAt>.<hex HMAC-SHA256(APP_PIN, "deye-monitor-v2:" + issuedAt)>`.
+// Binding the issue time into the MAC means (a) a token expires on its own even
+// if the cookie lingers, and (b) it is not one constant string per PIN. Changing
+// APP_PIN revokes everything at once. Compared in constant time.
+const AUTH_SCHEME = "deye-monitor-v2:";
+async function hmacHex(secret: string, msg: string): Promise<string> {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg));
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function timingSafeEq(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+async function authToken(env: Env, iat = Math.floor(Date.now() / 1000)): Promise<string> {
+  return `${iat}.${await hmacHex(env.APP_PIN || "", AUTH_SCHEME + iat)}`;
 }
 function getCookie(req: Request, name: string): string | null {
   const m = (req.headers.get("Cookie") || "").match(new RegExp("(?:^|; )" + name + "=([^;]+)"));
   return m ? m[1] : null;
 }
 async function isAuthed(req: Request, env: Env): Promise<boolean> {
-  if (!env.APP_PIN) return true;
-  return getCookie(req, "deye_auth") === (await authToken(env));
+  if (!env.APP_PIN) return true; // no PIN configured = public read-only dashboard (owner's choice)
+  const tok = getCookie(req, "deye_auth") || "";
+  const dot = tok.indexOf(".");
+  if (dot <= 0) return false;
+  const iat = Number(tok.slice(0, dot));
+  const now = Math.floor(Date.now() / 1000);
+  if (!Number.isFinite(iat) || iat > now + 60 || now - iat > AUTH_COOKIE_MAX_AGE) return false;
+  return timingSafeEq(tok, await authToken(env, iat));
+}
+// Operator routes (/api/_poll, _backfill, _debug, _dev, _hist) write or dump raw
+// upstream payloads. They need a real credential — "no PIN" opens the dashboard,
+// it must not open these.
+async function isOperator(req: Request, env: Env): Promise<boolean> {
+  return !!env.APP_PIN && (await isAuthed(req, env));
+}
+
+// PIN brute-force guard: a global failure counter in D1 (single-household app,
+// so per-IP buckets buy nothing). The first few misses are free (typos), then
+// the wait doubles up to a ceiling — a 4-digit PIN cannot be enumerated in
+// useful time, while a real owner mistyping thrice waits seconds.
+const PIN_FREE_FAILS = 3;
+const PIN_HOLD_BASE_S = 5;
+const PIN_HOLD_MAX_S = 15 * 60;
+const pinHoldFor = (fails: number) => (fails < PIN_FREE_FAILS ? 0 : Math.min(PIN_HOLD_MAX_S, PIN_HOLD_BASE_S * 2 ** (fails - PIN_FREE_FAILS)));
+async function pinGuard(env: Env): Promise<{ fails: number; retryAfter: number }> {
+  const rows = await env.DB.prepare("SELECT k, v FROM meta WHERE k IN ('pin_fails','pin_fail_at')").all();
+  const m: Record<string, string> = {};
+  for (const r of (rows.results || []) as any[]) m[r.k] = r.v;
+  const fails = Number(m.pin_fails) || 0;
+  const left = Number(m.pin_fail_at || 0) + pinHoldFor(fails) - Math.floor(Date.now() / 1000);
+  return { fails, retryAfter: Math.max(0, left) };
 }
 
 // Retention windows, declared once so the prune and the backfill's lower bound
@@ -315,13 +358,28 @@ app.use("/api/*", async (c, next) => { await ensureSchema(c.env); await next(); 
 app.post("/api/login", async (c) => {
   const env = c.env;
   const { pin } = await c.req.json().catch(() => ({ pin: undefined }));
-  if (!env.APP_PIN || pin === env.APP_PIN) {
-    const tok = await authToken(env);
-    const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
-    c.header("Set-Cookie", `deye_auth=${tok}; Path=/; HttpOnly${secure}; SameSite=Lax; Max-Age=${AUTH_COOKIE_MAX_AGE}`);
-    return c.json({ ok: true });
+  if (env.APP_PIN) {
+    const g = await pinGuard(env);
+    if (g.retryAfter > 0) {
+      c.header("Retry-After", String(g.retryAfter));
+      return c.json({ ok: false, error: `ลองผิดหลายครั้ง — รออีก ${g.retryAfter} วินาที`, retryAfter: g.retryAfter }, 429);
+    }
+    if (typeof pin !== "string" || !timingSafeEq(pin, env.APP_PIN)) {
+      const now = Math.floor(Date.now() / 1000);
+      await env.DB.batch([
+        env.DB.prepare("INSERT INTO meta (k,v) VALUES ('pin_fails',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(g.fails + 1)),
+        env.DB.prepare("INSERT INTO meta (k,v) VALUES ('pin_fail_at',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(now)),
+      ]);
+      const next = pinHoldFor(g.fails + 1);
+      return c.json({ ok: false, error: next ? `PIN ไม่ถูกต้อง — ลองใหม่ได้ในอีก ${next} วินาที` : "PIN ไม่ถูกต้อง", retryAfter: next }, 401);
+    }
+    if (g.fails) await env.DB.prepare("DELETE FROM meta WHERE k IN ('pin_fails','pin_fail_at')").run();
   }
-  return c.json({ ok: false, error: "PIN ไม่ถูกต้อง" }, 401);
+  if (!env.APP_PIN) return c.json({ ok: true }); // nothing to sign; the gate is open anyway
+  const tok = await authToken(env);
+  const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+  c.header("Set-Cookie", `deye_auth=${tok}; Path=/; HttpOnly${secure}; SameSite=Lax; Max-Age=${AUTH_COOKIE_MAX_AGE}`);
+  return c.json({ ok: true });
 });
 
 app.get("/api/session", async (c) => c.json({ authed: await isAuthed(c.req.raw, c.env) }));
@@ -369,6 +427,15 @@ app.get("/api/_health", async (c) => {
 // auth gate — applies to every /api/* route registered below
 app.use("/api/*", async (c, next) => {
   if (!(await isAuthed(c.req.raw, c.env))) return c.json({ error: "unauthorized" }, 401);
+  await next();
+});
+// operator gate — /api/_* (poll, backfill, debug, dev, hist) additionally require a
+// configured PIN; without one they answer 403 instead of being world-writable.
+app.use("/api/*", async (c, next) => {
+  const p = new URL(c.req.url).pathname;
+  if (p.startsWith("/api/_") && !(await isOperator(c.req.raw, c.env))) {
+    return c.json({ error: "operator routes need APP_PIN configured + login" }, 403);
+  }
   await next();
 });
 
@@ -626,17 +693,19 @@ app.get("/api/_poll", async (c) => c.json(await pollAndStore(c.env)));
 // rather than silently truncated.
 //
 // The day cap is DERIVED, not guessed, so it stays honest if the cost per day
-// changes. Every D1 statement (each one inside a batch counts separately) and
-// every fetch is one unit against the same per-invocation ceiling. Per day:
-// two getHistory fetches + a write batch of ≤2 statements (samples, daily) = 4.
-// Fixed per call, worst case (cold isolate): ensureSchema 2, token read 2, a
-// token login (1 fetch + 3-statement batch) 4, station-id read 1, and the single
-// end-of-call invalidation batch 2 = 11. Station id and token are resolved ONCE
-// (in-isolate memo) so they are not paid again per day.
-const SUBREQUEST_BUDGET = 50;
-const SUBREQUESTS_RESERVED = 11;
-const SUBREQUESTS_PER_DAY = 4;
-const BACKFILL_MAX_DAYS = Math.max(1, Math.floor((SUBREQUEST_BUDGET - SUBREQUESTS_RESERVED) / SUBREQUESTS_PER_DAY));
+// changes. D1 queries and outbound fetches are SEPARATE per-invocation ceilings
+// (each statement inside a batch counts as one query). Per day: 2 getHistory
+// fetches + a write batch of ≤2 statements. Fixed per call, worst case (cold
+// isolate, token rejected once and refreshed): ensureSchema 2, token read 3
+// (×2 — the first day's two calls both read before login single-flight) 6, two
+// logins × (3 hold reads + 4 writes) 14, station id 1, final invalidation 2,
+// mark-refresh-useless 4 → 29 D1; 2 login fetches. Both stay under 50 at the cap.
+const D1_BUDGET = 50, D1_FIXED = 29, D1_PER_DAY = 2;
+const FETCH_BUDGET = 50, FETCH_FIXED = 2, FETCH_PER_DAY = 2;
+const BACKFILL_MAX_DAYS = Math.max(1, Math.min(
+  Math.floor((D1_BUDGET - D1_FIXED) / D1_PER_DAY),
+  Math.floor((FETCH_BUDGET - FETCH_FIXED) / FETCH_PER_DAY),
+));
 
 // Date.parse happily normalises 2026-02-31 into March 3rd. Round-trip the parsed
 // value back to a string and require it to match, so a nonexistent date is a 400
@@ -816,7 +885,14 @@ app.get("/api/_dev", async (c) => {
   return c.json({ inverter: inv, measurePointsSample: mp });
 });
 
-app.onError((err, c) => c.json({ error: String(err && (err as any).message ? (err as any).message : err) }, 500));
+// Error body: full message only for a logged-in operator (it can carry upstream
+// detail); everyone else gets a generic 500. Always logged.
+app.onError(async (err, c) => {
+  const msg = String(err && (err as any).message ? (err as any).message : err);
+  console.error("unhandled", msg);
+  const op = await isOperator(c.req.raw, c.env).catch(() => false);
+  return c.json({ error: op ? msg : "internal error" }, 500);
+});
 
 // SPA fallback (most non-API requests are served by the assets layer first).
 // Tag everything noindex so a private friend-install never shows up in search.

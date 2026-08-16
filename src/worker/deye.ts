@@ -137,10 +137,28 @@ async function login(env: Env, now: number): Promise<string> {
     env.DB.prepare("INSERT INTO meta (k,v) VALUES ('deye_token_exp',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(now + ttl)),
     env.DB.prepare("INSERT INTO meta (k,v) VALUES ('deye_token_at',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(now)),
   ];
-  if (fails > 0) stmts.push(env.DB.prepare("DELETE FROM meta WHERE k IN ('deye_login_fails','deye_login_fail_at','deye_login_fail_msg')"));
   await env.DB.batch(stmts);
   memTok = { token, exp: now + ttl, at: now };
+  // A login that *succeeds* does not prove the credentials are right for the API
+  // (wrong region/account tokens are issued fine and then rejected). The failure
+  // record is cleared only once a real API call succeeds with this token.
+  if (fails > 0) loginFailsPending = true;
   return token;
+}
+let loginFailsPending = false;
+
+// A refreshed token was rejected again: the problem is not token age, and a
+// login every call would be an unbounded, lockout-walking loop. Record it as a
+// failure so the exponential hold takes over.
+async function markRefreshUseless(env: Env, why: string) {
+  const now = Math.floor(Date.now() / 1000);
+  const fails = Number(await metaGet(env, "deye_login_fails")) || 0;
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO meta (k,v) VALUES ('deye_login_fails',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(fails + 1)),
+    env.DB.prepare("INSERT INTO meta (k,v) VALUES ('deye_login_fail_at',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(now)),
+    env.DB.prepare("INSERT INTO meta (k,v) VALUES ('deye_login_fail_msg',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(`token refreshed but still rejected: ${why}`.slice(0, 200)),
+  ]);
+  loginFailsPending = true;
 }
 
 // Login-health snapshot for /api/_health (never triggers a login).
@@ -196,13 +214,22 @@ async function apiPostLive(env: Env, path: string, payload: any): Promise<any> {
   // rejected) only re-logs-in when the token is old enough to plausibly be the
   // cause, reuses a token another isolate refreshed, and is single-flight +
   // failure-held — so an unrelated Deye 500 storm cannot hammer the account.
-  const explicitAuth =
-    !!data && (data.code === 1006 || data.code === 2002 || String(data.code) === "2101019" || /token/i.test(String(data.msg || "")));
-  const authFailed = explicitAuth || (!!data && typeof data.status === "number" && data.status >= 400);
-  if (authFailed) {
-    try { token = await getToken(env, token, explicitAuth); }
+  const isExplicitAuth = (d: any) =>
+    !!d && (d.code === 1006 || d.code === 2002 || String(d.code) === "2101019" || /token/i.test(String(d.msg || "")));
+  const isAuthFailed = (d: any) => isExplicitAuth(d) || (!!d && typeof d.status === "number" && d.status >= 400);
+  if (isAuthFailed(data)) {
+    const rejected = token;
+    try { token = await getToken(env, rejected, isExplicitAuth(data)); }
     catch (e) { console.warn("deye: no token refresh for error envelope", (e as Error).message); return data; }
     data = await call(token);
+    if (isAuthFailed(data) && token !== rejected && memTok && memTok.token === token && Math.floor(Date.now() / 1000) - memTok.at < MIN_RELOGIN_AGE_S) {
+      // Fresh token, still rejected → not an expiry. Persist so the hold engages.
+      await markRefreshUseless(env, `${data.code || data.status || ""} ${data.msg || ""}`.trim()).catch(() => {});
+    }
+  }
+  if (loginFailsPending && !isAuthFailed(data)) {
+    loginFailsPending = false;
+    await env.DB.prepare("DELETE FROM meta WHERE k IN ('deye_login_fails','deye_login_fail_at','deye_login_fail_msg')").run().catch(() => {});
   }
   return data;
 }
