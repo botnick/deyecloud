@@ -261,6 +261,9 @@ export interface Latest {
   genToday: number; useToday: number; buyToday: number; sellToday: number;
   chargeToday: number; dischargeToday: number; genTotal: number;
   battStatus: string; gridStatus: string; warningStatus: string;
+  // false when Deye's day-history call failed: the *Today fields are then unknown
+  // (0 placeholders) and must not be persisted as the day's totals.
+  totalsOk: boolean;
   selfSufficiency: number; updatedAt: number; raw?: any;
 }
 
@@ -309,19 +312,24 @@ const n = (v: any) => Number(v) || 0;
 
 // Open API splits realtime power (/station/latest) from daily energy
 // (/station/history granularity=day). Compose both into one Latest.
-async function getDayTotals(env: Env, stationId: string): Promise<any> {
+// null when the call failed or came back as an error envelope — callers must
+// treat "no totals" as unknown, never as zero (a zero day would be written to D1).
+async function getDayTotals(env: Env, stationId: string): Promise<any | null> {
   const today = bkkDay();
   const tmr = bkkDay(1);
   const res = await apiPost(env, "/station/history", { stationId: Number(stationId), granularity: 2, startAt: today, endAt: tmr });
-  return (res.stationDataItems && res.stationDataItems[0]) || {};
+  if (!res || res.success === false || (typeof res.status === "number" && res.status >= 400)) return null;
+  return (res.stationDataItems && res.stationDataItems[0]) || null;
 }
 
 async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
   const id = stationId || (await getStationId(env));
   const [latestRes, t] = await Promise.all([
     apiPost(env, "/station/latest", { stationId: Number(id) }),
-    getDayTotals(env, id).catch(() => ({})),
+    getDayTotals(env, id).catch(() => null),
   ]);
+  const totalsOk = !!t;
+  const tt = t || {};
   // Open API returns the realtime power fields at the TOP LEVEL of the response
   // (no stationDataItems/data wrapper), so fall back to latestRes itself. Throw
   // ONLY on a real error envelope (success:false / HTTP 4xx-5xx) so /api/latest
@@ -334,8 +342,8 @@ async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
 
   const batt = n(d.batteryPower);            // + discharge, − charge
   const wire = n(d.wirePower ?? d.gridPower ?? d.purchasePower); // + buy, − reverse
-  const useToday = n(t.consumptionValue);
-  const buyToday = n(t.purchaseValue);
+  const useToday = n(tt.consumptionValue);
+  const buyToday = n(tt.purchaseValue);
   const selfSuff = useToday > 0 ? Math.max(0, Math.min(100, (1 - buyToday / useToday) * 100)) : 0;
 
   const out: Latest = {
@@ -345,16 +353,17 @@ async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
     gridPower: wire,
     battPower: batt,
     soc: n(d.batterySOC ?? d.batterySoc ?? d.soc),
-    genToday: n(t.generationValue),
+    genToday: n(tt.generationValue),
     useToday,
     buyToday,
-    sellToday: n(t.gridValue),
-    chargeToday: n(t.chargeValue),
-    dischargeToday: n(t.dischargeValue),
-    genTotal: n(t.generationTotal),
+    sellToday: n(tt.gridValue),
+    chargeToday: n(tt.chargeValue),
+    dischargeToday: n(tt.dischargeValue),
+    genTotal: n(tt.generationTotal),
     battStatus: batt > 20 ? "DISCHARGE" : batt < -20 ? "CHARGE" : "STATIC",
     gridStatus: wire >= 0 ? "PURCHASE" : "REVERSE",
     warningStatus: "NORMAL",
+    totalsOk,
     selfSufficiency: selfSuff,
     updatedAt: n(d.lastUpdateTime) || Math.floor(Date.now() / 1000),
     raw: d,
