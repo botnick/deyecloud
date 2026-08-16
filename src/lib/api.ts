@@ -30,6 +30,10 @@ async function api<T>(path: string, opts?: RequestInit): Promise<T> {
 }
 
 export const getSession = () => api<{ authed: boolean }>("/api/session");
+// Public probe: is the 5-min collector still writing? (503 + ok:false when stale —
+// api() only throws on ≥500 for the *offline* semantics, so read it raw here.)
+export interface Health { ok: boolean; cronHealthy: boolean; staleAfterSeconds: number; samples: { ageMinutes: number | null }; lastPollError: { msg: string; time: string } | null; deyeLogin: { ok: boolean; lastError: string | null } | null; }
+export const getHealth = () => fetch("/api/_health", { credentials: "same-origin" }).then((r) => r.json() as Promise<Health>);
 export const postLogin = (pin: string) =>
   api<{ ok: boolean; error?: string }>("/api/login", {
     method: "POST",
