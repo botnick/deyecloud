@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, isAuthHold, isAuthEnvelope, bkkDay, type Env } from "./deye";
 import { sunInfo } from "./sun";
 import { analyzeDevice } from "../lib/diagnostics";
+import { evaluateAlerts, notify, alertsConfigured } from "./alerts";
 
 // --- External endpoints + defaults — centralized, not scattered as inline literals.
 //     Per-account/site values (email, coords) come from env; stable public API
@@ -239,9 +240,30 @@ async function pollAndStore(env: Env) {
     await env.DB.batch(warm);
     // Keep the weather cache warm too (getWeather refetches only when its own 30-min
     // TTL lapses) so the อากาศ tab never waits on TMD/Open-Meteo.
-    await getWeather(env).catch(() => {});
+    const wx = await getWeather(env).catch(() => null);
+    // Outbound alerts — evaluated on what this tick already has (no extra Deye call).
+    if (alertsConfigured(env)) {
+      const cap = await capacityW(env).catch(() => null);
+      const sm = await getStationMeta(env).catch(() => null);
+      await evaluateAlerts(env, { latest: l, dev, sun: wx && wx.sun ? wx.sun : null, capacityW: cap, stationName: sm?.name }).catch((e) => console.error("alerts failed", e));
+    }
   } catch (e) { console.error("cache warm failed", e); }
   return l;
+}
+
+// Array size in W for the "no production" rule: installed kWp from the station,
+// else the best PV power ever recorded. Memoised per isolate for 30 min.
+let memCap: { at: number; w: number | null } | null = null;
+async function capacityW(env: Env): Promise<number | null> {
+  if (memCap && Date.now() - memCap.at < 30 * 60 * 1000) return memCap.w;
+  const sm = await getStationMeta(env).catch(() => null);
+  let w: number | null = sm && sm.capacity && Number(sm.capacity) > 0 ? Number(sm.capacity) * 1000 : null;
+  if (!w) {
+    const r = (await env.DB.prepare("SELECT MAX(peak_power) p FROM daily").first()) as { p: number | null } | null;
+    w = r && r.p && r.p > 0 ? Number(r.p) : null;
+  }
+  memCap = { at: Date.now(), w };
+  return w;
 }
 
 // Build the inverter "device" payload (used by /api/device and the cron cache-warm).
@@ -1003,6 +1025,12 @@ app.post("/api/_backfill", async (c) => {
   const r = await backfillRange(env, from, to);
   return c.json(r, r.failed ? 207 : 200);
 });
+// Operator: prove the alert channels work (sends a test message, returns statuses).
+app.post("/api/_alert_test", async (c) => {
+  if (!alertsConfigured(c.env)) return c.json({ ok: false, error: "no alert channel configured (ALERT_WEBHOOK_URL / TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID)" }, 400);
+  const r = await notify(c.env, "🔔 ทดสอบการแจ้งเตือนจาก Solar Monitor — ถ้าเห็นข้อความนี้แปลว่าช่องทางใช้ได้");
+  return c.json({ ok: true, delivered: r });
+});
 app.get("/api/_dev", async (c) => {
   const env = c.env;
   const devs = await listDevices(env);
@@ -1037,8 +1065,11 @@ export default {
       ensureSchema(env).then(() => pollAndStore(env)).catch(async (e) => {
         console.error("poll failed", e);
         // Persist WHY the cron is failing so /api/_health can say more than "stale".
-        const rec = JSON.stringify({ at: Math.floor(Date.now() / 1000), msg: String((e && e.message) || e).slice(0, 300) });
+        const msg = String((e && e.message) || e).slice(0, 300);
+        const rec = JSON.stringify({ at: Math.floor(Date.now() / 1000), msg });
         await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_poll_error',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(rec).run().catch(() => {});
+        // Count the failure toward the poll_failed alert (fires after N consecutive ticks).
+        if (alertsConfigured(env)) await evaluateAlerts(env, { latest: null, dev: null, sun: null, capacityW: null, pollError: msg }).catch(() => {});
       })
     );
   },

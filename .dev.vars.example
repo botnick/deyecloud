@@ -15,3 +15,12 @@ TMD_TOKEN=
 # stay silent; relative phase-balance checks still run. Never inferred from data.
 GRID_NOMINAL_V=
 GRID_NOMINAL_HZ=
+# Outbound alerts — optional; unset = no alerts. Discord-compatible webhook and/or
+# Telegram bot. Rules: inverter offline, Deye unreachable 3 ticks, ≈0 W in the
+# site's peak-sun window 3 ticks, grid voltage lost under load, battery below
+# ALERT_SOC_MIN, and warn-level health findings. Test: POST /api/_alert_test
+ALERT_WEBHOOK_URL=
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+ALERT_SOC_MIN=
+ALERT_REPEAT_MIN=
