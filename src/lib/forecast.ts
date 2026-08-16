@@ -42,8 +42,16 @@ export interface ForecastItem { time: string; kwh: number; }
 
 // Forecast kWh for each day the weather payload covers (today included).
 // Returns [] when capacity is unknown so callers can simply hide the estimate.
+// Clear-sky peak-sun-hours for the site, from the astronomical sun info the Worker
+// computes for the station's own coordinates/date. 0 when unavailable — callers hide
+// the estimate rather than fall back to a regional constant.
+export function clearSkyPsh(weather: Weather | null): number {
+  const p = weather?.sun?.psh;
+  return p && p > 0 ? p : 0;
+}
+
 export function forecast(weather: Weather | null, capKw: number): ForecastItem[] {
-  if (!weather || !capKw) return [];
-  const psh = Math.max(3, Math.min(7, weather.sun?.psh || 5)); // clamp to a sane Thai range
+  const psh = clearSkyPsh(weather);
+  if (!weather || !capKw || !psh) return [];
   return (weather.daily || []).map((d) => ({ time: d.time, kwh: forecastDayKwh(d, psh, capKw) }));
 }
