@@ -1,5 +1,4 @@
 import type { Latest } from "./api";
-import { CO2_PER_KWH } from "./config";
 import { DEFAULT_SETTINGS, type Settings } from "./settings";
 import { savingsOf } from "./economics";
 
@@ -369,7 +368,7 @@ function analyzeSpan(range: "month" | "year", points: any[], cap: number, st: Se
   const selfSuff = s.use > 0 ? clamp100(((s.use - s.buy) / s.use) * 100) : 0;
   const selfCons = s.gen > 0 ? clamp100(((s.gen - s.sell) / s.gen) * 100) : 0;
   const saved = savingsOf(s, st);
-  const co2 = Math.max(0, (s.use - s.buy)) * CO2_PER_KWH; // ไฟที่ไม่ต้องดึงจากระบบ = CO₂ ที่ลดได้
+  const co2 = Math.max(0, (s.use - s.buy)) * st.co2Factor; // ไฟที่ไม่ต้องดึงจากระบบ = CO₂ ที่ลดได้
 
   let best = points[0], worst = points.find((p) => (p.gen || 0) > 0) || points[0];
   for (const p of points) {

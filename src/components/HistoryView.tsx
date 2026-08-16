@@ -90,7 +90,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   const periodTotals = range === "day" ? totals
     : { gen: sum("gen"), use: sum("use"), buy: sum("buy"), sell: sum("sell"), charge: sum("charge"), discharge: sum("discharge") };
   const saved = periodTotals ? savingsOf(periodTotals, settings) : null;
-  const co2 = periodTotals ? co2Of(periodTotals.gen || 0) : null;
+  const co2 = periodTotals ? co2Of(periodTotals.gen || 0, settings) : null;
 
   // Only show the battery section when the system actually has a battery in this
   // period — fixes the year (now carries charge/discharge) and hides it for on-grid.

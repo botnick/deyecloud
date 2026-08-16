@@ -31,14 +31,15 @@ export function SettingsCard({ settings, raw, onSave }: {
   const [rate, setRate] = useState(str(raw.rate));
   const [sell, setSell] = useState(str(raw.sellRate));
   const [cost, setCost] = useState(str(raw.systemCost));
+  const [co2, setCo2] = useState(str(raw.co2Factor));
   const [saved, setSaved] = useState(false);
   // Re-sync the draft if settings arrive/refresh from the server after mount.
-  useEffect(() => { setRate(str(raw.rate)); setSell(str(raw.sellRate)); setCost(str(raw.systemCost)); }, [raw.rate, raw.sellRate, raw.systemCost]);
+  useEffect(() => { setRate(str(raw.rate)); setSell(str(raw.sellRate)); setCost(str(raw.systemCost)); setCo2(str(raw.co2Factor)); }, [raw.rate, raw.sellRate, raw.systemCost, raw.co2Factor]);
 
-  const dirty = rate !== str(raw.rate) || sell !== str(raw.sellRate) || cost !== str(raw.systemCost);
+  const dirty = rate !== str(raw.rate) || sell !== str(raw.sellRate) || cost !== str(raw.systemCost) || co2 !== str(raw.co2Factor);
   const submit = async () => {
     const n = (s: string) => (s.trim() === "" ? null : Number(s));
-    await onSave({ rate: n(rate) ?? undefined, sellRate: n(sell) ?? undefined, systemCost: n(cost) });
+    await onSave({ rate: n(rate) ?? undefined, sellRate: n(sell) ?? undefined, systemCost: n(cost), co2Factor: n(co2) ?? undefined });
     setSaved(true); setTimeout(() => setSaved(false), 1800);
   };
 
@@ -50,6 +51,7 @@ export function SettingsCard({ settings, raw, onSave }: {
         <Field label="ค่าไฟ (฿/หน่วย)" hint={`ถ้าเว้นว่างจะใช้ค่าเริ่มต้น ${DEFAULT_SETTINGS.rate}`} value={rate} placeholder={String(DEFAULT_SETTINGS.rate)} onChange={setRate} />
         <Field label="ค่าขายคืน (฿/หน่วย)" hint="ราคาที่การไฟฟ้ารับซื้อไฟที่ไหลย้อน (ถ้าไม่ขายใส่ 0)" value={sell} placeholder={String(DEFAULT_SETTINGS.sellRate)} onChange={setSell} />
         <Field label="ทุนติดตั้งระบบ (฿)" hint="ใส่เพื่อดูระยะคืนทุน — ไม่ใส่ก็ได้" value={cost} placeholder="เช่น 250000" onChange={setCost} />
+        <Field label="ค่า CO₂ ของไฟกริด (กก./หน่วย)" hint={`emission factor ของประเทศ/การไฟฟ้าที่ใช้ — ไทย ≈ ${DEFAULT_SETTINGS.co2Factor} (อบก.)`} value={co2} placeholder={String(DEFAULT_SETTINGS.co2Factor)} onChange={setCo2} />
       </div>
       <button onClick={submit} disabled={!dirty && !saved}
         className={`mt-4 w-full h-12 rounded-2xl text-[16px] font-bold transition-all active:scale-[.98] ${saved ? "bg-secondary text-white" : dirty ? "bg-primary text-ink shadow-[0_8px_20px_-7px_rgba(255,204,0,0.6)]" : "bg-canvas text-muted"}`}>

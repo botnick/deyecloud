@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { getSettings, saveSettings as apiSave, type RawSettings } from "./api";
-import { ELECTRICITY_RATE, DEFAULT_SELL_RATE } from "./config";
+import { ELECTRICITY_RATE, DEFAULT_SELL_RATE, CO2_PER_KWH } from "./config";
 
 // Resolved user economics. `systemCost` is optional (null = not entered → no payback).
-export interface Settings { rate: number; sellRate: number; systemCost: number | null; }
-export const DEFAULT_SETTINGS: Settings = { rate: ELECTRICITY_RATE, sellRate: DEFAULT_SELL_RATE, systemCost: null };
+export interface Settings { rate: number; sellRate: number; systemCost: number | null; co2Factor: number; }
+export const DEFAULT_SETTINGS: Settings = { rate: ELECTRICITY_RATE, sellRate: DEFAULT_SELL_RATE, systemCost: null, co2Factor: CO2_PER_KWH };
 
 const LS_KEY = "deye_settings";
 
@@ -15,6 +15,7 @@ function clean(o: RawSettings | null | undefined): RawSettings {
     if (typeof o.rate === "number" && isFinite(o.rate)) out.rate = o.rate;
     if (typeof o.sellRate === "number" && isFinite(o.sellRate)) out.sellRate = o.sellRate;
     if (o.systemCost === null || (typeof o.systemCost === "number" && isFinite(o.systemCost))) out.systemCost = o.systemCost;
+    if (typeof o.co2Factor === "number" && isFinite(o.co2Factor)) out.co2Factor = o.co2Factor;
   }
   return out;
 }

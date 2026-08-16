@@ -41,10 +41,13 @@ export function LifetimeView({ active }: { active: boolean }) {
   if (!t) return <div className="skeleton h-[320px] rounded-[20px] mt-3" />;
   if (!t.days) return <div className={`${plate} p-4 mt-3`}><p className="text-center text-muted py-12">ยังไม่มีข้อมูลสะสม<br />ระบบกำลังเริ่มบันทึก — กลับมาดูใหม่ในอีกสักพักครับ</p></div>;
 
-  const production = t.genTotal > 0 ? t.genTotal : t.gen;       // lifetime kWh
-  const co2 = co2Of(production);
+  // Headline = the inverter's own lifetime meter (may predate this app). The
+  // impact tiles below are ALL computed over the same recorded period (t.gen /
+  // t.use / t.buy since firstDay) so ฿ and CO₂ sit side by side on equal terms.
+  const production = t.genTotal > 0 ? t.genTotal : t.gen;       // lifetime kWh (meter)
+  const co2 = co2Of(t.gen, settings);                            // recorded period
   const trees = treesOf(co2);
-  const saved = savingsOf({ use: t.use, buy: t.buy, sell: t.sell }, settings);
+  const saved = savingsOf({ use: t.use, buy: t.buy, sell: t.sell }, settings); // recorded period
 
   // payback (only when the user entered a system cost)
   const cost = settings.systemCost;
@@ -70,10 +73,10 @@ export function LifetimeView({ active }: { active: boolean }) {
 
       {/* impact stats */}
       <div className="grid grid-cols-2 gap-2.5 mt-3">
-        <Stat label="ประหยัดค่าไฟรวม" value={baht(saved)} color="var(--color-secondary)" sub={`ที่ ${settings.rate} บาท/หน่วย`}
-          info={`รวมเงินที่ประหยัดได้ตั้งแต่เริ่มบันทึก = ไฟที่ใช้เองจากระบบ × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายคืน ${settings.sellRate} บาท/หน่วย` : ""}`} />
-        <Stat label="ลดคาร์บอน (CO₂)" value={kInt(co2)} unit="กก." color="#18a673" sub={`≈ ปลูกต้นไม้ ${kInt(trees)} ต้น/ปี`}
-          info="คาร์บอนที่ลดได้ = ไฟที่ผลิตจากแสงอาทิตย์ทั้งหมด × 0.5 กก./หน่วย (ค่ามาตรฐานไฟไทย) เทียบเท่าการดูดซับของต้นไม้ ~21 กก./ต้น/ปี" />
+        <Stat label={`ประหยัดค่าไฟ${t.firstDay ? "ตั้งแต่เริ่มบันทึก" : "รวม"}`} value={baht(saved)} color="var(--color-secondary)" sub={`ที่ ${settings.rate} บาท/หน่วย`}
+          info={`รวมเงินที่ประหยัดได้ตั้งแต่เริ่มบันทึก (${t.firstDay ? thDate(t.firstDay) : "-"}) = ไฟที่ใช้เองจากระบบ × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายคืน ${settings.sellRate} บาท/หน่วย` : ""}`} />
+        <Stat label={`ลดคาร์บอน${t.firstDay ? "ตั้งแต่เริ่มบันทึก" : " (CO₂)"}`} value={kInt(co2)} unit="กก." color="#18a673" sub={`≈ ปลูกต้นไม้ ${kInt(trees)} ต้น/ปี`}
+          info={`คาร์บอนที่ลดได้ในช่วงที่ระบบบันทึก = ไฟที่ผลิตได้ ${kInt(t.gen)} หน่วย × ${settings.co2Factor} กก./หน่วย (ค่า emission factor ตั้งได้ในตั้งค่า) เทียบเท่าการดูดซับของต้นไม้ ~21 กก./ต้น/ปี · ตัวเลขผลิตสะสมด้านบนมาจากมิเตอร์ของอินเวอร์เตอร์ซึ่งอาจนับก่อนติดตั้งแอป`} />
       </div>
 
       {/* payback — only when a system cost is set */}
