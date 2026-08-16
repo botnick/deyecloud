@@ -24,6 +24,12 @@ export interface Env {
   // disables the absolute voltage/frequency alarms. e.g. "230" and "50".
   GRID_NOMINAL_V?: string;
   GRID_NOMINAL_HZ?: string;
+  // Outbound alerts (see alerts.ts). All optional; unset = no alerts.
+  ALERT_WEBHOOK_URL?: string;   // Discord-compatible webhook
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_CHAT_ID?: string;
+  ALERT_SOC_MIN?: string;       // e.g. "20" — battery-low alert threshold (%)
+  ALERT_REPEAT_MIN?: string;    // re-send an ongoing alert every N minutes (default 360)
 }
 
 // Day key in Thailand local time (UTC+7, no DST). Deye reports "today" energy in
