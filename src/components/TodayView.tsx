@@ -37,7 +37,7 @@ export function TodayView({ latest, capacity }: { latest: Latest | null; capacit
       <h2 className={h2Mid}>พึ่งพาไฟตัวเอง</h2>
       <div className={`${cardP} flex items-center gap-5`}>
         <svg viewBox="0 0 130 130" className="w-[130px] h-[130px] shrink-0">
-          <circle cx="65" cy="65" r="54" fill="none" stroke="var(--color-grid-soft)" strokeWidth="16" />
+          <circle cx="65" cy="65" r="54" fill="none" stroke="var(--color-grid)" strokeWidth="16" />
           <circle cx="65" cy="65" r="54" fill="none" stroke="var(--color-pv)" strokeWidth="16" strokeLinecap="round"
             strokeDasharray={C} strokeDashoffset={C * (1 - self / 100)} transform="rotate(-90 65 65)"
             style={{ transition: "stroke-dashoffset .7s ease" }} />
