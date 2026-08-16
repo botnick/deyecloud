@@ -110,9 +110,15 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   const compare = useMemo(() => {
     if (!prev || !periodTotals) return null;
     let pts = prev.points;
-    if (range === "month" && isCurrent) { const dom = new Date().getDate(); pts = pts.filter((p) => Number(String(p.day).slice(8, 10)) <= dom); }
-    if (range === "year" && isCurrent) { const mo = new Date().getMonth() + 1; pts = pts.filter((p) => Number(String(p.month).slice(5, 7)) <= mo); }
+    let curPts = points || [];
+    // In-progress month/year: today / this month is incomplete, so drop that
+    // boundary unit on BOTH sides — days 1..(d−1) vs the same days last month.
+    let sliceN = 0;
+    if (range === "month" && isCurrent) { sliceN = new Date().getDate() - 1; if (sliceN < 1) return null; pts = pts.filter((p) => Number(String(p.day).slice(8, 10)) <= sliceN); curPts = curPts.filter((p) => Number(String(p.day).slice(8, 10)) <= sliceN); }
+    if (range === "year" && isCurrent) { sliceN = new Date().getMonth(); if (sliceN < 1) return null; pts = pts.filter((p) => Number(String(p.month).slice(5, 7)) <= sliceN); curPts = curPts.filter((p) => Number(String(p.month).slice(5, 7)) <= sliceN); }
     const ps = (k: string) => pts.reduce((a, p) => a + (Number(p[k]) || 0), 0);
+    const cs = (k: string) => curPts.reduce((a, p) => a + (Number(p[k]) || 0), 0);
+    const cur = range !== "day" && isCurrent ? { gen: cs("gen"), use: cs("use"), buy: cs("buy"), sell: cs("sell") } : periodTotals;
     let pt: { gen?: number; use?: number; buy?: number; sell?: number } | null;
     if (range === "day" && isCurrent) {
       // Yesterday up to THIS time of day, integrated from its 5-min power samples
@@ -129,16 +135,38 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
     } else pt = range === "day" ? prev.totals : { gen: ps("gen"), use: ps("use"), buy: ps("buy"), sell: ps("sell") };
     if (!pt) return null;
     const pSaved = savingsOf(pt, settings);
+    const cSaved = savingsOf(cur, settings);
     const d = (a: number, b: number) => (b > 0 ? Math.round(((a - b) / b) * 100) : null);
     return {
-      label: range === "day" ? (isCurrent ? "เมื่อวานถึงเวลานี้" : "วันก่อนหน้า") : range === "month" ? (isCurrent ? `${new Date().getDate()} วันแรกของเดือนก่อน` : "เดือนก่อน") : (isCurrent ? `ช่วงเดียวกันของปีก่อน` : "ปีก่อน"),
-      gen: { now: periodTotals.gen || 0, prev: pt.gen || 0, pct: d(periodTotals.gen || 0, pt.gen || 0) },
-      use: { now: periodTotals.use || 0, prev: pt.use || 0, pct: d(periodTotals.use || 0, pt.use || 0) },
-      buy: { now: periodTotals.buy || 0, prev: pt.buy || 0, pct: d(periodTotals.buy || 0, pt.buy || 0) },
-      saved: { now: saved || 0, prev: pSaved },
+      label: range === "day" ? (isCurrent ? "เมื่อวานถึงเวลานี้" : "วันก่อนหน้า")
+        : range === "month" ? (isCurrent ? `${sliceN} วันแรกของเดือนก่อน (ไม่รวมวันนี้)` : "เดือนก่อน")
+        : (isCurrent ? `${sliceN} เดือนแรกของปีก่อน (ไม่รวมเดือนนี้)` : "ปีก่อน"),
+      gen: { now: cur.gen || 0, prev: pt.gen || 0, pct: d(cur.gen || 0, pt.gen || 0) },
+      use: { now: cur.use || 0, prev: pt.use || 0, pct: d(cur.use || 0, pt.use || 0) },
+      buy: { now: cur.buy || 0, prev: pt.buy || 0, pct: d(cur.buy || 0, pt.buy || 0) },
+      saved: { now: cSaved, prev: pSaved },
     };
-  }, [prev, periodTotals, range, isCurrent, settings, saved]);
-  const exportHref = `/api/export?range=${range}&date=${isoLocal(ref)}`;
+  }, [prev, points, periodTotals, range, isCurrent, settings]);
+  // CSV = exactly the rows on screen (works for any station, any source), built
+  // client-side; the /api/export endpoint stays for scripts (default station, D1).
+  const exportCsv = () => {
+    if (!points || !points.length) return;
+    const cell = (v: any) => { const t = v == null ? "" : String(v); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    let head: string[], rows: any[][];
+    if (range === "day") {
+      head = ["time", "unix_ts", "pv_w", "load_w", "grid_w (+import/-export)", "battery_w (+discharge/-charge)", "soc_%"];
+      rows = points.map((p) => [new Date(p.ts * 1000).toLocaleString("sv-SE"), p.ts, p.gen_power, p.use_power, p.grid_power, p.batt_power, p.soc]);
+    } else {
+      const k = range === "month" ? "day" : "month";
+      head = [k, "pv_kwh", "load_kwh", "grid_import_kwh", "grid_export_kwh", "battery_charge_kwh", "battery_discharge_kwh"];
+      rows = points.map((p) => [p[k], p.gen, p.use, p.buy, p.sell, p.charge, p.discharge]);
+    }
+    if (range === "day" && totals) rows.push([], ["totals_kwh", "", totals.gen, totals.use, totals.buy, totals.sell, ""]);
+    const csv = "\ufeff" + [head, ...rows].map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n";
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = `deye-${range}-${isoLocal(ref)}${stationId != null ? `-st${stationId}` : ""}.csv`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
 
   // Only show the battery section when the system actually has a battery in this
   // period — fixes the year (now carries charge/discharge) and hides it for on-grid.
@@ -344,9 +372,9 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
               <Collapsible variant="bare" title="ดูแยกแต่ละค่า" subtitle="ผลิต · ใช้ไฟ · กริด · แบต">
                 {sections()}
               </Collapsible>
-              <a href={exportHref} download className="mt-3 flex items-center justify-center gap-2 h-11 rounded-2xl bg-canvas text-body text-[14px] font-semibold active:scale-[.99] transition-transform">
-                ⬇ ดาวน์โหลด CSV ({range === "day" ? "ทุก 5 นาที" : range === "month" ? "รายวัน" : "รายเดือน"}) — เปิดใน Excel ได้
-              </a>
+              <button onClick={exportCsv} className="mt-3 w-full flex items-center justify-center gap-2 h-11 rounded-2xl bg-canvas text-body text-[14px] font-semibold active:scale-[.99] transition-transform">
+                ⬇ ดาวน์โหลด CSV ({range === "day" ? "ทุก 5 นาที" : range === "month" ? "รายวัน" : "รายเดือน"}) — ตรงกับที่แสดงอยู่ · เปิดใน Excel ได้
+              </button>
             </>
           )}
 

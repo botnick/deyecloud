@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS meta (
   v TEXT
 );
 
--- Realtime snapshots, written by the cron every 5 min — KEPT FOREVER.
+-- Realtime snapshots, written by the cron every 5 min — pruned to 90 days by the cron (SAMPLES_RETENTION_DAYS); month/year use `daily`.
 -- ts INTEGER PRIMARY KEY is the rowid alias, so `WHERE ts >= ?` range scans are
 -- already covered. ~150 B/row × 288/day ≈ 16 MB/year → decades inside 500 MB.
 -- Power fields in Watts; *_today / *_total energy fields in kWh.
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS daily (
 
 -- Full inverter telemetry (per-PV-string V/I/P, AC/grid per-phase, temps, freq,
 -- BMS) captured ~every 15 min as one JSON blob per poll — SHORT rolling window
--- (pruned to ~90 days by the cron). JSON keeps it to 1 write/poll and survives
+-- (pruned to 180 days by the cron — DEVICE_RETENTION_DAYS; read by /api/device/history). JSON keeps it to 1 write/poll and survives
 -- model-to-model field differences; (sn, ts) PK is multi-inverter safe.
 CREATE TABLE IF NOT EXISTS device_samples (
   sn    TEXT,
