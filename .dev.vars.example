@@ -10,3 +10,8 @@ DEYE_PASSWORD=your_deyecloud_login_password
 APP_PIN=1234
 # TMD (กรมอุตุฯ) token — optional; falls back to Open-Meteo if blank
 TMD_TOKEN=
+# Grid nominals for the inverter health checks — optional. Describe YOUR site
+# (Thailand single-phase: 230 / 50). Unset = absolute voltage/frequency alarms
+# stay silent; relative phase-balance checks still run. Never inferred from data.
+GRID_NOMINAL_V=
+GRID_NOMINAL_HZ=
