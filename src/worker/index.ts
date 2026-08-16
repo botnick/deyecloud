@@ -2,7 +2,7 @@
 // D1, realtime polling on a cron schedule. The SPA is served via the ASSETS
 // binding (configured by @cloudflare/vite-plugin).
 import { Hono } from "hono";
-import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, bkkDay, type Env } from "./deye";
+import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, bkkDay, type Env } from "./deye";
 import { sunInfo } from "./sun";
 
 // --- External endpoints + defaults — centralized, not scattered as inline literals.
@@ -338,16 +338,25 @@ app.get("/api/_health", async (c) => {
   const s = await first<{ c: number; m: number }>("SELECT COUNT(*) c, MAX(ts) m FROM samples");
   const d = await first<{ c: number; m: string }>("SELECT COUNT(*) c, MAX(day) m FROM daily");
   const ds = await first<{ c: number; m: number }>("SELECT COUNT(*) c, MAX(ts) m FROM device_samples");
+  const login = await loginStatus(env).catch(() => null);
   const lastTs = (s && s.m) || 0;
   const ageMin = lastTs ? Math.round((now - lastTs) / 60) : null;
   const healthy = ageMin != null && ageMin <= 12;
+  const loginBad = !!login && login.fails > 0;
   const payload = {
     ok: true,
     serverTime: new Date(now * 1000).toISOString(),
     cronHealthy: healthy,
     summary: lastTs
-      ? `cron เขียนล่าสุด ${ageMin} นาทีที่แล้ว · ${(s?.c || 0).toLocaleString()} แถว · ${healthy ? "ปกติ ✅" : "อาจหยุด ⚠️"}`
+      ? `cron เขียนล่าสุด ${ageMin} นาทีที่แล้ว · ${(s?.c || 0).toLocaleString()} แถว · ${healthy ? "ปกติ ✅" : "อาจหยุด ⚠️"}` +
+        (loginBad ? ` · ล็อกอิน Deye ล้มเหลว ${login!.fails} ครั้ง (${login!.msg}) ⛔` : "")
       : "ยังไม่มีข้อมูล cron",
+    // Deye login guard — a wrong secret is retried with an exponential hold, never
+    // every tick, so it can't walk the account's lockout counter down.
+    deyeLogin: login && {
+      ok: !loginBad, fails: login.fails, lastError: login.msg,
+      holdUntil: login.holdUntil ? new Date(login.holdUntil * 1000).toISOString() : null,
+    },
     samples: { count: s?.c || 0, lastTs, lastTime: lastTs ? new Date(lastTs * 1000).toISOString() : null, ageMinutes: ageMin },
     daily: { count: d?.c || 0, lastDay: (d && d.m) || null },
     deviceSamples: { count: ds?.c || 0, lastTs: (ds && ds.m) || 0 },
@@ -617,12 +626,16 @@ app.get("/api/_poll", async (c) => c.json(await pollAndStore(c.env)));
 // rather than silently truncated.
 //
 // The day cap is DERIVED, not guessed, so it stays honest if the cost per day
-// changes. D1 binding calls count as subrequests too, so one day costs: two
-// getHistory calls × (token metaGet ×2 + the fetch itself) = 6, plus the write
-// batch and the cache invalidation = 8.
+// changes. Every D1 statement (each one inside a batch counts separately) and
+// every fetch is one unit against the same per-invocation ceiling. Per day:
+// two getHistory fetches + a write batch of ≤2 statements (samples, daily) = 4.
+// Fixed per call, worst case (cold isolate): ensureSchema 2, token read 2, a
+// token login (1 fetch + 3-statement batch) 4, station-id read 1, and the single
+// end-of-call invalidation batch 2 = 11. Station id and token are resolved ONCE
+// (in-isolate memo) so they are not paid again per day.
 const SUBREQUEST_BUDGET = 50;
-const SUBREQUESTS_RESERVED = 6; // station-id lookup, token refresh, response overhead
-const SUBREQUESTS_PER_DAY = 8;
+const SUBREQUESTS_RESERVED = 11;
+const SUBREQUESTS_PER_DAY = 4;
 const BACKFILL_MAX_DAYS = Math.max(1, Math.floor((SUBREQUEST_BUDGET - SUBREQUESTS_RESERVED) / SUBREQUESTS_PER_DAY));
 
 // Date.parse happily normalises 2026-02-31 into March 3rd. Round-trip the parsed
@@ -668,14 +681,16 @@ app.post("/api/_backfill", async (c) => {
   const report: any[] = [];
   let samplesWritten = 0, daysWritten = 0, failed = 0;
   let firstFailedMs: number | null = null;
+  const touched: string[] = []; // days whose D1 rows changed → invalidate once at the end
+  const sid = await getStationId(env); // resolved once, not once per getHistory
 
   for (let ms = startMs; ms <= lastMs; ms += 86400000) {
     const day = new Date(ms).toISOString().slice(0, 10);
     const next = new Date(ms + 86400000).toISOString().slice(0, 10);
     try {
       const [fres, tres] = await Promise.all([
-        getHistory(env, 1, day, day),
-        getHistory(env, 2, day, next).catch(() => null),
+        getHistory(env, 1, day, day, sid),
+        getHistory(env, 2, day, next, sid).catch(() => null),
       ]);
       // A Deye error envelope still returns HTTP 200 with no stationDataItems —
       // without this it would look like "0 frames, success" and hide the failure.
@@ -758,19 +773,24 @@ app.post("/api/_backfill", async (c) => {
       if (t) daysWritten++;
       if (tErr) { failed++; if (firstFailedMs == null) firstFailedMs = ms; }
       report.push({ day, framesSeen: rows.length, samplesInserted: wrote, totals: !!t, ...(tErr ? { totalsError: tErr } : {}) });
-      // Deye's day totals are now the source of truth for this day; drop the
-      // cached history responses so the app re-reads instead of serving the gap.
-      // `daily` just changed, so the 30-min lifetime aggregate and the cached
-      // history responses for this day are both stale — drop them together.
-      await env.DB.batch([
-        env.DB.prepare("DELETE FROM meta WHERE k LIKE ?").bind(`hist_v2_%${day}%`),
-        env.DB.prepare("DELETE FROM meta WHERE k='totals_cache'"),
-      ]).catch(() => {});
+      if (stmts.length) touched.push(day);
     } catch (e: any) {
       failed++;
       if (firstFailedMs == null) firstFailedMs = ms;
       report.push({ day, error: String((e && e.message) || e) });
     }
+  }
+
+  // Deye's day totals are now the source of truth for these days; drop the cached
+  // history responses so the app re-reads instead of serving the gap, and the
+  // 30-min lifetime aggregate that `daily` feeds. ONE batch for the whole call
+  // (two statements) rather than two per day — statements are budget, see above.
+  if (touched.length) {
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM meta WHERE k LIKE 'hist_v2_%' AND (${touched.map(() => "k LIKE ?").join(" OR ")})`)
+        .bind(...touched.map((d) => `%${d}%`)),
+      env.DB.prepare("DELETE FROM meta WHERE k='totals_cache'"),
+    ]).catch((e: unknown) => console.error("backfill cache invalidation failed", e));
   }
 
   const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);

@@ -49,13 +49,61 @@ async function metaSet(env: Env, k: string, v: string | number) {
   ).bind(k, String(v)).run();
 }
 
-// Obtain (and cache) an access token. Deye tokens last ~60 days; refresh when <1 day remains.
-async function getToken(env: Env, force = false): Promise<string> {
+// ----- Token lifecycle -----
+// Deye tokens last ~60 days; refresh when <1 day remains. Three layers:
+//   1. isolate memory  — avoids 2 D1 reads on every API call (hot path)
+//   2. D1 meta         — shared across isolates / survives restarts
+//   3. login           — POST /account/token with the password. This is the ONLY
+//      call that can burn the account's lockout counter ("Incorrect password,
+//      N attempt remaining"), so it is guarded by an exponential hold recorded in
+//      D1: a wrong secret after a rotation must NOT be retried every cron tick.
+let memTok: { token: string; exp: number; at: number } | null = null;
+let loginInflight: Promise<string> | null = null; // single-flight: concurrent callers share one login
+const LOGIN_HOLD_BASE_S = 60;          // first hold after a failed login
+const LOGIN_HOLD_MAX_S = 6 * 3600;     // ceiling; also applied when Deye says ≤2 attempts remain
+const MIN_RELOGIN_AGE_S = 600;         // a token this young is not the problem — don't re-login on an error retry
+const loginHoldFor = (fails: number, remaining: number | null) =>
+  remaining != null && remaining <= 2 ? LOGIN_HOLD_MAX_S : Math.min(LOGIN_HOLD_MAX_S, LOGIN_HOLD_BASE_S * 2 ** Math.max(0, fails - 1));
+
+async function readTokenFromDb(env: Env): Promise<{ token: string; exp: number; at: number } | null> {
+  const [t, e, a] = await Promise.all([metaGet(env, "deye_token"), metaGet(env, "deye_token_exp"), metaGet(env, "deye_token_at")]);
+  return t ? { token: t, exp: parseInt(e || "0", 10), at: parseInt(a || "0", 10) } : null;
+}
+
+// `rejected` = the token Deye just refused (apiPost's retry path). Order of
+// preference: (1) memory, (2) D1 — another isolate may already have refreshed,
+// (3) a real login — never for a token issued < MIN_RELOGIN_AGE_S ago (the error
+// then isn't the token), never while a failure hold is active, and single-flight
+// within the isolate.
+// `explicitAuth` = Deye named the token as the problem (code 2101019 / "invalid
+// token"); a generic ≥400 envelope is only *possibly* an expiry, so for that
+// case a young token is left alone.
+async function getToken(env: Env, rejected?: string, explicitAuth = false): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  if (!force) {
-    const cached = await metaGet(env, "deye_token");
-    const exp = parseInt((await metaGet(env, "deye_token_exp")) || "0", 10);
-    if (cached && exp > now + 86400) return cached;
+  const fresh = (t: { token: string; exp: number } | null) => !!t && t.exp > now + 86400 && t.token !== rejected;
+  if (fresh(memTok)) return memTok!.token;
+  const db = await readTokenFromDb(env);
+  if (fresh(db)) { memTok = db; return db!.token; }
+  if (rejected && !explicitAuth && db && db.token === rejected && now - db.at < MIN_RELOGIN_AGE_S) {
+    throw new Error(`Deye rejected a token issued ${now - db.at}s ago — not re-logging in (upstream error, not auth)`);
+  }
+  if (!loginInflight) {
+    loginInflight = login(env, now).finally(() => { loginInflight = null; });
+  }
+  return loginInflight;
+}
+
+async function login(env: Env, now: number): Promise<string> {
+  // Honour a hold left by a previous failure.
+  const [failsRaw, failAtRaw, failMsg] = await Promise.all([
+    metaGet(env, "deye_login_fails"), metaGet(env, "deye_login_fail_at"), metaGet(env, "deye_login_fail_msg"),
+  ]);
+  const fails = Number(failsRaw) || 0;
+  if (fails > 0) {
+    const m = /(\d+)\s*attempt/i.exec(failMsg || "");
+    const hold = loginHoldFor(fails, m ? Number(m[1]) : null);
+    const left = Number(failAtRaw || 0) + hold - now;
+    if (left > 0) throw new Error(`Deye login on hold ${left}s (${fails} failed attempt(s), last: ${failMsg || "?"}) — check DEYE_* secrets`);
   }
 
   const url = `${env.DEYE_BASE_URL}/account/token?appId=${env.DEYE_APP_ID}`;
@@ -73,15 +121,61 @@ async function getToken(env: Env, force = false): Promise<string> {
   });
   const data: any = await res.json();
   const token = data.token || data.accessToken;
-  if (!token) throw new Error(`Deye token failed: ${JSON.stringify(data)}`);
+  if (!token) {
+    const msg = String(data.msg || data.message || data.code || res.status);
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO meta (k,v) VALUES ('deye_login_fails',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(fails + 1)),
+      env.DB.prepare("INSERT INTO meta (k,v) VALUES ('deye_login_fail_at',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(now)),
+      env.DB.prepare("INSERT INTO meta (k,v) VALUES ('deye_login_fail_msg',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(msg.slice(0, 200)),
+    ]);
+    throw new Error(`Deye token failed: ${msg}`);
+  }
 
   const ttl = data.expiresIn ? Number(data.expiresIn) : 5184000;
-  await metaSet(env, "deye_token", token);
-  await metaSet(env, "deye_token_exp", String(now + ttl));
+  const stmts = [
+    env.DB.prepare("INSERT INTO meta (k,v) VALUES ('deye_token',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(token),
+    env.DB.prepare("INSERT INTO meta (k,v) VALUES ('deye_token_exp',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(now + ttl)),
+    env.DB.prepare("INSERT INTO meta (k,v) VALUES ('deye_token_at',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(now)),
+  ];
+  if (fails > 0) stmts.push(env.DB.prepare("DELETE FROM meta WHERE k IN ('deye_login_fails','deye_login_fail_at','deye_login_fail_msg')"));
+  await env.DB.batch(stmts);
+  memTok = { token, exp: now + ttl, at: now };
   return token;
 }
 
+// Login-health snapshot for /api/_health (never triggers a login).
+export async function loginStatus(env: Env): Promise<{ fails: number; failAt: number | null; msg: string | null; holdUntil: number | null }> {
+  const [failsRaw, failAtRaw, failMsg] = await Promise.all([
+    metaGet(env, "deye_login_fails"), metaGet(env, "deye_login_fail_at"), metaGet(env, "deye_login_fail_msg"),
+  ]);
+  const fails = Number(failsRaw) || 0;
+  if (!fails) return { fails: 0, failAt: null, msg: null, holdUntil: null };
+  const m = /(\d+)\s*attempt/i.exec(failMsg || "");
+  const failAt = Number(failAtRaw || 0);
+  return { fails, failAt, msg: failMsg, holdUntil: failAt + loginHoldFor(fails, m ? Number(m[1]) : null) };
+}
+
+// Short in-isolate memo for idempotent read endpoints. One cron tick (and one app
+// open) asks Deye for the same device list / device snapshot several times within
+// seconds; each repeat costs a Deye call + a token read. Memoised per payload for a
+// window far shorter than the 5-min poll, so nothing user-visible goes stale.
+const MEMO_TTL_MS = 30_000;
+const MEMO_PATHS = new Set(["/device/latest", "/station/device", "/station/list"]);
+const memo = new Map<string, { at: number; p: Promise<any> }>();
+
 async function apiPost(env: Env, path: string, payload: any): Promise<any> {
+  if (!MEMO_PATHS.has(path)) return apiPostLive(env, path, payload);
+  const k = path + " " + JSON.stringify(payload || {});
+  const hit = memo.get(k);
+  if (hit && Date.now() - hit.at < MEMO_TTL_MS) return hit.p;
+  const p = apiPostLive(env, path, payload);
+  memo.set(k, { at: Date.now(), p });
+  p.catch(() => memo.delete(k)); // never memoise a failure
+  if (memo.size > 64) for (const [mk, mv] of memo) if (Date.now() - mv.at >= MEMO_TTL_MS) memo.delete(mk);
+  return p;
+}
+
+async function apiPostLive(env: Env, path: string, payload: any): Promise<any> {
   let token = await getToken(env);
   const call = (t: string) =>
     fetch(`${env.DEYE_BASE_URL}${path}`, {
@@ -92,33 +186,37 @@ async function apiPost(env: Env, path: string, payload: any): Promise<any> {
     }).then((r) => r.json() as Promise<any>);
 
   let data = await call(token);
-  // Refresh + retry once on ANY auth/error envelope. Deye surfaces a bad token in
-  // (at least) two shapes, neither carrying code:1006:
+  // Refresh + retry once on an auth signal. Deye surfaces a bad token in (at
+  // least) two shapes, neither carrying code:1006:
   //   • expired token  → HTTP 500 `{status:500, exception:"...UndeclaredThrowable..."}`
   //   • invalid token   → `{success:false, code:"2101019", msg:"auth invalid token"}`
   // Without this a long-lived bad token makes the whole app silently serve zeros
-  // until the cache is cleared by hand. The retry is once and only fires on error.
-  const authFailed =
-    data &&
-    ((typeof data.status === "number" && data.status >= 400) || // expired → HTTP 500 envelope
-      data.code === 1006 ||
-      data.code === 2002 ||
-      /auth|token/i.test(String(data.msg || ""))); // invalid → msg:"auth invalid token"
+  // until the cache is cleared by hand. Generic ≥400 envelopes are still treated
+  // as a possible expiry (that IS how expiry presents), but getToken(env,
+  // rejected) only re-logs-in when the token is old enough to plausibly be the
+  // cause, reuses a token another isolate refreshed, and is single-flight +
+  // failure-held — so an unrelated Deye 500 storm cannot hammer the account.
+  const explicitAuth =
+    !!data && (data.code === 1006 || data.code === 2002 || String(data.code) === "2101019" || /token/i.test(String(data.msg || "")));
+  const authFailed = explicitAuth || (!!data && typeof data.status === "number" && data.status >= 400);
   if (authFailed) {
-    token = await getToken(env, true);
+    try { token = await getToken(env, token, explicitAuth); }
+    catch (e) { console.warn("deye: no token refresh for error envelope", (e as Error).message); return data; }
     data = await call(token);
   }
   return data;
 }
 
-async function getStationId(env: Env): Promise<string> {
+let memStationId: string | null = null; // per-isolate — the station never changes mid-life
+export async function getStationId(env: Env): Promise<string> {
   // Explicit config wins over the discovered cache, so changing DEYE_STATION_ID
   // takes effect immediately instead of being shadowed by a stale cached id.
   if (env.DEYE_STATION_ID) return String(env.DEYE_STATION_ID);
+  if (memStationId) return memStationId;
   const cached = await metaGet(env, "station_id");
-  if (cached) return cached;
+  if (cached) { memStationId = cached; return cached; }
   const s = await getStationMeta(env);
-  if (s && s.id) { await metaSet(env, "station_id", String(s.id)); return String(s.id); }
+  if (s && s.id) { await metaSet(env, "station_id", String(s.id)); memStationId = String(s.id); return memStationId; }
   return "";
 }
 
