@@ -114,7 +114,10 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
     // In-progress month/year: today / this month is incomplete, so drop that
     // boundary unit on BOTH sides — days 1..(d−1) vs the same days last month.
     let sliceN = 0;
-    if (range === "month" && isCurrent) { sliceN = new Date().getDate() - 1; if (sliceN < 1) return null; pts = pts.filter((p) => Number(String(p.day).slice(8, 10)) <= sliceN); curPts = curPts.filter((p) => Number(String(p.day).slice(8, 10)) <= sliceN); }
+    if (range === "month" && isCurrent) {
+      // equal slice must exist in BOTH months: cap by the previous month's length (Mar 30 → 28 days vs Feb)
+      const n = new Date(); const prevLen = new Date(n.getFullYear(), n.getMonth(), 0).getDate();
+      sliceN = Math.min(n.getDate() - 1, prevLen); if (sliceN < 1) return null; pts = pts.filter((p) => Number(String(p.day).slice(8, 10)) <= sliceN); curPts = curPts.filter((p) => Number(String(p.day).slice(8, 10)) <= sliceN); }
     if (range === "year" && isCurrent) { sliceN = new Date().getMonth(); if (sliceN < 1) return null; pts = pts.filter((p) => Number(String(p.month).slice(5, 7)) <= sliceN); curPts = curPts.filter((p) => Number(String(p.month).slice(5, 7)) <= sliceN); }
     const ps = (k: string) => pts.reduce((a, p) => a + (Number(p[k]) || 0), 0);
     const cs = (k: string) => curPts.reduce((a, p) => a + (Number(p[k]) || 0), 0);
@@ -154,14 +157,19 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
     const cell = (v: any) => { const t = v == null ? "" : String(v); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
     let head: string[], rows: any[][];
     if (range === "day") {
-      head = ["time", "unix_ts", "pv_w", "load_w", "grid_w (+import/-export)", "battery_w (+discharge/-charge)", "soc_%"];
-      rows = points.map((p) => [new Date(p.ts * 1000).toLocaleString("sv-SE"), p.ts, p.gen_power, p.use_power, p.grid_power, p.batt_power, p.soc]);
+      head = ["time (Asia/Bangkok)", "unix_ts", "pv_w", "load_w", "grid_w (+import/-export)", "battery_w (+discharge/-charge)", "soc_%"];
+      const bkk = (ts: number) => new Date(ts * 1000 + 7 * 3600 * 1000).toISOString().slice(0, 19).replace("T", " ");
+      rows = points.map((p) => [bkk(p.ts), p.ts, p.gen_power, p.use_power, p.grid_power, p.batt_power, p.soc]);
     } else {
       const k = range === "month" ? "day" : "month";
       head = [k, "pv_kwh", "load_kwh", "grid_import_kwh", "grid_export_kwh", "battery_charge_kwh", "battery_discharge_kwh"];
       rows = points.map((p) => [p[k], p.gen, p.use, p.buy, p.sell, p.charge, p.discharge]);
     }
-    if (range === "day" && totals) rows.push([], ["totals_kwh", "", totals.gen, totals.use, totals.buy, totals.sell, ""]);
+    if (range === "day" && totals) {
+      // separate, explicitly-headed kWh block — never under the power columns
+      rows.push([], ["day_totals_kwh", "pv_kwh", "load_kwh", "grid_import_kwh", "grid_export_kwh", "battery_charge_kwh", "battery_discharge_kwh"]);
+      rows.push([isoLocal(ref), totals.gen, totals.use, totals.buy, totals.sell, totals.charge ?? "", totals.discharge ?? ""]);
+    }
     const csv = "\ufeff" + [head, ...rows].map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n";
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a"); a.href = url; a.download = `deye-${range}-${isoLocal(ref)}${stationId != null ? `-st${stationId}` : ""}.csv`; a.click();
