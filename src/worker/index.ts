@@ -771,7 +771,7 @@ app.post("/api/settings", async (c) => {
   const clean: any = {};
   // whitelist + coerce: a finite number ≥0 is stored; an explicit null clears the
   // field (back to default); anything else is ignored so junk never lands in D1.
-  for (const k of ["rate", "sellRate", "systemCost"]) {
+  for (const k of ["rate", "sellRate", "systemCost", "co2Factor"]) {
     const raw = (body as any)[k];
     if (raw === null) { clean[k] = null; continue; }
     if (raw === "" || raw === undefined) continue;

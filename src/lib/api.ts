@@ -70,7 +70,7 @@ export interface Totals {
 export const getTotals = () => api<Totals>("/api/totals");
 
 // User economics, stored server-side (shared across devices). Empty object = defaults.
-export interface RawSettings { rate?: number; sellRate?: number; systemCost?: number | null; }
+export interface RawSettings { rate?: number; sellRate?: number; systemCost?: number | null; co2Factor?: number; }
 export const getSettings = () => api<RawSettings>("/api/settings");
 export const saveSettings = (s: RawSettings) =>
   api<{ ok: boolean; settings: RawSettings }>("/api/settings", {
