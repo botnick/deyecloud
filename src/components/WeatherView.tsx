@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { getTotals, type Weather, type WeatherHour } from "../lib/api";
+import { useEffectiveCapacity } from "../lib/useCapacity";
+import { type Weather, type WeatherHour } from "../lib/api";
 import { condText, solarInfo, DAYLBL, shortDate, isNightAt, isNightNow } from "../lib/weather";
-import { forecast, hourlyKwh, effectiveCapacityKw } from "../lib/forecast";
+import { forecast, hourlyKwh } from "../lib/forecast";
 import { WxIcon } from "../lib/wxicon";
 import { card, cardP, plateP, h2First, h2Mid } from "../lib/ui";
 import { IconSun } from "../lib/icons";
@@ -42,11 +42,7 @@ export function WeatherView({ weather, capacity }: { weather: Weather | null; ca
   // Effective capacity for the production forecast: the station's installed kWp, or
   // — when unknown — derived from the best PV power ever produced (peakPower). Only
   // fetched (cheaply, cached) when the station never reported its capacity.
-  const [peakW, setPeakW] = useState<number | undefined>(undefined);
-  useEffect(() => {
-    if (capacity && capacity > 0) return;
-    getTotals().then((t) => setPeakW(t.peakPower)).catch(() => {});
-  }, [capacity]);
+  const effCap = useEffectiveCapacity(capacity);
 
   if (!weather || weather.temp == null) {
     return (
@@ -57,7 +53,6 @@ export function WeatherView({ weather, capacity }: { weather: Weather | null; ca
     );
   }
   const w = weather;
-  const effCap = effectiveCapacityKw(capacity, peakW);
   const fc = forecast(w, effCap); // expected kWh per available day (today included)
   const night = isNightNow();
   const d0 = w.daily?.[0];

@@ -4,7 +4,8 @@ import { IconAlert } from "../lib/icons";
 import { cardP, h2Mid } from "../lib/ui";
 import { useSettings } from "../lib/settings";
 import { savingsOf } from "../lib/economics";
-import { forecast, effectiveCapacityKw } from "../lib/forecast";
+import { forecast, clearSkyPsh } from "../lib/forecast";
+import { useEffectiveCapacity } from "../lib/useCapacity";
 import { InfoTip } from "./InfoTip";
 import { HeroHome } from "./HeroHome";
 import { ProductionRing } from "./ProductionRing";
@@ -20,14 +21,17 @@ function Skeleton() {
 
 export function HomeView({ latest, weather, capacity, stationName, onDevice }: { latest: Latest | null; weather: Weather | null; capacity?: number; stationName?: string; onDevice: () => void }) {
   const { settings } = useSettings();
+  const effCap = useEffectiveCapacity(capacity); // kWp: installed, else derived from peakPower
   if (!latest) return <Skeleton />;
   const ok = (latest.warningStatus || "NORMAL") === "NORMAL";
-  const potential = capacity ? capacity * 4.5 : 0; // ~peak-sun-hours in Thailand
+  // today's clear-sky potential = array kWp × astronomical peak-sun-hours for this
+  // site/date (from the weather payload) — no regional constant.
+  const potential = effCap * clearSkyPsh(weather);
   const prodPct = potential > 0 ? Math.round(Math.min(100, (latest.genToday / potential) * 100)) : Math.min(100, Math.round(latest.genToday));
   // shared economics formula (self-consumption + export income, user's own rates)
   const savings = Math.round(savingsOf({ use: latest.useToday, buy: latest.buyToday, sell: latest.sellToday }, settings));
   // tomorrow's expected production (shown only when capacity is known here)
-  const tomorrow = capacity ? forecast(weather, effectiveCapacityKw(capacity))[1] : undefined;
+  const tomorrow = effCap ? forecast(weather, effCap)[1] : undefined;
 
   return (
     <>

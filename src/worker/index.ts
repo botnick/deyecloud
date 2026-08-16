@@ -278,9 +278,14 @@ async function fetchOpenMeteo(env: Env, lat: string, lng: string, place: string)
   const c = j.current || {};
   const now = Date.now() - 3600 * 1000;
   const H = j.hourly || {};
+  // Open-Meteo returns naive local wall-clock strings ("2026-08-17T13:00") for the
+  // requested timezone; the Worker runs in UTC, so parse them with the offset the
+  // response itself declares — otherwise "now" lands ~7 h in the past.
+  const offMs = (Number(j.utc_offset_seconds) || 0) * 1000;
+  const localMs = (t: string) => Date.parse(`${t}Z`) - offMs;
   const hourly = (H.time || [])
     .map((t: string, i: number) => ({ time: t, tc: H.temperature_2m[i], cond: wmoToCond(H.weather_code[i]), rain: H.precipitation[i] }))
-    .filter((x: any) => new Date(x.time).getTime() >= now).slice(0, 12);
+    .filter((x: any) => localMs(x.time) >= now).slice(0, 12);
   const D = j.daily || {};
   const daily = (D.time || []).map((t: string, i: number) => ({
     time: t, tc_max: D.temperature_2m_max[i], tc_min: D.temperature_2m_min[i],
