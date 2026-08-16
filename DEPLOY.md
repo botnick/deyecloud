@@ -79,7 +79,7 @@ npm run setup
 1. เช็กว่าล็อกอิน Cloudflare แล้ว (ถ้ายัง จะบอกให้รัน `wrangler login`)
 2. สร้างฐานข้อมูล **D1** ชื่อ `deye-monitor` (ถ้ายังไม่มี) แล้วเขียน `database_id` ลง `wrangler.jsonc` ให้เอง
 3. อ่านค่าจาก `.dev.vars` → ตั้งเป็น **secret** บน Worker ด้วย `wrangler secret bulk` (ไม่โชว์ค่าออกมา)
-4. `npm run build` แล้ว `wrangler deploy`
+4. `npm run build` แล้ว `wrangler deploy --keep-vars` (ต้องมี `--keep-vars` ไม่งั้น Text vars ที่ตั้งบน dashboard จะถูกลบ — เก็บค่าสำคัญเป็น Secret จะปลอดภัยกว่า)
 
 > 🔒 ตารางใน D1 สร้างเองอัตโนมัติเมื่อมี request แรก — ไม่ต้องรัน migration เอง
 > 🔒 ไฟล์ `.dev.vars` มีรหัสจริง **ห้าม commit** (อยู่ใน `.gitignore` แล้ว)

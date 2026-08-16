@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { getDevice, type Device, type DeviceData, type Latest } from "../lib/api";
-import { groupDevice, INVERTER_TYPE_TH } from "../lib/device";
+import { batteryChannels, groupDevice, INVERTER_TYPE_TH } from "../lib/device";
 import { useSmartPoll } from "../lib/usePoll";
 import { timeStr } from "../lib/format";
 import { IconChevron, IconBack } from "../lib/icons";
 import { card, cardP, h2 } from "../lib/ui";
 import { FlowDiagram } from "./FlowDiagram";
+import { InsightList } from "./InsightList";
+import { analyzeDevice } from "../lib/diagnostics";
 
 const tcol = (t: number) => (t >= 60 ? "#e8603c" : t >= 45 ? "#d98c00" : "#18a673");
 function TempChip({ label, t }: { label: string; t: number }) {
@@ -27,7 +29,7 @@ function TempChip({ label, t }: { label: string; t: number }) {
 
 // keys rendered inside the per-phase tables — excluded from the key/value lists
 const TABLE_KEYS =
-  /^(DCVoltagePV|DCCurrentPV|DCPowerPV)[1-4]$|^AC(Voltage|Current)(RUA|SVB|TWC)$|^InverterOutputPowerL[1-3]$|^Grid(Voltage|Current|Power)L[1-3]$|^LoadVoltageL[1-3]$|^LoadPhasePower[ABC]$|^Gen(Voltage|Power)L[1-3]$/;
+  /^(DCVoltagePV|DCCurrentPV|DCPowerPV)[1-4]$|^AC(Voltage|Current)(RUA|SVB|TWC)$|^InverterOutputPowerL[1-3]$|^Grid(Voltage|Current|Power)L[1-3]$|^LoadVoltageL[1-3]$|^LoadPhasePower[ABC]$|^Gen(Voltage|Power)L[1-3]$|^BatteryCurrent\d+$/;
 
 /* Deye-style data table — colored category tag in the header, phase rows below.
    Values are flush-RIGHT so the last column lines up with the scalar rows'
@@ -165,17 +167,44 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
   const loadRows = loadDefs.filter(([i]) => has(`LoadVoltage${i}`)).map(([i, abc]) => [i, cell(`LoadVoltage${i}`), cell(`LoadPhasePower${abc}`)]);
   const genRows = [1, 2, 3].filter((i) => has(`GenVoltageL${i}`) || has(`GenPowerL${i}`)).map((i) => [`L${i}`, cell(`GenVoltageL${i}`), cell(`GenPowerL${i}`)]);
 
+  // Battery channels — discovered from the BatteryCurrent<N> points the inverter
+  // reports, so 1, 2 or 4 channels all render without a code change. These are the
+  // inverter's DC battery ports, not a pack count (a channel can feed several packs
+  // in parallel), so nothing here divides the rated capacity between them. Per-
+  // channel watts are derived — the packs share one DC bus, so W ≈ channel A × bus V.
+  const chans = batteryChannels(dev.dataList);
+  const battV = numOf(/^BatteryVoltage$/);
+  const battAh = numOf(/^BatteryRatedCapacity$/);
+  const battRows = chans.map((ch) => {
+    const a = numOf(new RegExp(`^BatteryCurrent${ch}$`));
+    return [
+      `ช่อง ${ch}`,
+      a != null ? a.toFixed(2) + " A" : "—",
+      a != null && battV != null ? "≈ " + Math.round(a * battV) + " W" : "—",
+    ];
+  });
+  // Device-level health checks (phase balance, channel sharing, V/Hz, temps).
+  // Silent when nothing is out of range — an always-on wall of "OK" trains people
+  // to skip the section, which defeats the point of warning at all.
+  const diag = analyzeDevice(dev.dataList, dev.gridNominal || {});
+
+  const battNote = battAh
+    ? `ความจุที่ตั้งไว้ ${Math.round(battAh)} Ah` +
+      (battV ? ` ≈ ${((battAh * battV) / 1000).toFixed(1)} kWh` : "") +
+      (chans.length > 1 ? ` · อินเวอร์เตอร์รายงาน ${chans.length} ช่องแบต` : "")
+    : undefined;
+
   // remaining scalar readings, grouped + Thai-labelled (table keys removed)
   const grouped = groupDevice(dev.dataList.filter((d) => !TABLE_KEYS.test(d.key)));
   const gItems = (id: string) => grouped.find((g) => g.id === id)?.items || [];
   const toggle = (id: string) => setOpen((o) => ({ ...o, [id]: !o[id] }));
 
-  const sections: { id: string; title: string; tag?: string; tagColor?: string; cols?: string[]; rows?: string[][] }[] = [
+  const sections: { id: string; title: string; tag?: string; tagColor?: string; cols?: string[]; rows?: string[][]; note?: string }[] = [
     { id: "pv", title: "แผงโซลาร์ (PV)", tag: "DC", tagColor: "#f5a623", cols: ["แรงดัน", "กระแส", "กำลัง"], rows: pvRows },
     { id: "ac", title: "ไฟขาออก (AC)", tag: "AC", tagColor: "#0ea5a4", cols: ["แรงดัน", "กระแส", "กำลัง"], rows: acRows },
     { id: "grid", title: "การไฟฟ้า (Grid)", tag: "Grid", tagColor: "#0d4add", cols: ["แรงดัน", "กระแส", "กำลัง"], rows: gridRows },
     { id: "load", title: "โหลดบ้าน (Load)", tag: "Load", tagColor: "#18a673", cols: ["แรงดัน", "กำลัง"], rows: loadRows },
-    { id: "batt", title: "แบตเตอรี่ + BMS" },
+    { id: "batt", title: "แบตเตอรี่ + BMS", tag: "Batt", tagColor: "#7b5cf0", cols: ["กระแส", "กำลัง"], rows: battRows, note: battNote },
     { id: "gen", title: "เครื่องปั่นไฟ (Generator)", tag: "Gen", tagColor: "#94a3b8", cols: ["แรงดัน", "กำลัง"], rows: genRows },
     { id: "other", title: "อื่นๆ" },
   ];
@@ -212,6 +241,13 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
         ))}
       </div>
 
+      {diag.length > 0 && (
+        <div className="mt-3.5">
+          <div className="text-[15px] font-bold mb-2">ตรวจสุขภาพระบบ</div>
+          <InsightList items={diag} />
+        </div>
+      )}
+
       {latest && (
         <div className="mt-3.5 space-y-3">
           <div className={`${card} px-2 py-3`}><FlowDiagram latest={latest} /></div>
@@ -230,6 +266,7 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
         if (!hasTable && items.length === 0) return null;
         return (
           <Section key={s.id} title={s.title} count={hasTable ? undefined : items.length} open={!!open[s.id]} onToggle={() => toggle(s.id)}>
+            {s.note && <div className="text-[13px] text-muted font-semibold mb-3">{s.note}</div>}
             {hasTable && <DataTable tag={s.tag!} tagColor={s.tagColor!} cols={s.cols!} rows={s.rows!} />}
             {items.length > 0 && <div className={hasTable ? "mt-4 pt-4 border-t border-line" : ""}><KVList items={items} /></div>}
           </Section>

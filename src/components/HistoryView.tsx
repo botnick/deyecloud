@@ -81,8 +81,8 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   const sum = (k: string) => (points || []).reduce((a, p) => a + (Number(p[k]) || 0), 0);
   const lastSoc = points && points.length ? Math.round(Number(points[points.length - 1].soc) || 0) : 0;
   const insights = useMemo(
-    () => (points && points.length && range !== "lifetime" ? analyzeHistory(range, points, capacity, totals) : []),
-    [range, points, capacity, totals],
+    () => (points && points.length && range !== "lifetime" ? analyzeHistory(range, points, capacity, totals, settings) : []),
+    [range, points, capacity, totals, settings],
   );
 
   // ── period money + carbon (single shared formula via economics.savingsOf) ──

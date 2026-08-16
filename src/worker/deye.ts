@@ -18,6 +18,12 @@ export interface Env {
   TMD_TOKEN?: string;
   CONTACT_EMAIL?: string;
   APP_PIN?: string;
+  // Grid nominals for the health checks. Optional and deliberately NOT defaulted:
+  // they must describe the site independently of what the inverter is measuring,
+  // otherwise a site-wide sag redefines "normal" and hides itself. Unset simply
+  // disables the absolute voltage/frequency alarms. e.g. "230" and "50".
+  GRID_NOMINAL_V?: string;
+  GRID_NOMINAL_HZ?: string;
 }
 
 // Day key in Thailand local time (UTC+7, no DST). Deye reports "today" energy in
