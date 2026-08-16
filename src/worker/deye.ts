@@ -445,14 +445,21 @@ export async function getHistory(env: Env, granularity: number, startAt: string,
 // {deviceSn, alertName "F56 DC_VoltLow_Fault", level 1=warning 2=fault, impact,
 // alertStartTime, alertEndTime (0/absent while ongoing), status, alertId}.
 export interface DeyeAlert { alertId: string; deviceSn: string; name: string; level: number; impact: number; start: number; end: number | null; status: number; }
+// Paged to the end so a long window can't truncate; the API caps a window at 180 days.
 export async function stationAlerts(env: Env, stationId: string, fromS: number, toS: number): Promise<DeyeAlert[]> {
-  const res = await apiPost(env, "/station/alertList", { stationId: Number(stationId), startTimestamp: fromS, endTimestamp: toS, page: 1, size: 100 });
-  if (!res || res.success === false) throw new Error(`alertList: ${res && (res.msg || res.code)}`);
-  return (res.stationAlertItems || []).map((a: any) => ({
-    alertId: String(a.alertId), deviceSn: String(a.deviceSn || ""), name: String(a.alertName || "").replace(/\u00a0/g, " ").trim(),
-    level: Number(a.level) || 0, impact: Number(a.impact) || 0,
-    start: Number(a.alertStartTime) || 0, end: Number(a.alertEndTime) > 0 ? Number(a.alertEndTime) : null, status: Number(a.status) || 0,
-  }));
+  const out: DeyeAlert[] = [];
+  for (let page = 1; page <= 20; page++) { // 2,000 alarms — safety stop, not a real cap
+    const res = await apiPost(env, "/station/alertList", { stationId: Number(stationId), startTimestamp: fromS, endTimestamp: toS, page, size: PAGE_SIZE });
+    if (!res || res.success === false) throw new Error(`alertList: ${res && (res.msg || res.code)}`);
+    const items = res.stationAlertItems || [];
+    for (const a of items) out.push({
+      alertId: String(a.alertId), deviceSn: String(a.deviceSn || ""), name: String(a.alertName || "").replace(/\u00a0/g, " ").trim(),
+      level: Number(a.level) || 0, impact: Number(a.impact) || 0,
+      start: Number(a.alertStartTime) || 0, end: Number(a.alertEndTime) > 0 ? Number(a.alertEndTime) : null, status: Number(a.status) || 0,
+    });
+    if (items.length < PAGE_SIZE) break;
+  }
+  return out;
 }
 
 // ----- Devices -----

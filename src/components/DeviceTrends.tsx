@@ -38,9 +38,9 @@ export function DeviceTrends({ dev }: { dev: Device }) {
     if (!want.keys.length) return;
     let live = true;
     setErr(false);
-    getDeviceHistory(days, want.keys).then((d) => { if (live) setH(d); }).catch(() => { if (live) setErr(true); });
+    getDeviceHistory(String(dev.sn), days, want.keys).then((d) => { if (live) setH(d); }).catch(() => { if (live) setErr(true); });
     return () => { live = false; };
-  }, [days, want.keys.join(",")]);
+  }, [dev.sn, days, want.keys.join(",")]);
 
   if (!want.keys.length) return null;
   const S = (k?: string) => (k && h ? h.series[k] : undefined);

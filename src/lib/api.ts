@@ -59,8 +59,8 @@ export const getStation = () => api<Station>("/api/station");
 export const getStations = () => api<Station[]>("/api/stations");
 // `station` is sent only for multi-station accounts; omitting it keeps the
 // single-station path identical (server falls back to the default station).
-export interface DeviceHistory { days: number; bucketSeconds: number; from: number; to: number; series: Record<string, { unit: string | null; points: { t: number; avg: number; min: number; max: number }[] }>; }
-export const getDeviceHistory = (days: number, keys: string[]) => api<DeviceHistory>(`/api/device/history?days=${days}&keys=${encodeURIComponent(keys.join(","))}`);
+export interface DeviceHistory { sn: string; days: number; bucketSeconds: number; from: number; to: number; series: Record<string, { unit: string | null; points: { t: number; avg: number; min: number; max: number }[] }>; }
+export const getDeviceHistory = (sn: string, days: number, keys: string[]) => api<DeviceHistory>(`/api/device/history?sn=${encodeURIComponent(sn)}&days=${days}&keys=${encodeURIComponent(keys.join(","))}`);
 export const getDevice = (station?: number | null) => api<Device>("/api/device" + (station != null ? "?station=" + station : ""));
 export const getLatest = (station?: number | null) => api<Latest>("/api/latest" + (station != null ? "?station=" + station : ""));
 export const getWeather = () => api<Weather>("/api/weather");
