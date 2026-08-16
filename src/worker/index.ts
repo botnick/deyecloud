@@ -4,6 +4,7 @@
 import { Hono } from "hono";
 import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, isAuthHold, isAuthEnvelope, bkkDay, type Env } from "./deye";
 import { sunInfo } from "./sun";
+import { analyzeDevice } from "../lib/diagnostics";
 
 // --- External endpoints + defaults — centralized, not scattered as inline literals.
 //     Per-account/site values (email, coords) come from env; stable public API
@@ -111,7 +112,7 @@ const PIN_FREE_FAILS = 3;
 const PIN_HOLD_BASE_S = 5;
 const PIN_HOLD_MAX_S = 15 * 60;
 const pinHoldFor = (fails: number) => (fails < PIN_FREE_FAILS ? 0 : Math.min(PIN_HOLD_MAX_S, PIN_HOLD_BASE_S * 2 ** (fails - PIN_FREE_FAILS)));
-async function pinClaim(env: Env): Promise<{ ok: boolean; fails: number; retryAfter: number }> {
+async function pinClaim(env: Env): Promise<{ ok: boolean; fails: number; retryAfter: number; claimed?: string }> {
   const now = Math.floor(Date.now() / 1000);
   for (let attempt = 0; attempt < 3; attempt++) { // CAS retry — loses only to another live claim
     const row = (await env.DB.prepare("SELECT v FROM meta WHERE k='pin_guard'").first()) as { v: string } | null;
@@ -124,7 +125,7 @@ async function pinClaim(env: Env): Promise<{ ok: boolean; fails: number; retryAf
     const r = row
       ? await env.DB.prepare("UPDATE meta SET v=? WHERE k='pin_guard' AND v=?").bind(nv, row.v).run()
       : await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('pin_guard',?) ON CONFLICT(k) DO NOTHING").bind(nv).run();
-    if (r.meta.changes > 0) return { ok: true, fails: fails + 1, retryAfter: 0 };
+    if (r.meta.changes > 0) return { ok: true, fails: fails + 1, retryAfter: 0, claimed: nv };
   }
   return { ok: false, fails: -1, retryAfter: PIN_HOLD_BASE_S }; // contended: deny without changing state
 }
@@ -228,11 +229,12 @@ async function pollAndStore(env: Env) {
   // Warm the request-path caches so the app loads instantly from D1 (no live Deye
   // round-trip on open). The handlers read these same keys (default station).
   try {
+    const dev = await buildDeviceData(env).catch(() => null);
+    applyWarnings(l, dev);
     const { raw: _raw, ...latestSlim } = l as any;
     const warm = [
       env.DB.prepare("INSERT INTO meta (k,v) VALUES ('latest_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data: latestSlim })),
     ];
-    const dev = await buildDeviceData(env).catch(() => null);
     if (dev) warm.push(env.DB.prepare("INSERT INTO meta (k,v) VALUES ('device_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data: dev })));
     await env.DB.batch(warm);
     // Keep the weather cache warm too (getWeather refetches only when its own 30-min
@@ -259,14 +261,43 @@ async function buildDeviceData(env: Env, sid?: string) {
     const v = Number(s);
     return s != null && s !== "" && Number.isFinite(v) && v > lo && v < hi ? v : undefined;
   };
+  const gridNominal = { v: num(env.GRID_NOMINAL_V, 50, 1000), hz: num(env.GRID_NOMINAL_HZ, 40, 70) };
+  const dataList = dd.dataList || [];
+  // Two separate facts, never merged into one "alarm":
+  //  • availability — is the inverter reporting? (Deye deviceState 1=online
+  //    2=alarm 3=offline, connectStatus, and the age of its last sample). Unknown
+  //    stays unknown; the client's stale/offline banner owns this.
+  //  • attention — heuristic findings from the measure points (same analyzeDevice
+  //    the Inverter tab shows). Only warn-tone findings count, and they are labelled
+  //    as our analysis, NOT as a Deye alarm — the Open API has no alarm endpoint.
+  const collTs = Number(dd.collectionTime || inv.collectionTime) || 0;
+  const ageS = collTs ? Math.floor(Date.now() / 1000) - (collTs > 1e12 ? Math.floor(collTs / 1000) : collTs) : null;
+  const st = Number(dd.deviceState);
+  const availability =
+    st === 3 || inv.connectStatus === 0 ? { status: "offline", reason: "Deye รายงานว่าอินเวอร์เตอร์ออฟไลน์" }
+    : ageS != null && ageS > STALE_AFTER_S ? { status: "offline", reason: `ข้อมูลล่าสุดจากเครื่องเมื่อ ${Math.round(ageS / 60)} นาทีที่แล้ว` }
+    : st === 1 || st === 2 || inv.connectStatus === 1 ? { status: "online", reason: st === 2 ? "Deye รายงานสถานะ alarm ที่ตัวเครื่อง" : "" }
+    : { status: "unknown", reason: "" };
+  const attention = analyzeDevice(dataList, gridNominal).filter((i) => i.tone === "warn").map((i) => i.title);
+  if (st === 2) attention.unshift("Deye รายงานสถานะ alarm ที่ตัวเครื่อง (ดูรายละเอียดในแอป Deye)");
   return {
     sn, type: inv.deviceType, state: dd.deviceState,
-    online: inv.connectStatus === 1 || dd.deviceState === 1,
+    online: availability.status === "online",
+    availability, attention,
     collectionTime: dd.collectionTime || inv.collectionTime,
     collectorSn: collector && collector.deviceSn,
-    gridNominal: { v: num(env.GRID_NOMINAL_V, 50, 1000), hz: num(env.GRID_NOMINAL_HZ, 40, 70) },
-    dataList: dd.dataList || [],
+    gridNominal,
+    dataList,
   };
+}
+
+// Fold the device snapshot's findings into Latest (no extra Deye call: the snapshot
+// is the one buildDeviceData already fetched / the 30-s memo already holds).
+function applyWarnings(l: any, dev: any) {
+  const reasons: string[] = dev && Array.isArray(dev.attention) ? dev.attention : [];
+  l.warningStatus = reasons.length ? "ATTENTION" : "NORMAL";
+  l.warningReasons = reasons;
+  if (dev && dev.availability) l.availability = dev.availability;
 }
 
 // Pull EVERY inverter's full measure-point list (one /device/latest call) and store
@@ -428,7 +459,8 @@ app.post("/api/login", async (c) => {
       const next = pinHoldFor(g.fails);
       return c.json({ ok: false, error: next ? `PIN ไม่ถูกต้อง — ลองใหม่ได้ในอีก ${next} วินาที` : "PIN ไม่ถูกต้อง", retryAfter: next }, 401);
     }
-    await env.DB.prepare("DELETE FROM meta WHERE k='pin_guard'").run();
+    // Reset only OUR claim: a wrong attempt that claimed after us must keep its hold.
+    await env.DB.prepare("DELETE FROM meta WHERE k='pin_guard' AND v=?").bind(g.claimed).run();
   }
   if (!env.APP_PIN) return c.json({ ok: true }); // nothing to sign; the gate is open anyway
   const tok = await authToken(env);
@@ -516,6 +548,7 @@ app.get("/api/latest", async (c) => {
   try { l = await getLatest(env, sid); }
   catch { return c.json({ error: "unreachable", offline: true }, 503); } // Deye down → let the UI show the offline banner
   delete (l as any).raw;
+  applyWarnings(l, await buildDeviceData(env, sid).catch(() => null)); // memoised: shares the flow fetch above
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data: l })).run();
   return c.json(l);
 });

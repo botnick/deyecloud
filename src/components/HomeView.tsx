@@ -44,8 +44,10 @@ export function HomeView({ latest, weather, capacity, stationName, onDevice }: {
         <button onClick={onDevice} className={`${cardP} w-full text-left mb-7 flex items-center gap-3 border border-warn/25 active:scale-[.99] transition-transform`}>
           <span className="grid place-items-center w-11 h-11 rounded-full shrink-0 text-white bg-warn"><IconAlert className="w-6 h-6" /></span>
           <div className="min-w-0">
-            <div className="text-[17px] font-bold leading-tight">มีการแจ้งเตือน</div>
-            <div className="text-[14px] text-body mt-0.5">ระบบมีสถานะผิดปกติ · แตะดูรายละเอียด</div>
+            <div className="text-[17px] font-bold leading-tight">พบจุดที่ควรดู {latest.warningReasons?.length ? `(${latest.warningReasons.length})` : ""}</div>
+            <div className="text-[14px] text-body mt-0.5 line-clamp-2">
+              {latest.warningReasons?.length ? latest.warningReasons.slice(0, 2).join(" · ") : "ระบบมีสถานะผิดปกติ"} · แตะดูรายละเอียด
+            </div>
           </div>
         </button>
       )}
