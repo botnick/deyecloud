@@ -1,0 +1,16 @@
+node_modules/
+# transient secrets file written by scripts/setup.mjs — must never be committed
+.secrets.tmp.json
+# local Worker/D1 state (Miniflare)
+.wrangler/
+# secrets — never commit (use .dev.vars.example as template)
+.dev.vars
+dist/**/.dev.vars
+
+# build output (Cloudflare Workers Builds rebuilds from source)
+dist/
+# local review screenshots
+design/shots/
+
+# vite dev server log
+.vite-dev.log

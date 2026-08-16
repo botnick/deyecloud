@@ -1,0 +1,605 @@
+// Cloudflare Worker (Hono) — API for the Deye Open API behind a PIN, history in
+// D1, realtime polling on a cron schedule. The SPA is served via the ASSETS
+// binding (configured by @cloudflare/vite-plugin).
+import { Hono } from "hono";
+import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, bkkDay, type Env } from "./deye";
+import { sunInfo } from "./sun";
+
+// --- External endpoints + defaults — centralized, not scattered as inline literals.
+//     Per-account/site values (email, coords) come from env; stable public API
+//     bases are named constants here so there's a single place to change them.
+const NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse";
+const OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast";
+const TMD_DEFAULT_BASE = "https://data.tmd.go.th/nwpapi/v1/forecast/location";
+const DEFAULT_LAT = 13.7, DEFAULT_LON = 100.5; // last-resort coords; env WEATHER_LAT/LON override
+const AUTH_COOKIE_MAX_AGE = 31536000; // 1 year, seconds
+
+// --- Auto-migrate: tables build themselves on first use (no setup step) --
+// ts/day are INTEGER/TEXT PRIMARY KEYs (covering range scans) → no secondary
+// index needed; samples/daily are kept forever, device_samples on a 90-day window.
+const SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`,
+  `CREATE TABLE IF NOT EXISTS samples (ts INTEGER PRIMARY KEY, gen_power REAL, use_power REAL, grid_power REAL, batt_power REAL, soc REAL, gen_today REAL, use_today REAL, buy_today REAL, sell_today REAL, charge_today REAL, discharge_today REAL, gen_total REAL)`,
+  `CREATE TABLE IF NOT EXISTS daily (day TEXT PRIMARY KEY, gen REAL, use REAL, buy REAL, sell REAL, charge REAL, discharge REAL, peak_power REAL, peak_ts INTEGER)`,
+  `CREATE TABLE IF NOT EXISTS device_samples (sn TEXT, ts INTEGER, data TEXT, PRIMARY KEY (sn, ts))`,
+  `DROP INDEX IF EXISTS idx_samples_ts`,
+];
+// Widen tables created before the long-term redesign (idempotent — a duplicate
+// column just throws and is ignored, so first-run-with-new-SCHEMA is a no-op too).
+const MIGRATE = [
+  `ALTER TABLE samples ADD COLUMN buy_today REAL`,
+  `ALTER TABLE samples ADD COLUMN sell_today REAL`,
+  `ALTER TABLE samples ADD COLUMN charge_today REAL`,
+  `ALTER TABLE samples ADD COLUMN discharge_today REAL`,
+  `ALTER TABLE samples ADD COLUMN gen_total REAL`,
+  `ALTER TABLE daily ADD COLUMN peak_power REAL`,
+  `ALTER TABLE daily ADD COLUMN peak_ts INTEGER`,
+];
+const SCHEMA_V = 2;
+let schemaReady = false;
+async function ensureSchema(env: Env) {
+  if (schemaReady) return;
+  // meta must exist to hold the version flag; everything else runs only until the
+  // DB is migrated, so a warm-DB cold start costs just two cheap queries (not the
+  // full CREATE/ALTER set + 7 failing ALTERs every isolate spawn).
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`).run();
+  const v = await env.DB.prepare("SELECT v FROM meta WHERE k='schema_v'").first();
+  if (!v || Number((v as any).v) < SCHEMA_V) {
+    for (const stmt of SCHEMA) await env.DB.prepare(stmt).run();
+    // Swallow only "duplicate column" (already migrated); rethrow anything else so
+    // a transient D1 error can't mark the migration done with columns missing.
+    for (const stmt of MIGRATE) {
+      try { await env.DB.prepare(stmt).run(); }
+      catch (e) { if (!/duplicate column/i.test(String((e as any)?.message || e))) throw e; }
+    }
+    await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('schema_v',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(SCHEMA_V)).run();
+  }
+  schemaReady = true;
+}
+
+// --- Auth (PIN -> signed cookie) ---------------------------------------
+async function authToken(env: Env): Promise<string> {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(env.APP_PIN || ""), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode("deye-monitor-v1"));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function getCookie(req: Request, name: string): string | null {
+  const m = (req.headers.get("Cookie") || "").match(new RegExp("(?:^|; )" + name + "=([^;]+)"));
+  return m ? m[1] : null;
+}
+async function isAuthed(req: Request, env: Env): Promise<boolean> {
+  if (!env.APP_PIN) return true;
+  return getCookie(req, "deye_auth") === (await authToken(env));
+}
+
+// --- Cron poll ---------------------------------------------------------
+async function pollAndStore(env: Env) {
+  const l = await getLatest(env);
+  const ts = Math.floor(Date.now() / 60000) * 60;
+  const day = bkkDay();
+  // One transactional D1 batch = one round trip (sample + daily, + prune once/day).
+  const stmts = [
+    env.DB.prepare(
+      `INSERT INTO samples (ts, gen_power, use_power, grid_power, batt_power, soc, gen_today, use_today, buy_today, sell_today, charge_today, discharge_today, gen_total)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(ts) DO UPDATE SET gen_power=excluded.gen_power, use_power=excluded.use_power, grid_power=excluded.grid_power,
+         batt_power=excluded.batt_power, soc=excluded.soc, gen_today=excluded.gen_today, use_today=excluded.use_today,
+         buy_today=excluded.buy_today, sell_today=excluded.sell_today, charge_today=excluded.charge_today,
+         discharge_today=excluded.discharge_today, gen_total=excluded.gen_total`
+    ).bind(ts, l.genPower, l.usePower, l.gridPower, l.battPower, l.soc, l.genToday, l.useToday, l.buyToday, l.sellToday, l.chargeToday, l.dischargeToday, l.genTotal),
+    env.DB.prepare(
+      // peak_power/peak_ts track the day's highest PV power (COALESCE handles the
+      // pre-migration NULL on a row's first update of the day).
+      `INSERT INTO daily (day, gen, use, buy, sell, charge, discharge, peak_power, peak_ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(day) DO UPDATE SET gen=excluded.gen, use=excluded.use, buy=excluded.buy, sell=excluded.sell, charge=excluded.charge, discharge=excluded.discharge,
+         peak_power=CASE WHEN excluded.peak_power > COALESCE(daily.peak_power, -1) THEN excluded.peak_power ELSE daily.peak_power END,
+         peak_ts=CASE WHEN excluded.peak_power > COALESCE(daily.peak_power, -1) THEN excluded.peak_ts ELSE daily.peak_ts END`
+    ).bind(day, l.genToday, l.useToday, l.buyToday, l.sellToday, l.chargeToday, l.dischargeToday, l.genPower, ts),
+  ];
+  // Auto-prune so D1 never bloats (runs once/day). Retention:
+  //   • samples (5-min snapshots) → 90 days  (intraday detail; month/year use daily)
+  //   • device_samples (heavy 88-point JSON) → 180 days
+  //   • daily (roll-ups) → kept forever (tiny + power the month/year charts)
+  const lp = await env.DB.prepare("SELECT v FROM meta WHERE k='last_prune'").first();
+  if (!lp || (lp as any).v !== day) {
+    stmts.push(env.DB.prepare("DELETE FROM samples WHERE ts < ?").bind(ts - 90 * 86400));
+    stmts.push(env.DB.prepare("DELETE FROM device_samples WHERE ts < ?").bind(ts - 180 * 86400));
+    stmts.push(env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_prune',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(day));
+  }
+  await env.DB.batch(stmts);
+
+  // Full inverter telemetry — heavy JSON, captured ~every 15 min. Gate on elapsed
+  // time since the last successful capture (not the wall-clock minute) so a cron
+  // that consistently fires at :05/:20/:35/:50 still captures, and a failed attempt
+  // retries next poll. Best-effort: a device/Deye hiccup never breaks the core poll.
+  const lt = await env.DB.prepare("SELECT v FROM meta WHERE k='last_telemetry'").first();
+  if (!lt || ts - Number((lt as any).v || 0) >= 14 * 60) {
+    await captureTelemetry(env, ts).catch((e) => console.error("telemetry capture failed", e));
+  }
+
+  // Warm the request-path caches so the app loads instantly from D1 (no live Deye
+  // round-trip on open). The handlers read these same keys (default station).
+  try {
+    const { raw: _raw, ...latestSlim } = l as any;
+    const warm = [
+      env.DB.prepare("INSERT INTO meta (k,v) VALUES ('latest_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data: latestSlim })),
+    ];
+    const dev = await buildDeviceData(env).catch(() => null);
+    if (dev) warm.push(env.DB.prepare("INSERT INTO meta (k,v) VALUES ('device_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data: dev })));
+    await env.DB.batch(warm);
+    // Keep the weather cache warm too (getWeather refetches only when its own 30-min
+    // TTL lapses) so the อากาศ tab never waits on TMD/Open-Meteo.
+    await getWeather(env).catch(() => {});
+  } catch (e) { console.error("cache warm failed", e); }
+  return l;
+}
+
+// Build the inverter "device" payload (used by /api/device and the cron cache-warm).
+async function buildDeviceData(env: Env, sid?: string) {
+  const devs = await listDevices(env, sid);
+  const inv =
+    devs.find((x: any) => /INVERTER|HYBRID|STORAGE/i.test(x.deviceType || "")) ||
+    devs.find((x: any) => x.deviceType !== "COLLECTOR") || devs[0];
+  if (!inv) return null;
+  const sn = inv.deviceSn || inv.sn;
+  const res = await deviceLatest(env, [String(sn)]);
+  const dd = (res.deviceDataList && res.deviceDataList[0]) || {};
+  const collector = devs.find((x: any) => x.deviceType === "COLLECTOR");
+  return {
+    sn, type: inv.deviceType, state: dd.deviceState,
+    online: inv.connectStatus === 1 || dd.deviceState === 1,
+    collectionTime: dd.collectionTime || inv.collectionTime,
+    collectorSn: collector && collector.deviceSn,
+    dataList: dd.dataList || [],
+  };
+}
+
+// Pull EVERY inverter's full measure-point list (one /device/latest call) and store
+// each as its own JSON row — works for single- or multi-inverter sites, any model.
+async function captureTelemetry(env: Env, ts: number) {
+  const devs = await listDevices(env);
+  const invs = devs.filter((x: any) => /INVERTER|HYBRID|STORAGE/i.test(x.deviceType || ""));
+  const sns = (invs.length ? invs : devs.filter((x: any) => x.deviceType !== "COLLECTOR"))
+    .map((x: any) => String(x.deviceSn || x.sn || "")).filter(Boolean);
+  if (!sns.length) return;
+  const res = await deviceLatest(env, sns);
+  const list = res.deviceDataList || [];
+  const st = env.DB.prepare("INSERT INTO device_samples (sn, ts, data) VALUES (?, ?, ?) ON CONFLICT(sn, ts) DO UPDATE SET data=excluded.data");
+  const rows = [];
+  for (let i = 0; i < list.length; i++) {
+    const d = list[i];
+    if (!d || !d.dataList || !d.dataList.length) continue;
+    rows.push(st.bind(String(d.deviceSn || d.sn || sns[i] || sns[0]), ts, JSON.stringify(d.dataList)));
+  }
+  if (!rows.length) return;
+  rows.push(env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_telemetry',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(ts)));
+  await env.DB.batch(rows);
+}
+
+// Reverse-geocode the station coords to a readable Thai place (e.g. "เมืองพัทยา · ชลบุรี").
+// Cached in D1 — the station never moves. Free, no key (Nominatim/OpenStreetMap).
+async function geoPlace(env: Env, lat: string, lng: string): Promise<string> {
+  const k = `geoplace2_${Number(lat).toFixed(2)}_${Number(lng).toFixed(2)}`;
+  const row = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(k).first();
+  if (row && (row as any).v) return (row as any).v;
+  const strip = (s: any) => String(s || "").replace(/^(จังหวัด|อำเภอ|เขต|ตำบล)\s?/, "").trim();
+  const join = (arr: any[]) => arr.map(strip).filter((v: string, i: number, a: string[]) => v && a.indexOf(v) === i).join(" · ");
+  let place = "";
+  // Nominatim / OpenStreetMap only (no other provider). Needs a real contact UA per
+  // their policy — from env so no personal address is baked into the source.
+  const contact = env.CONTACT_EMAIL || "https://github.com/botnick/deyecloud";
+  try {
+    const j: any = await fetch(
+      `${NOMINATIM_REVERSE_URL}?lat=${lat}&lon=${lng}&format=jsonv2&addressdetails=1&accept-language=th&layer=address`,
+      { headers: { "User-Agent": `deyecloud-solar-pwa/1.0 (${contact})`, "Accept-Language": "th" } }
+    ).then((r) => (r.ok ? r.json() : null));
+    const a = (j && j.address) || {};
+    const locality = a.city || a.town || a.municipality || a.village || a.suburb || a.neighbourhood;
+    const district = a.city_district || a.county || a.district;
+    const province = a.state || a.province;
+    place = join([locality, district, province]);
+  } catch {}
+  if (place) await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(k, place).run();
+  return place;
+}
+
+// --- Weather: TMD NWP (primary) + Open-Meteo (fallback), cached 30 min --
+async function getWeather(env: Env): Promise<any> {
+  const row = await env.DB.prepare("SELECT v FROM meta WHERE k='weather_cache3'").first();
+  if (row) {
+    try {
+      const c = JSON.parse((row as any).v);
+      // Full 30 min for the real TMD source; only 5 min when we fell back to
+      // Open-Meteo (or errored) so it retries TMD soon after a token is added.
+      const ttl = c.data && c.data.source === "tmd" ? 30 * 60 * 1000 : 5 * 60 * 1000;
+      if (Date.now() - c._at < ttl && c.data && (c.data.error || (c.data.sun && c.data.sun.arc))) return c.data;
+    } catch {}
+  }
+  // Coords come from the Deye station (cached); WEATHER_LAT/LON are an optional fallback.
+  const meta = await getStationMeta(env).catch(() => null);
+  const lat = String(meta && meta.lat != null ? meta.lat : (env.WEATHER_LAT || DEFAULT_LAT));
+  const lng = String(meta && meta.lng != null ? meta.lng : (env.WEATHER_LON || DEFAULT_LON));
+  // Readable Thai place name from the station coords; rough coords as last resort.
+  const co = (v: string, p: string, n: string) => `${Math.abs(Number(v)).toFixed(1)}°${Number(v) >= 0 ? p : n}`;
+  const place = env.WEATHER_PLACE || (await geoPlace(env, lat, lng).catch(() => "")) || `${co(lat, "N", "S")} ${co(lng, "E", "W")}`;
+  let data = await fetchTMD(env, lat, lng, place).catch(() => null);
+  if (!data || data.temp == null) {
+    const fb = await fetchOpenMeteo(env, lat, lng, place).catch(() => null);
+    if (fb && fb.temp != null) data = fb;
+  }
+  if (!data) data = { error: "weather unavailable" };
+  if (data && data.temp != null && data.uv == null) data.uv = await fetchUV(lat, lng).catch(() => null);
+  if (data && data.temp != null) data.sun = sunInfo(Number(lat), Number(lng));
+  await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('weather_cache3',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();
+  return data;
+}
+async function fetchTMD(env: Env, lat: string, lng: string, place: string): Promise<any> {
+  if (!env.TMD_TOKEN) return null;
+  const base = env.TMD_BASE || TMD_DEFAULT_BASE;
+  const q = `lat=${lat}&lon=${lng}`;
+  const opt = { headers: { accept: "application/json", authorization: "Bearer " + env.TMD_TOKEN }, signal: AbortSignal.timeout(15000) };
+  const [h, d] = await Promise.all([
+    fetch(`${base}/hourly/at?${q}&fields=tc,rh,cond,rain,ws10m&duration=12`, opt).then((r) => r.json() as Promise<any>),
+    fetch(`${base}/daily/at?${q}&fields=tc_max,tc_min,rh,cond,rain,swdown&duration=7`, opt).then((r) => r.json() as Promise<any>),
+  ]);
+  const hf = (h.WeatherForecasts || [])[0]?.forecasts || [];
+  const cur = hf[0]?.data || {};
+  if (cur.tc == null) return null;
+  return {
+    source: "tmd", place: place || "พื้นที่ของคุณ",
+    temp: cur.tc, humidity: cur.rh, cond: cur.cond, rain: cur.rain,
+    wind: cur.ws10m != null ? Math.round(cur.ws10m * 3.6) : null,
+    hourly: hf.map((f: any) => ({ time: f.time, tc: f.data.tc, cond: f.data.cond, rain: f.data.rain })),
+    daily: ((d.WeatherForecasts || [])[0]?.forecasts || []).map((f: any) => ({ time: f.time, ...f.data })),
+  };
+}
+const wmoToCond = (w: number): number =>
+  w === 0 ? 1 : w <= 2 ? 2 : w === 3 ? 4 : w <= 48 ? 4 : w <= 57 ? 5 : w <= 65 ? 6 : w <= 67 ? 7 : w <= 77 ? 4 : w <= 81 ? 6 : w <= 82 ? 7 : w <= 86 ? 4 : 8;
+async function fetchOpenMeteo(env: Env, lat: string, lng: string, place: string): Promise<any> {
+  const url =
+    `${OPEN_METEO_URL}?latitude=${lat}&longitude=${lng}` +
+    `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,uv_index` +
+    `&hourly=temperature_2m,weather_code,precipitation` +
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,shortwave_radiation_sum` +
+    `&timezone=Asia%2FBangkok&forecast_days=7`;
+  const j: any = await fetch(url, { signal: AbortSignal.timeout(15000) }).then((r) => r.json());
+  const c = j.current || {};
+  const now = Date.now() - 3600 * 1000;
+  const H = j.hourly || {};
+  const hourly = (H.time || [])
+    .map((t: string, i: number) => ({ time: t, tc: H.temperature_2m[i], cond: wmoToCond(H.weather_code[i]), rain: H.precipitation[i] }))
+    .filter((x: any) => new Date(x.time).getTime() >= now).slice(0, 12);
+  const D = j.daily || {};
+  const daily = (D.time || []).map((t: string, i: number) => ({
+    time: t, tc_max: D.temperature_2m_max[i], tc_min: D.temperature_2m_min[i],
+    cond: wmoToCond(D.weather_code[i]), rain: D.precipitation_sum[i],
+    swdown: D.shortwave_radiation_sum ? Math.round((D.shortwave_radiation_sum[i] || 0) * 11.57) : null,
+  }));
+  return {
+    source: "open-meteo", place: place || "พื้นที่ของคุณ",
+    temp: c.temperature_2m, humidity: c.relative_humidity_2m, cond: wmoToCond(c.weather_code), rain: 0,
+    wind: c.wind_speed_10m != null ? Math.round(c.wind_speed_10m) : null,
+    uv: c.uv_index != null ? Math.round(c.uv_index) : null, hourly, daily,
+  };
+}
+// TMD has no UV field — pull the live UV index from Open-Meteo (free, no key).
+async function fetchUV(lat: string, lng: string): Promise<number | null> {
+  const url = `${OPEN_METEO_URL}?latitude=${lat}&longitude=${lng}&current=uv_index&timezone=Asia%2FBangkok&forecast_days=1`;
+  const j: any = await fetch(url, { signal: AbortSignal.timeout(15000) }).then((r) => r.json());
+  const uv = j.current && j.current.uv_index;
+  return uv != null ? Math.round(uv) : null;
+}
+
+// ===================== Hono app =====================
+const app = new Hono<{ Bindings: Env }>();
+
+app.use("/api/*", async (c, next) => { await ensureSchema(c.env); await next(); });
+
+app.post("/api/login", async (c) => {
+  const env = c.env;
+  const { pin } = await c.req.json().catch(() => ({ pin: undefined }));
+  if (!env.APP_PIN || pin === env.APP_PIN) {
+    const tok = await authToken(env);
+    const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+    c.header("Set-Cookie", `deye_auth=${tok}; Path=/; HttpOnly${secure}; SameSite=Lax; Max-Age=${AUTH_COOKIE_MAX_AGE}`);
+    return c.json({ ok: true });
+  }
+  return c.json({ ok: false, error: "PIN ไม่ถูกต้อง" }, 401);
+});
+
+app.get("/api/session", async (c) => c.json({ authed: await isAuthed(c.req.raw, c.env) }));
+
+// Public cron/health probe — proves the 5-min cron is actually writing to D1.
+// Registered BEFORE the auth gate so it can be opened in a browser without a PIN
+// (returns only counts + timestamps, nothing sensitive). cronHealthy = the newest
+// sample is ≤12 min old (one cron tick is 5 min, so 2 misses still reads healthy).
+app.get("/api/_health", async (c) => {
+  const env = c.env;
+  await ensureSchema(env);
+  const now = Math.floor(Date.now() / 1000);
+  const first = async <T = any>(sql: string) => (await env.DB.prepare(sql).first()) as T | null;
+  const s = await first<{ c: number; m: number }>("SELECT COUNT(*) c, MAX(ts) m FROM samples");
+  const d = await first<{ c: number; m: string }>("SELECT COUNT(*) c, MAX(day) m FROM daily");
+  const ds = await first<{ c: number; m: number }>("SELECT COUNT(*) c, MAX(ts) m FROM device_samples");
+  const lastTs = (s && s.m) || 0;
+  const ageMin = lastTs ? Math.round((now - lastTs) / 60) : null;
+  const healthy = ageMin != null && ageMin <= 12;
+  const payload = {
+    ok: true,
+    serverTime: new Date(now * 1000).toISOString(),
+    cronHealthy: healthy,
+    summary: lastTs
+      ? `cron เขียนล่าสุด ${ageMin} นาทีที่แล้ว · ${(s?.c || 0).toLocaleString()} แถว · ${healthy ? "ปกติ ✅" : "อาจหยุด ⚠️"}`
+      : "ยังไม่มีข้อมูล cron",
+    samples: { count: s?.c || 0, lastTs, lastTime: lastTs ? new Date(lastTs * 1000).toISOString() : null, ageMinutes: ageMin },
+    daily: { count: d?.c || 0, lastDay: (d && d.m) || null },
+    deviceSamples: { count: ds?.c || 0, lastTs: (ds && ds.m) || 0 },
+  };
+  // Explicit UTF-8 + pretty-print so the Thai summary reads correctly when opened
+  // raw in a browser (Safari otherwise decodes application/json as Latin-1).
+  return c.body(JSON.stringify(payload, null, 2), 200, { "content-type": "application/json; charset=utf-8" });
+});
+
+// auth gate — applies to every /api/* route registered below
+app.use("/api/*", async (c, next) => {
+  if (!(await isAuthed(c.req.raw, c.env))) return c.json({ error: "unauthorized" }, 401);
+  await next();
+});
+
+app.get("/api/stations", async (c) => c.json(await listStations(c.env)));
+app.get("/api/station", async (c) => c.json(await getStationMeta(c.env)));
+
+app.get("/api/latest", async (c) => {
+  const env = c.env;
+  const sid = c.req.query("station");
+  const ck = "latest_cache" + (sid ? "_" + sid : ""); // per-station cache key (cron warms the default/unsuffixed one)
+  const cached = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first();
+  // 6-min window so the cron-warmed cache (every 5 min) serves the home screen
+  // instantly from D1 — data stays ≤5 min old (≈ Deye's own update cadence).
+  if (cached) { try { const cc = JSON.parse((cached as any).v); if (Date.now() - cc._at < 6 * 60 * 1000) return c.json(cc.data); } catch {} }
+  let l;
+  try { l = await getLatest(env, sid); }
+  catch { return c.json({ error: "unreachable", offline: true }, 503); } // Deye down → let the UI show the offline banner
+  delete (l as any).raw;
+  await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data: l })).run();
+  return c.json(l);
+});
+
+app.get("/api/weather", async (c) => c.json(await getWeather(c.env)));
+
+app.get("/api/device", async (c) => {
+  const env = c.env;
+  const sid = c.req.query("station");
+  const ck = "device_cache" + (sid ? "_" + sid : "");
+  const cached = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first();
+  // 6-min window so the cron-warmed cache (every 5 min) serves instantly — the app
+  // reads device data from D1, never waits on Deye on open.
+  if (cached) { try { const cc = JSON.parse((cached as any).v); if (Date.now() - cc._at < 6 * 60 * 1000) return c.json(cc.data); } catch {} }
+  const data = await buildDeviceData(env, sid);
+  if (!data) return c.json({ error: "no device" }, 404);
+  await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
+  return c.json(data);
+});
+
+// History pulled LIVE from the Deye station/history API (frame curve for the day,
+// daily totals for the month, monthly totals for the year) so charts have real
+// data immediately — no waiting for the cron to accumulate. D1 is the fallback.
+async function histFromD1(env: Env, range: string, dateStr: string) {
+  // half-open range queries (day TEXT 'YYYY-MM-DD' เรียงตามตัวอักษร = ตามเวลา) ใช้ PK index ได้ ต่างจาก LIKE
+  const ref = new Date(dateStr + "T00:00:00Z");
+  const y = ref.getUTCFullYear(), mo = ref.getUTCMonth() + 1;
+  if (range === "day") {
+    // bounds = the requested day in Thailand time (UTC+7) → unix seconds
+    const start = Math.floor(new Date(dateStr + "T00:00:00+07:00").getTime() / 1000);
+    const { results } = await env.DB.prepare("SELECT ts, gen_power, use_power, grid_power, batt_power, soc FROM samples WHERE ts>=? AND ts<? ORDER BY ts").bind(start, start + 86400).all();
+    // certified day totals come from the daily roll-up (cron writes Deye's exact figures)
+    const dr = (await env.DB.prepare("SELECT gen,use,buy,sell,charge,discharge FROM daily WHERE day=?").bind(dateStr).first()) as any;
+    const totals = dr ? { gen: dr.gen || 0, use: dr.use || 0, buy: dr.buy || 0, sell: dr.sell || 0, charge: dr.charge || 0, discharge: dr.discharge || 0 } : null;
+    return { range, date: dateStr, points: results, totals, source: "d1" };
+  }
+  if (range === "month") {
+    const ym = `${y}-${String(mo).padStart(2, "0")}`;
+    const nextM = new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 7);
+    const { results } = await env.DB.prepare("SELECT day, gen, use, buy, sell, charge, discharge FROM daily WHERE day >= ? AND day < ? ORDER BY day").bind(ym + "-01", nextM + "-01").all();
+    return { range, date: dateStr, points: results, source: "d1" };
+  }
+  const { results } = await env.DB.prepare(
+    `SELECT substr(day,1,7) AS month, SUM(gen) gen, SUM(use) use, SUM(buy) buy, SUM(sell) sell, SUM(charge) charge, SUM(discharge) discharge FROM daily WHERE day >= ? AND day < ? GROUP BY month ORDER BY month`
+  ).bind(`${y}-01-01`, `${y + 1}-01-01`).all();
+  return { range, date: dateStr, points: results, source: "d1" };
+}
+
+// Live Deye fetch for a history period (+ persist daily roll-ups & the meta cache).
+// Used as the cold-start path and as the background revalidator.
+async function fetchHistFromDeye(env: Env, range: string, dateStr: string, sid?: string) {
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  const ref = new Date(dateStr + "T00:00:00Z");
+  const y = ref.getUTCFullYear(), mo = ref.getUTCMonth() + 1;
+  const todayStr = bkkDay();
+  let data: any;
+  if (range === "day") {
+    // frames (granularity 1) = the curve; day energy (granularity 2) = certified totals
+    const nextStr = new Date(ref.getTime() + 86400000).toISOString().slice(0, 10);
+    const [res, tres] = await Promise.all([
+      getHistory(env, 1, dateStr, dateStr, sid),
+      getHistory(env, 2, dateStr, nextStr, sid).catch(() => null),
+    ]);
+    const points = (res.stationDataItems || []).filter((x: any) => x.timeStamp).map((x: any) => ({
+      ts: x.timeStamp, gen_power: x.generationPower ?? 0, use_power: x.consumptionPower ?? 0,
+      grid_power: x.wirePower ?? x.gridPower ?? 0, batt_power: x.batteryPower ?? 0, soc: x.batterySOC ?? null,
+    }));
+    const tot = (tres && tres.stationDataItems && tres.stationDataItems[0]) || null;
+    const totals = tot ? { gen: tot.generationValue ?? 0, use: tot.consumptionValue ?? 0, buy: tot.purchaseValue ?? 0, sell: tot.gridValue ?? 0, charge: tot.chargeValue ?? 0, discharge: tot.dischargeValue ?? 0 } : null;
+    data = { range, date: dateStr, points, totals, source: "deye" };
+  } else if (range === "month") {
+    const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+    const res = await getHistory(env, 2, `${y}-${p2(mo)}-01`, `${y}-${p2(mo)}-${p2(last)}`, sid);
+    const points = (res.stationDataItems || []).map((x: any) => ({
+      day: `${x.year}-${p2(x.month)}-${p2(x.day)}`, gen: x.generationValue ?? 0, use: x.consumptionValue ?? 0,
+      buy: x.purchaseValue ?? 0, sell: x.gridValue ?? 0, charge: x.chargeValue ?? 0, discharge: x.dischargeValue ?? 0,
+    }));
+    data = { range, date: dateStr, points, source: "deye" };
+    // persist past days into daily (today is owned by cron, which is fresher)
+    if (!sid && points.length) {
+      const st = env.DB.prepare("INSERT INTO daily (day,gen,use,buy,sell,charge,discharge) VALUES (?,?,?,?,?,?,?) ON CONFLICT(day) DO UPDATE SET gen=excluded.gen, use=excluded.use, buy=excluded.buy, sell=excluded.sell, charge=excluded.charge, discharge=excluded.discharge");
+      const rows = points.filter((p: any) => p.day !== todayStr && (p.gen || p.use || p.buy || p.sell));
+      if (rows.length) await env.DB.batch(rows.map((p: any) => st.bind(p.day, p.gen, p.use, p.buy, p.sell, p.charge, p.discharge)));
+    }
+  } else {
+    const res = await getHistory(env, 3, `${y}-01`, `${y}-12`, sid);
+    const points = (res.stationDataItems || []).map((x: any) => ({
+      month: `${x.year}-${p2(x.month)}`, gen: x.generationValue ?? 0, use: x.consumptionValue ?? 0, buy: x.purchaseValue ?? 0, sell: x.gridValue ?? 0,
+      charge: x.chargeValue ?? 0, discharge: x.dischargeValue ?? 0,
+    }));
+    data = { range, date: dateStr, points, source: "deye" };
+  }
+  const ck = `hist_v2_${range}_${dateStr}${sid ? "_" + sid : ""}`;
+  await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
+  return data;
+}
+
+// Throttled background backfill: pull a period from Deye to fill `daily` gaps
+// (e.g. days before the app was installed) without hammering Deye when many
+// requests land at once. Skips if the period was refreshed in the last 30 min.
+async function revalidateHist(env: Env, range: string, dateStr: string) {
+  const ck = `hist_v2_${range}_${dateStr}`;
+  const row = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first();
+  if (row) { try { const cc = JSON.parse((row as any).v); if (Date.now() - cc._at < 30 * 60 * 1000) return; } catch {} }
+  await fetchHistFromDeye(env, range, dateStr).catch(() => {});
+}
+
+app.get("/api/history", async (c) => {
+  const env = c.env;
+  const range = c.req.query("range") || "day";
+  if (!["day", "month", "year"].includes(range)) return c.json({ error: "bad range" }, 400);
+  const dateStr = (c.req.query("date") || bkkDay()).slice(0, 10);
+  const sid = c.req.query("station");
+  const ref = new Date(dateStr + "T00:00:00Z");
+  const y = ref.getUTCFullYear(), mo = ref.getUTCMonth() + 1;
+  const todayStr = bkkDay();
+  const isCurrent = range === "day" ? dateStr === todayStr
+    : range === "month" ? (y === Number(todayStr.slice(0, 4)) && mo === Number(todayStr.slice(5, 7)))
+      : y === Number(todayStr.slice(0, 4));
+
+  // ─ Default station: serve from D1 instantly (cron keeps samples/daily fresh from
+  //   Deye in the background). For the current period also fire a background Deye
+  //   revalidate — the user never waits, never knows; the system self-heals if cron
+  //   hiccupped and keeps certified totals exact. Past periods are immutable.
+  if (!sid) {
+    const d1 = await histFromD1(env, range, dateStr);
+    if (d1.points && d1.points.length) {
+      // The current day is fully owned by cron (samples + certified daily), so it
+      // needs no extra revalidate. month/year get a throttled background backfill.
+      if (isCurrent && range !== "day") c.executionCtx.waitUntil(revalidateHist(env, range, dateStr));
+      return c.json({ ...d1, cached: true });
+    }
+  }
+
+  // ─ Cold path (D1 has nothing yet, an old day past the 90-day sample window, or a
+  //   non-default station): use the meta cache, else fetch Deye live this once.
+  const ck = `hist_v2_${range}_${dateStr}${sid ? "_" + sid : ""}`;
+  const ttl = range === "day" ? 5 * 60 * 1000 : range === "month" ? 20 * 60 * 1000 : 30 * 60 * 1000;
+  const row = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first();
+  if (row) { try { const cc = JSON.parse((row as any).v); if (cc.data?.points?.length && (!isCurrent || Date.now() - cc._at < ttl)) return c.json({ ...cc.data, cached: true }); } catch {} }
+  try {
+    const data = await fetchHistFromDeye(env, range, dateStr, sid);
+    if ((!data.points || !data.points.length) && !sid) { const fb = await histFromD1(env, range, dateStr); if (fb.points && fb.points.length) return c.json({ ...fb, cached: false }); }
+    return c.json({ ...data, cached: false });
+  } catch {
+    const fb = sid ? { range, date: dateStr, points: [], source: "deye" } : await histFromD1(env, range, dateStr);
+    return c.json({ ...fb, cached: false });
+  }
+});
+
+// Lifetime aggregate across every stored daily roll-up — powers the "ตลอด" tab
+// (total production, savings, CO₂, payback). One cheap SUM over the tiny daily
+// table, lightly cached. peakPower (best PV watts ever) lets the production
+// forecast self-calibrate even when the station never reported its installed kWp.
+// (daily holds the cron's primary station only, so lifetime = primary station.)
+app.get("/api/totals", async (c) => {
+  const env = c.env;
+  const cached = await env.DB.prepare("SELECT v FROM meta WHERE k='totals_cache'").first();
+  if (cached) { try { const cc = JSON.parse((cached as any).v); if (Date.now() - cc._at < 30 * 60 * 1000) return c.json(cc.data); } catch {} }
+  const agg = (await env.DB.prepare(
+    `SELECT COUNT(*) days, MIN(day) firstDay, MAX(day) lastDay,
+            SUM(gen) gen, SUM(use) use, SUM(buy) buy, SUM(sell) sell,
+            SUM(charge) charge, SUM(discharge) discharge, MAX(peak_power) peak FROM daily`
+  ).first()) as any;
+  // genTotal = the inverter's own lifetime kWh meter (more accurate than summing
+  // daily, which only goes back to install) — prefer it, fall back to the sum.
+  const last = (await env.DB.prepare("SELECT gen_total FROM samples ORDER BY ts DESC LIMIT 1").first()) as any;
+  // per-year breakdown for the lifetime bar chart
+  const yrs = (await env.DB.prepare(
+    `SELECT substr(day,1,4) year, SUM(gen) gen, SUM(use) use, SUM(buy) buy, SUM(sell) sell FROM daily GROUP BY year ORDER BY year`
+  ).all()).results || [];
+  const data = {
+    days: agg?.days || 0, firstDay: agg?.firstDay || null, lastDay: agg?.lastDay || null,
+    gen: agg?.gen || 0, use: agg?.use || 0, buy: agg?.buy || 0, sell: agg?.sell || 0,
+    charge: agg?.charge || 0, discharge: agg?.discharge || 0,
+    genTotal: (last && last.gen_total) || 0,
+    peakPower: agg?.peak || 0, // W — best PV power ever seen (≈ system AC capacity)
+    years: yrs,
+  };
+  await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('totals_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();
+  return c.json(data);
+});
+
+// User-tunable economics (฿/หน่วย ค่าไฟ, ค่าขายคืน, ทุนติดตั้ง) stored server-side
+// in D1 so every device sharing the PIN sees the same figures. The frontend merges
+// these over its built-in defaults; an empty object = use defaults everywhere.
+app.get("/api/settings", async (c) => {
+  const row = await c.env.DB.prepare("SELECT v FROM meta WHERE k='settings'").first();
+  let s: any = {};
+  if (row) { try { s = JSON.parse((row as any).v); } catch {} }
+  return c.json(s);
+});
+app.post("/api/settings", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const clean: any = {};
+  // whitelist + coerce: a finite number ≥0 is stored; an explicit null clears the
+  // field (back to default); anything else is ignored so junk never lands in D1.
+  for (const k of ["rate", "sellRate", "systemCost"]) {
+    const raw = (body as any)[k];
+    if (raw === null) { clean[k] = null; continue; }
+    if (raw === "" || raw === undefined) continue;
+    const n = Number(raw);
+    if (isFinite(n) && n >= 0) clean[k] = n;
+  }
+  await c.env.DB.prepare("INSERT INTO meta (k,v) VALUES ('settings',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify(clean)).run();
+  return c.json({ ok: true, settings: clean });
+});
+
+app.get("/api/_debug", async (c) => c.json(await getLatest(c.env)));
+app.get("/api/_hist", async (c) => {
+  const env = c.env;
+  const today = new Date().toISOString().slice(0, 10);
+  const tmr = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  return c.json({ day: await getHistory(env, 2, today, tmr), frame: await getHistory(env, 1, today, today) });
+});
+app.get("/api/_poll", async (c) => c.json(await pollAndStore(c.env)));
+app.get("/api/_dev", async (c) => {
+  const env = c.env;
+  const devs = await listDevices(env);
+  const inv = devs.find((x: any) => /INVERTER|HYBRID|STORAGE/i.test(x.deviceType || "")) || devs.find((x: any) => x.deviceType !== "COLLECTOR") || devs[0];
+  const sn = inv && (inv.deviceSn || inv.sn);
+  const mp = sn ? await deviceMeasurePoints(env, String(sn)).catch(() => null) : null;
+  return c.json({ inverter: inv, measurePointsSample: mp });
+});
+
+app.onError((err, c) => c.json({ error: String(err && (err as any).message ? (err as any).message : err) }, 500));
+
+// SPA fallback (most non-API requests are served by the assets layer first).
+// Tag everything noindex so a private friend-install never shows up in search.
+app.all("*", async (c) => {
+  const r = await c.env.ASSETS.fetch(c.req.raw);
+  const res = new Response(r.body, r);
+  res.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return res;
+});
+
+export default {
+  fetch: app.fetch,
+  async scheduled(_event: any, env: Env, ctx: { waitUntil(p: Promise<any>): void }) {
+    ctx.waitUntil(ensureSchema(env).then(() => pollAndStore(env)).catch((e) => console.error("poll failed", e)));
+  },
+};
