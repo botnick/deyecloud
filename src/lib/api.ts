@@ -2,7 +2,12 @@ export interface Latest {
   genPower: number; usePower: number; gridPower: number; battPower: number; soc: number;
   genToday: number; useToday: number; buyToday: number; sellToday: number;
   chargeToday: number; dischargeToday: number; genTotal: number;
-  battStatus: string; gridStatus: string; warningStatus: string;
+  battStatus: string; gridStatus: string;
+  // "NORMAL" | "ATTENTION" — ATTENTION = our own health analysis found warn-level
+  // findings on the inverter's measure points (listed in warningReasons). It is
+  // not a Deye alarm; availability (online/offline) is reported separately.
+  warningStatus: string; warningReasons?: string[];
+  availability?: { status: "online" | "offline" | "unknown"; reason: string };
   selfSufficiency: number; updatedAt: number; error?: string;
 }
 
