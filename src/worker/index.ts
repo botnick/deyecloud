@@ -72,6 +72,11 @@ async function isAuthed(req: Request, env: Env): Promise<boolean> {
   return getCookie(req, "deye_auth") === (await authToken(env));
 }
 
+// Retention windows, declared once so the prune and the backfill's lower bound
+// can never drift apart (refilling below the prune horizon just gets deleted).
+const SAMPLES_RETENTION_DAYS = 90;
+const DEVICE_RETENTION_DAYS = 180;
+
 // --- Cron poll ---------------------------------------------------------
 async function pollAndStore(env: Env) {
   const l = await getLatest(env);
@@ -102,8 +107,8 @@ async function pollAndStore(env: Env) {
   //   • daily (roll-ups) → kept forever (tiny + power the month/year charts)
   const lp = await env.DB.prepare("SELECT v FROM meta WHERE k='last_prune'").first();
   if (!lp || (lp as any).v !== day) {
-    stmts.push(env.DB.prepare("DELETE FROM samples WHERE ts < ?").bind(ts - 90 * 86400));
-    stmts.push(env.DB.prepare("DELETE FROM device_samples WHERE ts < ?").bind(ts - 180 * 86400));
+    stmts.push(env.DB.prepare("DELETE FROM samples WHERE ts < ?").bind(ts - SAMPLES_RETENTION_DAYS * 86400));
+    stmts.push(env.DB.prepare("DELETE FROM device_samples WHERE ts < ?").bind(ts - DEVICE_RETENTION_DAYS * 86400));
     stmts.push(env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_prune',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(day));
   }
   await env.DB.batch(stmts);
@@ -145,11 +150,18 @@ async function buildDeviceData(env: Env, sid?: string) {
   const res = await deviceLatest(env, [String(sn)]);
   const dd = (res.deviceDataList && res.deviceDataList[0]) || {};
   const collector = devs.find((x: any) => x.deviceType === "COLLECTOR");
+  // Site nominals for the client-side health checks. Only pass through values that
+  // parse to a sane number — a typo'd var must disable the alarm, not invent a band.
+  const num = (s?: string, lo = 0, hi = Infinity) => {
+    const v = Number(s);
+    return s != null && s !== "" && Number.isFinite(v) && v > lo && v < hi ? v : undefined;
+  };
   return {
     sn, type: inv.deviceType, state: dd.deviceState,
     online: inv.connectStatus === 1 || dd.deviceState === 1,
     collectionTime: dd.collectionTime || inv.collectionTime,
     collectorSn: collector && collector.deviceSn,
+    gridNominal: { v: num(env.GRID_NOMINAL_V, 50, 1000), hz: num(env.GRID_NOMINAL_HZ, 40, 70) },
     dataList: dd.dataList || [],
   };
 }
@@ -527,7 +539,10 @@ app.get("/api/totals", async (c) => {
   ).first()) as any;
   // genTotal = the inverter's own lifetime kWh meter (more accurate than summing
   // daily, which only goes back to install) — prefer it, fall back to the sum.
-  const last = (await env.DB.prepare("SELECT gen_total FROM samples ORDER BY ts DESC LIMIT 1").first()) as any;
+  // Skip NULLs: only the cron writes gen_total, so backfilled rows (history frames
+// carry power, not the lifetime meter) leave holes — and a backfill of today lands
+  // rows NEWER than the last cron sample, which would otherwise read back as 0.
+  const last = (await env.DB.prepare("SELECT gen_total FROM samples WHERE gen_total IS NOT NULL ORDER BY ts DESC LIMIT 1").first()) as any;
   // per-year breakdown for the lifetime bar chart
   const yrs = (await env.DB.prepare(
     `SELECT substr(day,1,4) year, SUM(gen) gen, SUM(use) use, SUM(buy) buy, SUM(sell) sell FROM daily GROUP BY year ORDER BY year`
@@ -577,6 +592,196 @@ app.get("/api/_hist", async (c) => {
   return c.json({ day: await getHistory(env, 2, today, tmr), frame: await getHistory(env, 1, today, today) });
 });
 app.get("/api/_poll", async (c) => c.json(await pollAndStore(c.env)));
+
+// Refill `samples` + `daily` from Deye's own history for a past date range.
+// The cron only writes while it is actually running, so an outage (expired
+// credentials, Worker down, Deye 5xx) leaves a hole in D1 — but Deye keeps the
+// data server-side, so the gap is recoverable after the fact.
+//
+//   POST /api/_backfill?from=YYYY-MM-DD[&to=YYYY-MM-DD]   (to defaults to today)
+//
+// POST because it writes. Existing rows are never clobbered: samples uses DO
+// NOTHING so cron-written rows keep their energy columns (history frames only
+// carry power), and `daily` upserts Deye's own day totals, which are the
+// authoritative figure — but peak_power/peak_ts only move UP, matching the cron.
+//
+// Two hard platform limits shape this, both per Worker invocation on the free
+// plan: a subrequest ceiling, and a query cap that a 288-row-per-day statement
+// batch would blow. Frames go in as ONE statement via json_each() instead; the
+// response carries `nextFrom` so a longer outage is walked in successive calls
+// rather than silently truncated.
+//
+// The day cap is DERIVED, not guessed, so it stays honest if the cost per day
+// changes. D1 binding calls count as subrequests too, so one day costs: two
+// getHistory calls × (token metaGet ×2 + the fetch itself) = 6, plus the write
+// batch and the cache invalidation = 8.
+const SUBREQUEST_BUDGET = 50;
+const SUBREQUESTS_RESERVED = 6; // station-id lookup, token refresh, response overhead
+const SUBREQUESTS_PER_DAY = 8;
+const BACKFILL_MAX_DAYS = Math.max(1, Math.floor((SUBREQUEST_BUDGET - SUBREQUESTS_RESERVED) / SUBREQUESTS_PER_DAY));
+
+// Date.parse happily normalises 2026-02-31 into March 3rd. Round-trip the parsed
+// value back to a string and require it to match, so a nonexistent date is a 400
+// instead of silently backfilling a different day than the caller asked for.
+function exactDay(s: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const ms = Date.parse(s + "T00:00:00Z");
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms).toISOString().slice(0, 10) === s ? ms : null;
+}
+
+// Deye answers with HTTP 200 even when the call failed, so both shapes have to be
+// checked explicitly or a failure reads back as an empty-but-successful day.
+function deyeFailed(res: any): string | null {
+  if (!res) return "no response";
+  if (res.success === false) return `${res.code || ""} ${res.msg || ""}`.trim() || "success:false";
+  if (typeof res.status === "number" && res.status >= 400) return `http ${res.status}`;
+  return null;
+}
+
+app.post("/api/_backfill", async (c) => {
+  const env = c.env;
+  const ymd = /^\d{4}-\d{2}-\d{2}$/;
+  const from = c.req.query("from") || "";
+  const to = c.req.query("to") || bkkDay();
+  if (!ymd.test(from) || !ymd.test(to)) return c.json({ ok: false, error: "from/to must be YYYY-MM-DD" }, 400);
+
+  const startMs = exactDay(from), endMs = exactDay(to);
+  if (startMs == null || endMs == null) return c.json({ ok: false, error: "from/to must be a real YYYY-MM-DD date" }, 400);
+  if (startMs > endMs) return c.json({ ok: false, error: "from must be <= to" }, 400);
+  // Bound the window on both sides: samples are pruned at the retention horizon
+  // (older writes would just be deleted again), and a future date returns empty.
+  const todayMs = exactDay(bkkDay())!;
+  if (endMs > todayMs) return c.json({ ok: false, error: "to is in the future" }, 400);
+  if (startMs < todayMs - SAMPLES_RETENTION_DAYS * 86400000)
+    return c.json({ ok: false, error: `from is older than the ${SAMPLES_RETENTION_DAYS}-day samples retention` }, 400);
+
+  const requested = Math.round((endMs - startMs) / 86400000) + 1;
+  const days = Math.min(requested, BACKFILL_MAX_DAYS);
+  const lastMs = startMs + (days - 1) * 86400000;
+
+  const report: any[] = [];
+  let samplesWritten = 0, daysWritten = 0, failed = 0;
+  let firstFailedMs: number | null = null;
+
+  for (let ms = startMs; ms <= lastMs; ms += 86400000) {
+    const day = new Date(ms).toISOString().slice(0, 10);
+    const next = new Date(ms + 86400000).toISOString().slice(0, 10);
+    try {
+      const [fres, tres] = await Promise.all([
+        getHistory(env, 1, day, day),
+        getHistory(env, 2, day, next).catch(() => null),
+      ]);
+      // A Deye error envelope still returns HTTP 200 with no stationDataItems —
+      // without this it would look like "0 frames, success" and hide the failure.
+      const fErr = deyeFailed(fres);
+      if (fErr) throw new Error(`frames: ${fErr}`);
+      // The day-totals call is allowed to fail on its own (frames are still worth
+      // keeping) but it must be REPORTED — silently dropping it is how a partial
+      // backfill gets mistaken for a complete one.
+      const tErr = tres === null ? "request failed" : deyeFailed(tres);
+
+      // Canonicalise to the cron's minute grid. Deye stamps frames at :08-ish
+      // seconds; the cron writes Math.floor(now/60000)*60, so raw seconds would
+      // miss the PK and store a second row for the same reading. Dedupe after
+      // flooring, since two frames can land in one minute.
+      //
+      // This does not dedupe against a cron row in an ADJACENT minute (cron fires
+      // on its own clock, so 04:36:00 and a 04:35:08 frame stay separate rows).
+      // Left as-is deliberately: that only happens at the edges of a gap — inside
+      // a real outage there are no cron rows to collide with — and a couple of
+      // extra points are harmless to the charts, whereas snapping to a coarser
+      // bucket would desync every row the cron has already written.
+      const seen = new Set<number>();
+      const rows: any[] = [];
+      let peak = 0, peakTs: number | null = null;
+      for (const x of fres.stationDataItems || []) {
+        if (!x.timeStamp) continue;
+        const ts = Math.floor(Number(x.timeStamp) / 60) * 60;
+        if (!Number.isFinite(ts) || seen.has(ts)) continue;
+        seen.add(ts);
+        const g = x.generationPower ?? 0;
+        if (g > peak) { peak = g; peakTs = ts; }
+        rows.push({ t: ts, g, u: x.consumptionPower ?? 0, w: x.wirePower ?? x.gridPower ?? 0, b: x.batteryPower ?? 0, s: x.batterySOC ?? null });
+      }
+
+      const stmts: any[] = [];
+      let sampleStmtAt = -1; // which batch result carries the sample insert, if any
+      if (rows.length) {
+        sampleStmtAt = stmts.length;
+        // One statement for the whole day. `WHERE true` is required so SQLite
+        // attaches ON CONFLICT to the INSERT rather than the SELECT.
+        stmts.push(
+          env.DB.prepare(
+            `INSERT INTO samples (ts, gen_power, use_power, grid_power, batt_power, soc)
+             SELECT json_extract(value,'$.t'), json_extract(value,'$.g'), json_extract(value,'$.u'),
+                    json_extract(value,'$.w'), json_extract(value,'$.b'), json_extract(value,'$.s')
+             FROM json_each(?) WHERE true
+             ON CONFLICT(ts) DO NOTHING`
+          ).bind(JSON.stringify(rows))
+        );
+      }
+      const t = (!tErr && tres && tres.stationDataItems && tres.stationDataItems[0]) || null;
+      if (t) {
+        stmts.push(
+          env.DB.prepare(
+            `INSERT INTO daily (day, gen, use, buy, sell, charge, discharge, peak_power, peak_ts)
+             VALUES (?,?,?,?,?,?,?,?,?)
+             ON CONFLICT(day) DO UPDATE SET gen=excluded.gen, use=excluded.use, buy=excluded.buy,
+               sell=excluded.sell, charge=excluded.charge, discharge=excluded.discharge,
+               peak_power=CASE WHEN excluded.peak_power > COALESCE(daily.peak_power,-1) THEN excluded.peak_power ELSE daily.peak_power END,
+               peak_ts=CASE WHEN excluded.peak_power > COALESCE(daily.peak_power,-1) THEN excluded.peak_ts ELSE daily.peak_ts END`
+          ).bind(day, t.generationValue ?? 0, t.consumptionValue ?? 0, t.purchaseValue ?? 0,
+                 t.gridValue ?? 0, t.chargeValue ?? 0, t.dischargeValue ?? 0,
+                 peakTs != null ? peak : null, peakTs)
+        );
+      }
+
+      let wrote = 0;
+      if (stmts.length) {
+        const res = await env.DB.batch(stmts);
+        // Report rows actually inserted, not rows fetched — with DO NOTHING most
+        // of a partially-covered day is already present and writes nothing. Read
+        // the sample statement's own result: when a day has totals but no frames
+        // res[0] is the daily upsert, and counting it would invent a sample.
+        if (sampleStmtAt >= 0) {
+          const r: any = res[sampleStmtAt];
+          wrote = (r && r.meta && r.meta.changes) || 0;
+        }
+      }
+      samplesWritten += wrote;
+      if (t) daysWritten++;
+      if (tErr) { failed++; if (firstFailedMs == null) firstFailedMs = ms; }
+      report.push({ day, framesSeen: rows.length, samplesInserted: wrote, totals: !!t, ...(tErr ? { totalsError: tErr } : {}) });
+      // Deye's day totals are now the source of truth for this day; drop the
+      // cached history responses so the app re-reads instead of serving the gap.
+      // `daily` just changed, so the 30-min lifetime aggregate and the cached
+      // history responses for this day are both stale — drop them together.
+      await env.DB.batch([
+        env.DB.prepare("DELETE FROM meta WHERE k LIKE ?").bind(`hist_v2_%${day}%`),
+        env.DB.prepare("DELETE FROM meta WHERE k='totals_cache'"),
+      ]).catch(() => {});
+    } catch (e: any) {
+      failed++;
+      if (firstFailedMs == null) firstFailedMs = ms;
+      report.push({ day, error: String((e && e.message) || e) });
+    }
+  }
+
+  const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  return c.json({
+    ok: failed === 0,
+    from, to, daysRequested: requested, daysProcessed: days,
+    samplesWritten, daysWritten, failed,
+    maxDaysPerCall: BACKFILL_MAX_DAYS,
+    // Resume point for the rest of the range; null when the range is finished.
+    nextFrom: requested > days ? iso(lastMs + 86400000) : null,
+    // Days that errored are NOT covered by nextFrom (which only moves forward) —
+    // re-run from here to retry them, otherwise a failed day is silently skipped.
+    retryFrom: firstFailedMs != null ? iso(firstFailedMs) : null,
+    detail: report,
+  }, failed ? 207 : 200);
+});
 app.get("/api/_dev", async (c) => {
   const env = c.env;
   const devs = await listDevices(env);

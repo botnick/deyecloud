@@ -37,7 +37,7 @@ export const postLogin = (pin: string) =>
     body: JSON.stringify({ pin }),
   });
 export interface DeviceData { key: string; value: string; unit: string; }
-export interface Device { sn: string; type: string; online: boolean; collectionTime: number; collectorSn?: string; dataList: DeviceData[]; error?: string; }
+export interface Device { sn: string; type: string; online: boolean; collectionTime: number; collectorSn?: string; gridNominal?: { v?: number; hz?: number }; dataList: DeviceData[]; error?: string; }
 
 export const getStation = () => api<Station>("/api/station");
 export const getStations = () => api<Station[]>("/api/stations");

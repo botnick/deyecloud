@@ -1,7 +1,18 @@
 import type { Latest } from "./api";
-import { ELECTRICITY_RATE as RATE, CO2_PER_KWH } from "./config";
+import { CO2_PER_KWH } from "./config";
+import { DEFAULT_SETTINGS, type Settings } from "./settings";
+import { savingsOf } from "./economics";
 
 export interface Insight { tone: "ok" | "info" | "warn" | "tip"; title: string; detail: string; sub?: string[]; }
+
+// The tariff is the USER's, not a constant. The money cards (Home/History/Lifetime)
+// already run through economics.savingsOf with the saved settings, so the insight
+// text has to use the same numbers or the same screen shows two different figures.
+// Settings are optional so callers that genuinely have none still work — they fall
+// back to the same defaults the settings hook starts from.
+const rateOf = (s?: Settings) => (s || DEFAULT_SETTINGS);
+const rateNote = (s: Settings) =>
+  `คิดที่ค่าไฟ ${s.rate} บาท/หน่วย${s.sellRate > 0 ? ` · ขายคืน ${s.sellRate} บาท/หน่วย` : ""} (ปรับได้ในตั้งค่า)`;
 
 const b = (n: number) => Math.round(n).toLocaleString("th-TH");
 const u = (n: number) => (Number(n) || 0).toFixed(1);
@@ -9,8 +20,9 @@ const u = (n: number) => (Number(n) || 0).toFixed(1);
 // วิเคราะห์ทั้งหมดคำนวณจากเลขจริง ยึดสมการสมดุลพลังงาน:
 //   ผลิต = ใช้เอง + ชาร์จแบต + ไหลย้อน
 //   ใช้   = แสงแดดตรง + แบตจ่าย + ซื้อไฟ
-export function analyze(l: Latest, capacityKw?: number): Insight[] {
+export function analyze(l: Latest, capacityKw?: number, settings?: Settings): Insight[] {
   const out: Insight[] = [];
+  const st = rateOf(settings);
   const bs = (l.battStatus || "").toUpperCase();
   const hour = new Date((l.updatedAt || Date.now() / 1000) * 1000).getHours();
   const daytime = hour >= 6 && hour < 18;
@@ -85,16 +97,16 @@ export function analyze(l: Latest, capacityKw?: number): Insight[] {
     });
   }
 
-  // ----- 4) เงินที่ประหยัด (อ้างค่าไฟ ~4.4 บาท/หน่วย) -----
+  // ----- 4) เงินที่ประหยัด (ค่าไฟที่ผู้ใช้ตั้งไว้ ผ่านสูตรเดียวกับการ์ดเงิน) -----
   if (l.useToday > 0.1) {
-    const woSolar = l.useToday * RATE; // ถ้าไม่มีโซลาร์ ต้องซื้อทั้งหมด
-    const cost = l.buyToday * RATE; // จ่ายจริง
-    const saved = woSolar - cost;
+    const woSolar = l.useToday * st.rate; // ถ้าไม่มีโซลาร์ ต้องซื้อทั้งหมด
+    const cost = l.buyToday * st.rate; // จ่ายจริง
+    const saved = savingsOf({ use: l.useToday, buy: l.buyToday, sell: l.sellToday }, st);
     out.push({
       tone: "ok",
       title: `วันนี้ประหยัด ~${b(saved)} บาท`,
       detail: `ถ้าไม่มีโซลาร์ต้องจ่าย ~${b(woSolar)} บาท · จ่ายจริงแค่ ~${b(cost)} บาท`,
-      sub: ["คิดที่ค่าไฟ ~4.4 บาท/หน่วย (โดยประมาณ)"],
+      sub: [rateNote(st)],
     });
   }
 
@@ -128,16 +140,17 @@ const clamp100 = (x: number) => Math.round(Math.max(0, Math.min(100, x)));
 
 // วิเคราะห์ข้อมูลย้อนหลังของช่วงที่เลือก (วัน = เส้นกำลังไฟ / เดือน·ปี = พลังงานรวมจาก Deye).
 // ทุกค่าคำนวณจากตัวเลขจริง — รายวัน integrate เส้นกำลังไฟ (W) เป็นพลังงาน (หน่วย),
-// รายเดือน/ปีรวมจากยอด Deye โดยตรง อ้างอิงค่าไฟ ~4.4 บาท/หน่วย.
+// รายเดือน/ปีรวมจากยอด Deye โดยตรง · ค่าไฟใช้ค่าที่ผู้ใช้ตั้งไว้ (ไม่ fix ไว้ในโค้ด).
 export interface DayTotals { gen: number; use: number; buy: number; sell: number; charge: number; discharge: number; }
-export function analyzeHistory(range: "day" | "month" | "year", points: any[], capacityKw?: number, totals?: DayTotals | null): Insight[] {
+export function analyzeHistory(range: "day" | "month" | "year", points: any[], capacityKw?: number, totals?: DayTotals | null, settings?: Settings): Insight[] {
   if (!points || !points.length) return [];
   const cap = capacityKw && capacityKw > 0 ? capacityKw : 0;
-  return range === "day" ? analyzeDay(points, cap, totals) : analyzeSpan(range, points, cap);
+  const st = rateOf(settings);
+  return range === "day" ? analyzeDay(points, cap, st, totals) : analyzeSpan(range, points, cap, st);
 }
 
 // ---------- รายวัน: ยอดพลังงานจริงจาก Deye (ถ้ามี) + integrate เส้นกำลังไฟทำ peak/เวลา/SOC ----------
-function analyzeDay(points: any[], cap: number, totals?: DayTotals | null): Insight[] {
+function analyzeDay(points: any[], cap: number, st: Settings, totals?: DayTotals | null): Insight[] {
   const out: Insight[] = [];
   const kw = (w: number) => (w / 1000).toFixed(2);
   const fr = points.filter((p) => p.ts != null).sort((a, b) => a.ts - b.ts);
@@ -273,11 +286,11 @@ function analyzeDay(points: any[], cap: number, totals?: DayTotals | null): Insi
 
   // 6) เงินที่ประหยัด
   if (useKwh > 0.1) {
-    const woSolar = useKwh * RATE, cost = impKwh * RATE;
+    const woSolar = useKwh * st.rate, cost = impKwh * st.rate;
     out.push({
-      tone: "ok", title: `วันนี้ประหยัด ~${b(woSolar - cost)} บาท`,
+      tone: "ok", title: `วันนี้ประหยัด ~${b(savingsOf({ use: useKwh, buy: impKwh, sell: expKwh }, st))} บาท`,
       detail: `ถ้าไม่มีโซลาร์ต้องจ่าย ~${b(woSolar)} · จ่ายจริง ~${b(cost)} บาท`,
-      sub: ["ค่าไฟอ้างอิง ~4.4 บาท/หน่วย (โดยประมาณ)"],
+      sub: [rateNote(st)],
     });
   }
 
@@ -344,7 +357,7 @@ function dayVerdict(m: {
 }
 
 // ---------- รายเดือน/ปี: รวมยอดพลังงานจริงจาก Deye + คาดการณ์ + CO₂ ----------
-function analyzeSpan(range: "month" | "year", points: any[], cap: number): Insight[] {
+function analyzeSpan(range: "month" | "year", points: any[], cap: number, st: Settings): Insight[] {
   const out: Insight[] = [];
   const s = points.reduce(
     (a, p) => ({ gen: a.gen + (p.gen || 0), use: a.use + (p.use || 0), buy: a.buy + (p.buy || 0), sell: a.sell + (p.sell || 0) }),
@@ -355,7 +368,7 @@ function analyzeSpan(range: "month" | "year", points: any[], cap: number): Insig
   const n = points.length || 1;
   const selfSuff = s.use > 0 ? clamp100(((s.use - s.buy) / s.use) * 100) : 0;
   const selfCons = s.gen > 0 ? clamp100(((s.gen - s.sell) / s.gen) * 100) : 0;
-  const saved = (s.use - s.buy) * RATE;
+  const saved = savingsOf(s, st);
   const co2 = Math.max(0, (s.use - s.buy)) * CO2_PER_KWH; // ไฟที่ไม่ต้องดึงจากระบบ = CO₂ ที่ลดได้
 
   let best = points[0], worst = points.find((p) => (p.gen || 0) > 0) || points[0];
@@ -394,8 +407,8 @@ function analyzeSpan(range: "month" | "year", points: any[], cap: number): Insig
 
   out.push({
     tone: "ok", title: `${span}ประหยัดค่าไฟ ~${b(saved)} บาท`,
-    detail: `ถ้าไม่มีโซลาร์ต้องจ่าย ~${b(s.use * RATE)} บาท · จ่ายจริง ~${b(s.buy * RATE)} บาท`,
-    sub: [`ค่าไฟ ~4.4 บาท/หน่วย · ลดการปล่อย CO₂ ~${b(co2)} กก.`],
+    detail: `ถ้าไม่มีโซลาร์ต้องจ่าย ~${b(s.use * st.rate)} บาท · จ่ายจริง ~${b(s.buy * st.rate)} บาท`,
+    sub: [`${rateNote(st)} · ลดการปล่อย CO₂ ~${b(co2)} กก.`],
   });
   out.push({
     tone: "info", title: `เฉลี่ยต่อ${unit} ${u(s.gen / n)} หน่วย`,

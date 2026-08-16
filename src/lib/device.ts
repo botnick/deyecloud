@@ -25,7 +25,7 @@ const LABEL: Record<string, string> = {
   TotalConsumptionPower: "กำลังใช้รวม", TotalConsumptionApparentPower: "กำลังปรากฏ",
   DailyConsumption: "ใช้วันนี้", TotalConsumption: "ใช้สะสม", LoadFrequency: "ความถี่โหลด",
   LoadPhasePowerA: "โหลดเฟส A", LoadPhasePowerB: "โหลดเฟส B", LoadPhasePowerC: "โหลดเฟส C",
-  BatteryVoltage: "แรงดันแบต", BatteryCurrent1: "กระแสแบต 1", BatteryCurrent2: "กระแสแบต 2", BatteryPower: "กำลังแบต",
+  BatteryVoltage: "แรงดันแบต", BatteryPower: "กำลังแบต",
   SOC: "ระดับแบต", TotalChargeEnergy: "ชาร์จสะสม", TotalDischargeEnergy: "จ่ายสะสม",
   DailyChargingEnergy: "ชาร์จวันนี้", DailyDischargingEnergy: "จ่ายวันนี้", BatteryRatedCapacity: "ความจุแบต",
   BatteryTotalCurrent: "กระแสแบตรวม",
@@ -48,10 +48,46 @@ const GROUPS: { id: string; title: string; test: RegExp }[] = [
   { id: "other", title: "อื่นๆ", test: /.*/ },
 ];
 
+// Index-suffixed keys (BatteryCurrent1, BatteryCurrent2, …). Label them from the
+// index in the key rather than enumerating a fixed set, so a model that reports a
+// third channel labels itself with no code change.
+//
+// These are the inverter's battery *channels* (DC input ports), NOT a count of
+// physical packs — one channel can feed several packs wired in parallel, and Deye
+// exposes nothing that maps channels to packs. Wording stays at "ช่อง" for that
+// reason; claiming a pack count (or splitting rated capacity between channels)
+// would be inventing a number the API never gave us.
+const INDEXED: [RegExp, string][] = [
+  [/^BatteryCurrent(\d+)$/, "กระแสแบตช่อง "],
+  [/^BatteryVoltage(\d+)$/, "แรงดันแบตช่อง "],
+  [/^BatteryPower(\d+)$/, "กำลังแบตช่อง "],
+  [/^BatterySOC(\d+)$/, "ระดับแบตช่อง "],
+  [/^BatteryTemperature(\d+)$/, "อุณหภูมิแบตช่อง "],
+];
+
+export function dynLabel(key: string): string | undefined {
+  for (const [re, prefix] of INDEXED) {
+    const m = key.match(re);
+    if (m) return prefix + m[1];
+  }
+  return undefined;
+}
+
+// Which battery channels this inverter reports, as sorted channel numbers.
+// Driven entirely by the measure points Deye returns — never a hardcoded count.
+export function batteryChannels(dataList: DeviceData[]): number[] {
+  const ns = new Set<number>();
+  for (const d of dataList || []) {
+    const m = (d.key || "").match(/^BatteryCurrent(\d+)$/);
+    if (m) ns.add(Number(m[1]));
+  }
+  return [...ns].sort((a, b) => a - b);
+}
+
 export function groupDevice(dataList: DeviceData[]): DGroup[] {
   const groups: DGroup[] = GROUPS.map((g) => ({ id: g.id, title: g.title, items: [] }));
   for (const d of dataList || []) {
-    const item: DeviceData = { ...d, key: LABEL[d.key] || d.key };
+    const item: DeviceData = { ...d, key: LABEL[d.key] || dynLabel(d.key) || d.key };
     const g = GROUPS.find((x) => x.test.test(d.key)) || GROUPS[GROUPS.length - 1];
     groups.find((x) => x.id === g.id)!.items.push(item);
   }

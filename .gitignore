@@ -14,3 +14,9 @@ design/shots/
 
 # vite dev server log
 .vite-dev.log
+
+# local agent/tooling state
+.claude/
+.mcp.json
+.summary/
+.uploads/
