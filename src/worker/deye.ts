@@ -57,6 +57,14 @@ async function metaSet(env: Env, k: string, v: string | number) {
 //      call that can burn the account's lockout counter ("Incorrect password,
 //      N attempt remaining"), so it is guarded by an exponential hold recorded in
 //      D1: a wrong secret after a rotation must NOT be retried every cron tick.
+// Errors from the login guard carry a marker so batch callers (backfill) can stop
+// walking their loop instead of paying the guard's D1 reads once per item.
+export const DEYE_AUTH_HOLD = "DEYE_AUTH_HOLD";
+function authHoldError(msg: string): Error { const e: any = new Error(msg); e.code = DEYE_AUTH_HOLD; return e; }
+export const isAuthHold = (e: any) => !!e && e.code === DEYE_AUTH_HOLD;
+// An error envelope that names auth as the reason (token/appId/credentials).
+export const isAuthEnvelope = (d: any) =>
+  !!d && (d.code === 1006 || d.code === 2002 || /^2101/.test(String(d.code || "")) || /auth|token/i.test(String(d.msg || "")));
 let memTok: { token: string; exp: number; at: number } | null = null;
 let loginInflight: Promise<string> | null = null; // single-flight: concurrent callers share one login
 const LOGIN_HOLD_BASE_S = 60;          // first hold after a failed login
@@ -85,7 +93,7 @@ async function getToken(env: Env, rejected?: string, explicitAuth = false): Prom
   const db = await readTokenFromDb(env);
   if (fresh(db)) { memTok = db; return db!.token; }
   if (rejected && !explicitAuth && db && db.token === rejected && now - db.at < MIN_RELOGIN_AGE_S) {
-    throw new Error(`Deye rejected a token issued ${now - db.at}s ago — not re-logging in (upstream error, not auth)`);
+    throw authHoldError(`Deye rejected a token issued ${now - db.at}s ago — not re-logging in (upstream error, not auth)`);
   }
   if (!loginInflight) {
     loginInflight = login(env, now).finally(() => { loginInflight = null; });
@@ -103,7 +111,7 @@ async function login(env: Env, now: number): Promise<string> {
     const m = /(\d+)\s*attempt/i.exec(failMsg || "");
     const hold = loginHoldFor(fails, m ? Number(m[1]) : null);
     const left = Number(failAtRaw || 0) + hold - now;
-    if (left > 0) throw new Error(`Deye login on hold ${left}s (${fails} failed attempt(s), last: ${failMsg || "?"}) — check DEYE_* secrets`);
+    if (left > 0) throw authHoldError(`Deye login on hold ${left}s (${fails} failed attempt(s), last: ${failMsg || "?"}) — check DEYE_* secrets`);
   }
 
   const url = `${env.DEYE_BASE_URL}/account/token?appId=${env.DEYE_APP_ID}`;
@@ -128,7 +136,7 @@ async function login(env: Env, now: number): Promise<string> {
       env.DB.prepare("INSERT INTO meta (k,v) VALUES ('deye_login_fail_at',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(now)),
       env.DB.prepare("INSERT INTO meta (k,v) VALUES ('deye_login_fail_msg',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(msg.slice(0, 200)),
     ]);
-    throw new Error(`Deye token failed: ${msg}`);
+    throw authHoldError(`Deye token failed: ${msg}`);
   }
 
   const ttl = data.expiresIn ? Number(data.expiresIn) : 5184000;
@@ -227,7 +235,8 @@ async function apiPostLive(env: Env, path: string, payload: any): Promise<any> {
       await markRefreshUseless(env, `${data.code || data.status || ""} ${data.msg || ""}`.trim()).catch(() => {});
     }
   }
-  if (loginFailsPending && !isAuthFailed(data)) {
+  const trulyOk = !!data && data.success !== false && !(typeof data.status === "number" && data.status >= 400);
+  if (loginFailsPending && trulyOk) {
     loginFailsPending = false;
     await env.DB.prepare("DELETE FROM meta WHERE k IN ('deye_login_fails','deye_login_fail_at','deye_login_fail_msg')").run().catch(() => {});
   }

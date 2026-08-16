@@ -2,7 +2,7 @@
 // D1, realtime polling on a cron schedule. The SPA is served via the ASSETS
 // binding (configured by @cloudflare/vite-plugin).
 import { Hono } from "hono";
-import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, bkkDay, type Env } from "./deye";
+import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, isAuthHold, isAuthEnvelope, bkkDay, type Env } from "./deye";
 import { sunInfo } from "./sun";
 
 // --- External endpoints + defaults — centralized, not scattered as inline literals.
@@ -98,30 +98,51 @@ async function isOperator(req: Request, env: Env): Promise<boolean> {
   return !!env.APP_PIN && (await isAuthed(req, env));
 }
 
-// PIN brute-force guard: a global failure counter in D1 (single-household app,
-// so per-IP buckets buy nothing). The first few misses are free (typos), then
-// the wait doubles up to a ceiling — a 4-digit PIN cannot be enumerated in
-// useful time, while a real owner mistyping thrice waits seconds.
+// PIN brute-force guard. Every attempt first CLAIMS a slot atomically (one
+// UPSERT … RETURNING on a single meta row "count|windowStart"), so concurrent
+// requests can never all observe "0 failures" — the race a read-then-write
+// counter has. Attempt n is allowed no earlier than windowStart + the sum of the
+// holds of the attempts before it: the first PIN_FREE_FAILS are free (typos), then
+// the gap doubles up to PIN_HOLD_MAX_S. A correct PIN deletes the row. Global,
+// not per-IP: single-household app, and per-IP buckets are what a botnet defeats.
 const PIN_FREE_FAILS = 3;
 const PIN_HOLD_BASE_S = 5;
 const PIN_HOLD_MAX_S = 15 * 60;
-const pinHoldFor = (fails: number) => (fails < PIN_FREE_FAILS ? 0 : Math.min(PIN_HOLD_MAX_S, PIN_HOLD_BASE_S * 2 ** (fails - PIN_FREE_FAILS)));
-async function pinGuard(env: Env): Promise<{ fails: number; retryAfter: number }> {
-  const rows = await env.DB.prepare("SELECT k, v FROM meta WHERE k IN ('pin_fails','pin_fail_at')").all();
-  const m: Record<string, string> = {};
-  for (const r of (rows.results || []) as any[]) m[r.k] = r.v;
-  const fails = Number(m.pin_fails) || 0;
-  const left = Number(m.pin_fail_at || 0) + pinHoldFor(fails) - Math.floor(Date.now() / 1000);
-  return { fails, retryAfter: Math.max(0, left) };
+const pinHoldFor = (n: number) => (n < PIN_FREE_FAILS ? 0 : Math.min(PIN_HOLD_MAX_S, PIN_HOLD_BASE_S * 2 ** (n - PIN_FREE_FAILS)));
+function pinAllowedAt(n: number, since: number): number {
+  let t = since;
+  for (let i = PIN_FREE_FAILS; i < n; i++) t += pinHoldFor(i);
+  return t;
+}
+async function pinClaim(env: Env): Promise<{ n: number; retryAfter: number }> {
+  const now = Math.floor(Date.now() / 1000);
+  const row = (await env.DB.prepare(
+    `INSERT INTO meta (k, v) VALUES ('pin_guard', ?)
+     ON CONFLICT(k) DO UPDATE SET v = (CAST(substr(v, 1, instr(v, '|') - 1) AS INTEGER) + 1) || substr(v, instr(v, '|'))
+     RETURNING v`
+  ).bind(`1|${now}`).first()) as { v: string } | null;
+  const [nRaw, sinceRaw] = String((row && row.v) || `1|${now}`).split("|");
+  const n = Number(nRaw) || 1, since = Number(sinceRaw) || now;
+  return { n, retryAfter: Math.max(0, pinAllowedAt(n, since) - now) };
 }
 
 // Retention windows, declared once so the prune and the backfill's lower bound
 // can never drift apart (refilling below the prune horizon just gets deleted).
 const SAMPLES_RETENTION_DAYS = 90;
 const DEVICE_RETENTION_DAYS = 180;
+// The cron fires every CRON_INTERVAL_S (wrangler.jsonc: */5). Data is "stale" once
+// two consecutive ticks are missing plus slack — one place, used by /api/_health,
+// the self-heal in pollAndStore, and echoed to the client for its banner.
+const CRON_INTERVAL_S = 5 * 60;
+const STALE_AFTER_S = CRON_INTERVAL_S * 2 + 120;
+// Thailand day key for an arbitrary ms timestamp (bkkDay() only does now±n).
+const bkkDayOf = (ms: number) => new Date(ms + 7 * 3600 * 1000).toISOString().slice(0, 10);
 
 // --- Cron poll ---------------------------------------------------------
 async function pollAndStore(env: Env) {
+  // Newest sample BEFORE this write: if it is older than the healthy window the
+  // cron was down and today's curve has a hole Deye can still fill (see below).
+  const prev = (await env.DB.prepare("SELECT MAX(ts) m FROM samples").first()) as { m: number | null } | null;
   const l = await getLatest(env);
   const ts = Math.floor(Date.now() / 60000) * 60;
   const day = bkkDay();
@@ -143,6 +164,9 @@ async function pollAndStore(env: Env) {
          peak_power=CASE WHEN excluded.peak_power > COALESCE(daily.peak_power, -1) THEN excluded.peak_power ELSE daily.peak_power END,
          peak_ts=CASE WHEN excluded.peak_power > COALESCE(daily.peak_power, -1) THEN excluded.peak_ts ELSE daily.peak_ts END`
     ).bind(day, l.genToday, l.useToday, l.buyToday, l.sellToday, l.chargeToday, l.dischargeToday, l.genPower, ts),
+    // The poll succeeded, so any recorded cron failure is history (one statement
+    // in the same batch — no extra round trip).
+    env.DB.prepare("DELETE FROM meta WHERE k='last_poll_error'"),
   ];
   // Auto-prune so D1 never bloats (runs once/day). Retention:
   //   • samples (5-min snapshots) → 90 days  (intraday detail; month/year use daily)
@@ -155,6 +179,22 @@ async function pollAndStore(env: Env) {
     stmts.push(env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_prune',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(day));
   }
   await env.DB.batch(stmts);
+
+  // Self-heal after an outage: the gap between the previous newest sample and
+  // now is refilled from Deye's own history (frames + certified day totals) for
+  // every day the gap touches inside the retention window — nobody has to notice
+  // and run /api/_backfill by hand. Best-effort, never blocks the core poll.
+  const gapFrom = prev && prev.m ? Number(prev.m) : null;
+  if (gapFrom != null && ts - gapFrom > STALE_AFTER_S) {
+    // Newest days first (today's chart is what people look at); anything older
+    // than the self-heal window is logged for a manual /api/_backfill.
+    const gapDay = bkkDayOf(gapFrom * 1000);
+    const earliest = bkkDayOf(Date.now() - (SELF_HEAL_MAX_DAYS - 1) * 86400000);
+    const from = gapDay > earliest ? gapDay : earliest;
+    if (gapDay < earliest) console.warn(`self-heal: gap starts ${gapDay}, refilling only ${from}..${day}; run /api/_backfill?from=${gapDay} for the rest`);
+    const r = await backfillRange(env, from, day, SELF_HEAL_MAX_DAYS).catch((e) => { console.error("self-heal backfill failed", e); return null; });
+    if (r) console.log(`self-heal: refilled ${r.samplesWritten} samples over ${r.daysProcessed} day(s) after a ${Math.round((ts - gapFrom) / 60)}-min gap`);
+  }
 
   // Full inverter telemetry — heavy JSON, captured ~every 15 min. Gate on elapsed
   // time since the last successful capture (not the wall-clock minute) so a cron
@@ -359,21 +399,16 @@ app.post("/api/login", async (c) => {
   const env = c.env;
   const { pin } = await c.req.json().catch(() => ({ pin: undefined }));
   if (env.APP_PIN) {
-    const g = await pinGuard(env);
+    const g = await pinClaim(env); // claim BEFORE comparing — see pinClaim
     if (g.retryAfter > 0) {
       c.header("Retry-After", String(g.retryAfter));
       return c.json({ ok: false, error: `ลองผิดหลายครั้ง — รออีก ${g.retryAfter} วินาที`, retryAfter: g.retryAfter }, 429);
     }
     if (typeof pin !== "string" || !timingSafeEq(pin, env.APP_PIN)) {
-      const now = Math.floor(Date.now() / 1000);
-      await env.DB.batch([
-        env.DB.prepare("INSERT INTO meta (k,v) VALUES ('pin_fails',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(g.fails + 1)),
-        env.DB.prepare("INSERT INTO meta (k,v) VALUES ('pin_fail_at',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(now)),
-      ]);
-      const next = pinHoldFor(g.fails + 1);
+      const next = pinHoldFor(g.n);
       return c.json({ ok: false, error: next ? `PIN ไม่ถูกต้อง — ลองใหม่ได้ในอีก ${next} วินาที` : "PIN ไม่ถูกต้อง", retryAfter: next }, 401);
     }
-    if (g.fails) await env.DB.prepare("DELETE FROM meta WHERE k IN ('pin_fails','pin_fail_at')").run();
+    await env.DB.prepare("DELETE FROM meta WHERE k='pin_guard'").run();
   }
   if (!env.APP_PIN) return c.json({ ok: true }); // nothing to sign; the gate is open anyway
   const tok = await authToken(env);
@@ -397,16 +432,23 @@ app.get("/api/_health", async (c) => {
   const d = await first<{ c: number; m: string }>("SELECT COUNT(*) c, MAX(day) m FROM daily");
   const ds = await first<{ c: number; m: number }>("SELECT COUNT(*) c, MAX(ts) m FROM device_samples");
   const login = await loginStatus(env).catch(() => null);
+  const pe = await first<{ v: string }>("SELECT v FROM meta WHERE k='last_poll_error'");
+  let lastPollError: { at: number; msg: string } | null = null;
+  if (pe && pe.v) { try { lastPollError = JSON.parse(pe.v); } catch {} }
   const lastTs = (s && s.m) || 0;
   const ageMin = lastTs ? Math.round((now - lastTs) / 60) : null;
-  const healthy = ageMin != null && ageMin <= 12;
+  const healthy = lastTs > 0 && now - lastTs <= STALE_AFTER_S;
   const loginBad = !!login && login.fails > 0;
   const payload = {
-    ok: true,
+    // ok mirrors cronHealthy so uptime monitors can key on status code / `ok`.
+    ok: healthy,
     serverTime: new Date(now * 1000).toISOString(),
     cronHealthy: healthy,
+    staleAfterSeconds: STALE_AFTER_S,
+    lastPollError: lastPollError && { ...lastPollError, time: new Date(lastPollError.at * 1000).toISOString() },
     summary: lastTs
-      ? `cron เขียนล่าสุด ${ageMin} นาทีที่แล้ว · ${(s?.c || 0).toLocaleString()} แถว · ${healthy ? "ปกติ ✅" : "อาจหยุด ⚠️"}` +
+      ? `cron เขียนล่าสุด ${ageMin} นาทีที่แล้ว · ${(s?.c || 0).toLocaleString()} แถว · ${healthy ? "ปกติ ✅" : "หยุด ⚠️"}` +
+        (lastPollError ? ` · error ล่าสุด: ${lastPollError.msg}` : "") +
         (loginBad ? ` · ล็อกอิน Deye ล้มเหลว ${login!.fails} ครั้ง (${login!.msg}) ⛔` : "")
       : "ยังไม่มีข้อมูล cron",
     // Deye login guard — a wrong secret is retried with an exponential hold, never
@@ -421,7 +463,7 @@ app.get("/api/_health", async (c) => {
   };
   // Explicit UTF-8 + pretty-print so the Thai summary reads correctly when opened
   // raw in a browser (Safari otherwise decodes application/json as Latin-1).
-  return c.body(JSON.stringify(payload, null, 2), 200, { "content-type": "application/json; charset=utf-8" });
+  return c.body(JSON.stringify(payload, null, 2), healthy ? 200 : 503, { "content-type": "application/json; charset=utf-8" });
 });
 
 // auth gate — applies to every /api/* route registered below
@@ -706,6 +748,14 @@ const BACKFILL_MAX_DAYS = Math.max(1, Math.min(
   Math.floor((D1_BUDGET - D1_FIXED) / D1_PER_DAY),
   Math.floor((FETCH_BUDGET - FETCH_FIXED) / FETCH_PER_DAY),
 ));
+// When the cron self-heals a gap it shares the tick's own budget: poll ≈ gap read 1,
+// write batch ≤6, prune check 1, telemetry check 1 + ≤3, cache warm 2, weather 2,
+// = 16 D1 and ~6 fetches on top of the fixed costs above.
+const CRON_TICK_D1 = 16, CRON_TICK_FETCH = 6;
+const SELF_HEAL_MAX_DAYS = Math.max(1, Math.min(
+  Math.floor((D1_BUDGET - D1_FIXED - CRON_TICK_D1) / D1_PER_DAY),
+  Math.floor((FETCH_BUDGET - FETCH_FIXED - CRON_TICK_FETCH) / FETCH_PER_DAY),
+));
 
 // Date.parse happily normalises 2026-02-31 into March 3rd. Round-trip the parsed
 // value back to a string and require it to match, so a nonexistent date is a 400
@@ -726,31 +776,20 @@ function deyeFailed(res: any): string | null {
   return null;
 }
 
-app.post("/api/_backfill", async (c) => {
-  const env = c.env;
-  const ymd = /^\d{4}-\d{2}-\d{2}$/;
-  const from = c.req.query("from") || "";
-  const to = c.req.query("to") || bkkDay();
-  if (!ymd.test(from) || !ymd.test(to)) return c.json({ ok: false, error: "from/to must be YYYY-MM-DD" }, 400);
-
-  const startMs = exactDay(from), endMs = exactDay(to);
-  if (startMs == null || endMs == null) return c.json({ ok: false, error: "from/to must be a real YYYY-MM-DD date" }, 400);
-  if (startMs > endMs) return c.json({ ok: false, error: "from must be <= to" }, 400);
-  // Bound the window on both sides: samples are pruned at the retention horizon
-  // (older writes would just be deleted again), and a future date returns empty.
-  const todayMs = exactDay(bkkDay())!;
-  if (endMs > todayMs) return c.json({ ok: false, error: "to is in the future" }, 400);
-  if (startMs < todayMs - SAMPLES_RETENTION_DAYS * 86400000)
-    return c.json({ ok: false, error: `from is older than the ${SAMPLES_RETENTION_DAYS}-day samples retention` }, 400);
-
+// Refill [from..to] (YYYY-MM-DD, inclusive, both validated by the caller) from
+// Deye's history: frames → samples, day totals → daily. Never clobbers cron rows.
+// Processes at most `maxDays` days from `from` and reports the resume point.
+async function backfillRange(env: Env, from: string, to: string, maxDays = BACKFILL_MAX_DAYS) {
+  const startMs = exactDay(from)!, endMs = exactDay(to)!;
   const requested = Math.round((endMs - startMs) / 86400000) + 1;
-  const days = Math.min(requested, BACKFILL_MAX_DAYS);
+  const days = Math.min(requested, maxDays);
   const lastMs = startMs + (days - 1) * 86400000;
 
   const report: any[] = [];
   let samplesWritten = 0, daysWritten = 0, failed = 0;
   let firstFailedMs: number | null = null;
   const touched: string[] = []; // days whose D1 rows changed → invalidate once at the end
+  let lastErr: string | null = null, stoppedAt: number | null = null;
   const sid = await getStationId(env); // resolved once, not once per getHistory
 
   for (let ms = startMs; ms <= lastMs; ms += 86400000) {
@@ -764,7 +803,7 @@ app.post("/api/_backfill", async (c) => {
       // A Deye error envelope still returns HTTP 200 with no stationDataItems —
       // without this it would look like "0 frames, success" and hide the failure.
       const fErr = deyeFailed(fres);
-      if (fErr) throw new Error(`frames: ${fErr}`);
+      if (fErr) { const e: any = new Error(`frames: ${fErr}`); e.auth = isAuthEnvelope(fres); throw e; }
       // The day-totals call is allowed to fail on its own (frames are still worth
       // keeping) but it must be REPORTED — silently dropping it is how a partial
       // backfill gets mistaken for a complete one.
@@ -846,7 +885,15 @@ app.post("/api/_backfill", async (c) => {
     } catch (e: any) {
       failed++;
       if (firstFailedMs == null) firstFailedMs = ms;
-      report.push({ day, error: String((e && e.message) || e) });
+      const msg = String((e && e.message) || e);
+      report.push({ day, error: msg });
+      // Stop walking when the failure is not per-day: an auth hold / auth
+      // envelope will fail every remaining day identically (and each try still
+      // pays the login guard's D1 reads), and two consecutive identical errors
+      // mean Deye itself is down. The response's retryFrom covers the rest.
+      const sameAsLast = lastErr === msg;
+      lastErr = msg;
+      if (isAuthHold(e) || e.auth || sameAsLast) { stoppedAt = ms; break; }
     }
   }
 
@@ -863,18 +910,41 @@ app.post("/api/_backfill", async (c) => {
   }
 
   const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-  return c.json({
+  const processed = stoppedAt != null ? Math.round((stoppedAt - startMs) / 86400000) + 1 : days;
+  return {
     ok: failed === 0,
-    from, to, daysRequested: requested, daysProcessed: days,
+    from, to, daysRequested: requested, daysProcessed: processed,
     samplesWritten, daysWritten, failed,
-    maxDaysPerCall: BACKFILL_MAX_DAYS,
+    maxDaysPerCall: maxDays,
+    ...(stoppedAt != null ? { stopped: `stopped early at ${iso(stoppedAt)}: ${lastErr}` } : {}),
     // Resume point for the rest of the range; null when the range is finished.
-    nextFrom: requested > days ? iso(lastMs + 86400000) : null,
+    nextFrom: requested > processed ? iso(startMs + processed * 86400000) : null,
     // Days that errored are NOT covered by nextFrom (which only moves forward) —
     // re-run from here to retry them, otherwise a failed day is silently skipped.
     retryFrom: firstFailedMs != null ? iso(firstFailedMs) : null,
     detail: report,
-  }, failed ? 207 : 200);
+  };
+}
+
+app.post("/api/_backfill", async (c) => {
+  const env = c.env;
+  const ymd = /^\d{4}-\d{2}-\d{2}$/;
+  const from = c.req.query("from") || "";
+  const to = c.req.query("to") || bkkDay();
+  if (!ymd.test(from) || !ymd.test(to)) return c.json({ ok: false, error: "from/to must be YYYY-MM-DD" }, 400);
+
+  const startMs = exactDay(from), endMs = exactDay(to);
+  if (startMs == null || endMs == null) return c.json({ ok: false, error: "from/to must be a real YYYY-MM-DD date" }, 400);
+  if (startMs > endMs) return c.json({ ok: false, error: "from must be <= to" }, 400);
+  // Bound the window on both sides: samples are pruned at the retention horizon
+  // (older writes would just be deleted again), and a future date returns empty.
+  const todayMs = exactDay(bkkDay())!;
+  if (endMs > todayMs) return c.json({ ok: false, error: "to is in the future" }, 400);
+  if (startMs < todayMs - SAMPLES_RETENTION_DAYS * 86400000)
+    return c.json({ ok: false, error: `from is older than the ${SAMPLES_RETENTION_DAYS}-day samples retention` }, 400);
+
+  const r = await backfillRange(env, from, to);
+  return c.json(r, r.failed ? 207 : 200);
 });
 app.get("/api/_dev", async (c) => {
   const env = c.env;
@@ -906,6 +976,13 @@ app.all("*", async (c) => {
 export default {
   fetch: app.fetch,
   async scheduled(_event: any, env: Env, ctx: { waitUntil(p: Promise<any>): void }) {
-    ctx.waitUntil(ensureSchema(env).then(() => pollAndStore(env)).catch((e) => console.error("poll failed", e)));
+    ctx.waitUntil(
+      ensureSchema(env).then(() => pollAndStore(env)).catch(async (e) => {
+        console.error("poll failed", e);
+        // Persist WHY the cron is failing so /api/_health can say more than "stale".
+        const rec = JSON.stringify({ at: Math.floor(Date.now() / 1000), msg: String((e && e.message) || e).slice(0, 300) });
+        await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_poll_error',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(rec).run().catch(() => {});
+      })
+    );
   },
 };

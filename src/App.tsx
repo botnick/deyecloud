@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getSession, getStation, getStations, getLatest, getWeather, type Latest, type Weather, type Station } from "./lib/api";
+import { getSession, getStation, getStations, getLatest, getWeather, getHealth, type Health, type Latest, type Weather, type Station } from "./lib/api";
 import { PinGate } from "./components/PinGate";
 import { Splash } from "./components/Splash";
 import { Header } from "./components/Header";
@@ -16,6 +16,7 @@ import { scenarioByKey } from "./lib/scenarios";
 import { useSmartPoll } from "./lib/usePoll";
 import { timeStr } from "./lib/format";
 import { APP_NAME, REPO_URL } from "./lib/brand";
+import { STALE_AFTER_MIN } from "./lib/config";
 
 export type View = "home" | "today" | "weather" | "device" | "history";
 
@@ -36,6 +37,30 @@ function OfflineBanner({ latest, onRetry }: { latest: Latest | null; onRetry: ()
         </div>
       </div>
       <button onClick={onRetry} className="shrink-0 h-9 px-3.5 rounded-xl bg-warn text-white text-[14px] font-bold active:scale-95 transition-transform">ลองใหม่</button>
+    </div>
+  );
+}
+
+/** Reachable, but the data itself has stopped moving — collector down, inverter
+ *  offline, or Deye login failing. Says which, from the public health probe. */
+function StaleBanner({ ageMin, health }: { ageMin: number; health: Health | null }) {
+  const cronDown = health && !health.cronHealthy;
+  const title = cronDown ? "ระบบเก็บข้อมูลหยุดทำงาน" : "อินเวอร์เตอร์ไม่ส่งข้อมูล";
+  const why = health?.deyeLogin && !health.deyeLogin.ok
+    ? `ล็อกอิน Deye ล้มเหลว: ${health.deyeLogin.lastError || "?"}`
+    : health?.lastPollError ? `สาเหตุล่าสุด: ${health.lastPollError.msg}`
+    : cronDown ? "ข้อมูลใหม่ไม่ถูกบันทึกมาระยะหนึ่ง" : "ค่าที่เห็นเป็นค่าล่าสุดที่ได้รับ · อาจเป็นเน็ต/สัญญาณของตัวส่งข้อมูลที่บ้าน";
+  return (
+    <div className="mb-4 flex items-center gap-3 rounded-2xl border border-warn/25 bg-warn/10 px-4 py-3">
+      <span className="grid place-items-center w-9 h-9 rounded-full bg-warn/15 text-warn shrink-0">
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+        </svg>
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[15px] font-bold text-title leading-tight">{title} · {ageMin >= 120 ? `${Math.round(ageMin / 60)} ชม.` : `${ageMin} นาที`}</div>
+        <div className="text-[13px] text-body mt-0.5 break-words">{why}</div>
+      </div>
     </div>
   );
 }
@@ -84,6 +109,17 @@ export default function App() {
     try { const v = localStorage.getItem("deye_station"); return v ? Number(v) : null; } catch { return null; }
   });
   const [offline, setOffline] = useState(false);
+  // Stale = reachable but not moving. Age from the inverter's own timestamp; the
+  // health probe (public, cheap) is fetched only while stale, to explain why.
+  const [health, setHealth] = useState<Health | null>(null);
+  const staleMin = latest ? Math.floor((Date.now() / 1000 - latest.updatedAt) / 60) : 0;
+  const stale = !!latest && !offline && staleMin >= STALE_AFTER_MIN;
+  useEffect(() => {
+    if (!stale) { setHealth(null); return; }
+    let live = true;
+    getHealth().then((h) => { if (live) setHealth(h); }).catch(() => {});
+    return () => { live = false; };
+  }, [stale, latest?.updatedAt]);
   const active = stations.find((s) => s.id === selectedId) || station; // selected (or default) station
   const shownLatest = sim ? scenarioByKey(sim)?.latest ?? latest : latest;
   const [spinning, setSpinning] = useState(false);
@@ -209,6 +245,7 @@ export default function App() {
         {view !== "device" && <Header stationName={active?.name} stations={stations} selectedId={selectedId} onSwitch={switchStation} onRefresh={manualRefresh} spinning={spinning} cooldown={cooldownLeft} />}
         <div className={`px-[18px] pb-[calc(96px+env(safe-area-inset-bottom))] min-h-[70vh] ${view === "device" ? "pt-[calc(12px+env(safe-area-inset-top))]" : "pt-5"}`}>
           {offline && !sim && <OfflineBanner latest={latest} onRetry={() => refresh(true)} />}
+          {stale && !sim && <StaleBanner ageMin={staleMin} health={health} />}
           <div key={view} className="view-anim">
             {view === "home" && <HomeView latest={shownLatest} weather={weather} capacity={active?.capacity} stationName={active?.name} onDevice={() => go("device")} />}
             {view === "today" && <TodayView latest={shownLatest} capacity={active?.capacity} />}

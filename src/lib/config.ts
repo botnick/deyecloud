@@ -9,3 +9,6 @@ export const CO2_PER_KWH = 0.5;
 // nothing (varies by scheme), so default 0 = conservative; users set their own
 // rate/cost in ตั้งค่า (the values here are only the fall-back defaults).
 export const DEFAULT_SELL_RATE = 0;
+// Data older than this (inverter's own lastUpdateTime) is flagged as stale in
+// the UI. Deye/collector cadence is 5 min; 3 missed cycles is unambiguous.
+export const STALE_AFTER_MIN = 15;
