@@ -1,0 +1,167 @@
+# โซลาร์มอนิเตอร์ · Deye Solar Monitor (PWA)
+
+**แอปดูระบบโซลาร์เซลล์แบบเรียลไทม์ ภาษาไทย** — เห็นกำลังผลิตจากแผงโซลาร์ การใช้ไฟในบ้าน สถานะแบตเตอรี่ และการซื้อ-ขายไฟกับการไฟฟ้า ครบในแอปเดียว ติดตั้งฟรี รันบน Cloudflare ทุน **0 บาท**
+
+ติดตามระบบ **โซลาร์เซลล์ / อินเวอร์เตอร์ Deye** ของคุณได้ทุกที่ทุกเวลาผ่านมือถือ พร้อมผังการไหลของพลังงานแบบสด พยากรณ์อากาศ และช่วงแดดดีสุดของวัน รองรับระบบ **on-grid / hybrid / off-grid** ครบทุกรูปแบบ ออกแบบให้อ่านง่ายสำหรับทุกวัย
+
+- ⚡ **เรียลไทม์** — ผังการไหลของพลังงาน (โซลาร์ ↔ บ้าน ↔ แบตเตอรี่ ↔ กริด) อัปเดตสดจาก **Deye Cloud Open API** จริง
+- 🏡 **ใช้ง่ายสำหรับทุกวัย** — ฟอนต์ Sarabun ตัวเลขใหญ่ ปุ่มน้อย ภาษาไทยกระชับ ออกแบบเพื่อผู้สูงอายุ
+- 💸 **ทุน 0 บาท** — รันบน **Cloudflare Workers + D1** ด้วย free tier ล้วน ไม่มีค่าเซิร์ฟเวอร์รายเดือน
+- 📲 **ติดตั้งเป็นแอป (PWA)** — เพิ่มลงหน้าจอโฮมได้เหมือนแอปจริง ทำงาน offline ได้
+- 🔒 **ปลอดภัย** — กุญแจลับเก็บฝั่ง Worker เท่านั้น ผู้ใช้ไม่ต้องล็อกอินบัญชี Deye
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/botnick/deyecloud)
+
+> **เริ่มใช้ใน 1 คลิก** — กดปุ่มด้านบนเพื่อ deploy เป็นของคุณเองบน Cloudflare ฟรี · ระบบ provision D1 + ถาม secret (จาก `.dev.vars.example`) ให้อัตโนมัติ แค่ใส่ค่า Deye / PIN / อากาศ ของคุณ · หรือใช้ `npm run setup` (CLI) ก็ได้
+
+> 👩‍💻 **นักพัฒนา:** สถาปัตยกรรมละเอียด [`ARCHITECTURE.md`](./ARCHITECTURE.md) · วิธี deploy [`DEPLOY.md`](./DEPLOY.md)
+
+---
+
+## ภาพหน้าจอ
+
+<p align="center"><img src="docs/shots/banner.png" alt="ทุกหน้าจอ" width="880"></p>
+
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="docs/shots/home.png" alt="หน้าหลัก" width="200"><br><b>หน้าหลัก</b></td>
+    <td align="center" width="25%"><img src="docs/shots/today.png" alt="วันนี้" width="200"><br><b>วันนี้</b></td>
+    <td align="center" width="25%"><img src="docs/shots/weather.png" alt="อากาศ" width="200"><br><b>อากาศ</b></td>
+    <td align="center" width="25%"><img src="docs/shots/history.png" alt="ย้อนหลัง" width="200"><br><b>ย้อนหลัง</b></td>
+  </tr>
+</table>
+
+**ผังการไหลของพลังงาน — รองรับทุกสถานะจริง**
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/shots/flow-peak.png" alt="ผลิตเต็ม" width="240"><br>กลางวัน · ผลิตเต็ม + ไฟย้อน</td>
+    <td align="center"><img src="docs/shots/flow-charging.png" alt="ชาร์จแบต" width="240"><br>แดดดี · กำลังชาร์จแบต</td>
+    <td align="center"><img src="docs/shots/flow-discharge.png" alt="แบตจ่ายไฟ" width="240"><br>ไม่มีแดด · แบตจ่ายไฟ</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/shots/flow-offgrid.png" alt="ออฟกริด" width="240"><br>ไฟดับ (ออฟกริด) · แบตจ่าย</td>
+    <td align="center"><img src="docs/shots/flow-buy.png" alt="ซื้อไฟ" width="240"><br>กลางคืน · ซื้อไฟจากกริด</td>
+    <td></td>
+  </tr>
+</table>
+
+---
+
+## ฟีเจอร์
+
+- **หน้าหลัก** — สถานะระบบ (ปกติ/แจ้งเตือน), ผลิตไฟวันนี้ (ring), ประหยัดเงิน, ผังการไหลของพลังงาน (โซลาร์/บ้าน/กริด/แบต เส้นวิ่ง)
+- **วันนี้** — สรุปผลิต/ใช้/ซื้อ/ไฟย้อน, พึ่งพาตัวเอง, การหมุนเวียนพลังงาน (stacked bar)
+- **อากาศ** — พยากรณ์ TMD, **เส้นทางดวงอาทิตย์ (golden hour)** + ช่วงแดดดีสุด, **ดัชนี UV**, ราย ชม. + 7 วัน
+- **ย้อนหลัง** — กราฟพลังงานราย วัน/เดือน/ปี (Power Profile + Bar chart) เก็บถาวรใน D1
+- **คำแนะนำ** — การ์ดวิเคราะห์อัตโนมัติจากเลขจริง (สมการสมดุลพลังงาน — **ไม่ใช่ AI**) ปรับตามชนิดระบบ on/hybrid/off-grid
+- **รายละเอียดเครื่อง** — ค่าต่อเฟส/PV string/BMS (เข้าผ่านปุ่มบนหน้าหลัก)
+- **หลายสถานี** — ถ้าบัญชีมี >1 สถานี จะมีตัวสลับสถานีบนหัวจอให้อัตโนมัติ (จำค่าที่เลือก)
+- **ทนทาน** — เชื่อม Deye ไม่ได้ → แถบ "เชื่อมต่อระบบไม่ได้" + คงข้อมูลล่าสุด + ลองใหม่อัตโนมัติ; token หมดอายุกู้คืนเอง; cron ไม่บันทึกค่า 0 ตอนระบบล่ม
+- **PWA — ติดตั้งเป็นแอปได้ทุก device** — แถบ "เพิ่มลงหน้าจอโฮม" ปรับข้อความตามอุปกรณ์อัตโนมัติ: Chrome/Edge/Android (กดติดตั้งทีเดียว), iPhone/iPad Safari, macOS Safari, Firefox/อื่นๆ · ทำงาน offline ได้
+
+---
+
+## สถาปัตยกรรมโดยย่อ
+
+```
+PWA (มือถือ) ─▶ Cloudflare Worker ─┬─▶ Deye Open API   (เรียลไทม์ + ย้อนหลัง + device)
+   PIN เข้า         SPA + /api/*     ├─▶ D1 SQLite       (history + cache + token)
+                    cron ทุก 5 นาที  └─▶ TMD / Open-Meteo (อากาศ + UV — พิกัดจาก station)
+```
+
+- ทุกอย่างอยู่ใน **Worker เดียว**: เสิร์ฟ SPA + `/api/*` + cron + D1
+- **secret อยู่ใน Worker เท่านั้น** (`DEYE_APP_SECRET`, `DEYE_PASSWORD`) — ไม่หลุดฝั่ง client; ผู้ใช้ไม่ต้อง login บัญชี Deye
+- ผู้ใช้เข้าด้วย **PIN** (secret `APP_PIN`) → cookie HMAC
+- cron poll `/station/latest` ทุก 5 นาที เขียน D1 → กราฟย้อนหลัง วัน/เดือน/ปี
+- station / พิกัด / กำลังติดตั้ง **ค้นจาก API เอง** ไม่ hardcode
+- การรับแดด (ขึ้น-ตก, ช่วงแดดดี, ชั่วโมงแดดเต็ม) **คำนวณจริง** (NOAA + Haurwitz) ใน `src/worker/sun.ts`
+
+**Stack:** Vite 6 · React 19 + TypeScript · Tailwind CSS v4 · Hono 4 · Cloudflare Workers / D1 / Cron / Static Assets · vite-plugin-pwa · Meteocons
+
+---
+
+## เริ่มต้น (local)
+
+```bash
+npm install
+cp .dev.vars.example .dev.vars   # แล้วใส่ค่าจริง (ดูหัวข้อ "config")
+npm run dev                       # → http://localhost:5174  (มือถือใน LAN: http://<ip>:5174)
+```
+
+- ใส่ PIN ที่ตั้งไว้ (เช่น 2580) เพื่อเข้า
+- **cron ไม่ทำงานใน `vite dev`** → เปิด `GET /api/_poll` 1 ครั้งเพื่อ seed ข้อมูลแรกลง D1
+- ดู payload ดิบจาก Deye: `GET /api/_debug` · ทดสอบ UI ด้วยฉากจำลอง: `?dev=1` หรือ `?sim=peak`
+
+## Deploy ($0)
+
+**A — One-click:** กดปุ่ม **Deploy to Cloudflare** ด้านบนสุด → CF fork repo + provision D1 + ถาม secret จาก `.dev.vars.example` → deploy ให้เอง
+
+**B — CLI คำสั่งเดียว** (ใช้ส่วนตัว ไม่ต้องเปิด public):
+
+```bash
+npx wrangler login        # ล็อกอิน Cloudflare ครั้งเดียว
+# ใส่ค่าลับใน .dev.vars: DEYE_APP_SECRET, DEYE_PASSWORD, APP_PIN, TMD_TOKEN
+npm run setup             # สร้าง D1 + ใส่ id ลง wrangler.jsonc + ตั้ง secret + build + deploy อัตโนมัติ
+```
+
+อัปเดตครั้งต่อไป: `npm run deploy` · ดู log: `npm run tail` · **รายละเอียดเต็มใน [`DEPLOY.md`](./DEPLOY.md)**
+
+ได้ URL `https://deyecloud.<subdomain>.workers.dev` → เปิดบนมือถือ → **Add to Home Screen** = แอป PWA
+ตารางใน D1 สร้างเองตอน request แรก · cron เริ่มเองทุก 5 นาที
+
+---
+
+## คำสั่ง
+
+| คำสั่ง | ทำอะไร |
+|---|---|
+| `npm run dev` | dev server (port 5174) — เสิร์ฟ Worker + SPA |
+| `npm run build` | build → `dist/` |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run setup` | **ตั้งค่า + deploy ครั้งแรกอัตโนมัติ** (D1 + secret + deploy) |
+| `npm run deploy` | build + deploy ขึ้น Cloudflare |
+| `npm run db:create` / `db:init` | สร้าง / ตั้งตาราง D1 (manual — ปกติ `setup` ทำให้แล้ว) |
+| `npm run tail` | ดู log production |
+| `node design/shoot.mjs` | ภาพหน้าจอ 5 หน้า → `design/shots/` (Windows Chrome) |
+| `node design/mockup.mjs` | ภาพ mockup (phone frame) ทุกหน้า + ผังการไหล → `docs/shots/` |
+
+## ค่า config
+
+ตั้งค่าน้อยที่สุด — **สถานี / พิกัด / กำลังติดตั้ง / สถานที่ ดึงจาก Deye อัตโนมัติแล้ว cache ใน D1** ไม่ต้องตั้งเอง · ไม่มีค่าส่วนตัว hardcode ในโค้ดเลย
+
+**ไม่ลับ (commit อยู่ใน `wrangler.jsonc` → `vars`):**
+
+| ตัวแปร | ค่า | หมายเหตุ |
+|---|---|---|
+| `DEYE_BASE_URL` | `…eu1-developer…/v1.0` | ค่าตั้งต้น EU — เปลี่ยนเป็น us1 ถ้าบัญชีอยู่ US |
+| `TMD_BASE` | `data.tmd.go.th/nwpapi/v1/forecast/location` | มีค่าตั้งต้นให้แล้ว |
+
+**ค่าบัญชี Deye (ตั้งต่อ Worker ตอน deploy — ไม่ commit):** `DEYE_APP_ID` · `DEYE_EMAIL` (จาก developer.deyecloud.com)
+
+**ลับ** (`.dev.vars` local · `wrangler secret` prod): `DEYE_APP_SECRET`, `DEYE_PASSWORD` · **optional:** `APP_PIN` (ไม่ตั้ง = เปิดสาธารณะ) · `TMD_TOKEN` (ไม่ตั้ง = ใช้ Open-Meteo)
+
+> **optional ทั้งหมด (ไม่ตั้งก็ได้):** `DEYE_STATION_ID` (ปักสถานีเจาะจง แทนเลือกตัวแรกอัตโนมัติ) · `DEYE_COMPANY_ID` · `CONTACT_EMAIL` · `WEATHER_LAT`/`WEATHER_LON`/`WEATHER_PLACE` (override พิกัดอากาศ)
+> ค่าไฟ/CO₂ สำหรับคำนวณเงินที่ประหยัด ปรับที่ `src/lib/config.ts` (`ELECTRICITY_RATE` 4.4 บาท/kWh · `CO2_PER_KWH` 0.5)
+
+## free tier (ไม่เกินโควต้า)
+
+- Workers 100,000 req/วัน — cron 288 ครั้ง/วัน + ผู้ใช้ไม่กี่คน → ห่างลิมิตมาก
+- D1 5GB, 5M reads/วัน — ~288 แถว/วัน · Cron Triggers / Static Assets / Open-Meteo — ฟรี
+
+---
+
+## ดีไซน์ (ทิศทางเดียว — เน้นผู้สูงอายุ)
+
+ธีม **Solurna**: เหลือง `#FFCC00` (ปุ่ม) + ม่วง `#A20DDD` (nav active) บนพื้น **"sunrise wash"** gradient
+พื้นผิวเป็น **iOS glass-lite** — `.glass-card` / `.glass-sm` (กระจกฝ้า) + `.metric-plate` (พื้นทึบ รองกราฟ/ตัวเลขใหญ่ ให้คมชัด) — token รวมที่ `src/lib/ui.ts`, สลับที่เดียวเปลี่ยนทั้งแอป
+
+**สีพลังงาน (ใช้เหมือนกันทั้งแอป):** โซลาร์ = เหลือง `#f5a623` · บ้าน = น้ำเงิน `#0d4add` · กริด = ม่วง `#8b5cf6` · แบต = เขียว `#18a673`
+
+**ผู้สูงอายุ:** nav 4 ปุ่ม (หน้าหลัก/วันนี้/อากาศ/ย้อนหลัง) · ตัวเลขใหญ่ ตัวอักษร ≥14px · ภาษาไทยกึ่งทางการ · เคารพ `prefers-reduced-motion` · ไม่มี emoji (ใช้ line icons / Meteocons) · บ้าน hero วาดด้วย inline SVG เอง
+
+---
+
+<p align="center">
+  สร้างด้วย ❤️ บน <b>Cloudflare Workers</b> · นักพัฒนา: <a href="./ARCHITECTURE.md">ARCHITECTURE.md</a> · <a href="./DEPLOY.md">DEPLOY.md</a>
+</p>
