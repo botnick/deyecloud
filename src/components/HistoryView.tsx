@@ -31,6 +31,14 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   const [points, setPoints] = useState<any[] | null>(null);
   const [totals, setTotals] = useState<HistTotals | null>(null);
   const [prev, setPrev] = useState<{ points: any[]; totals: HistTotals | null } | null>(null); // previous period, for the compare row
+  // Day-view window: "mid" = calendar day 00:00→24:00 (certified totals, compare,
+  // insights). "noon" = เที่ยงวัน→เที่ยงวันถัดไป — the night sits UNBROKEN in the
+  // middle, which is what a solar+battery day actually looks like. Noon mode is
+  // stitched from two calendar days' samples, so certified day totals don't apply
+  // (the summary there is integrated from the 5-min power curve instead).
+  const [dayWin, setDayWin] = useState<"mid" | "noon">("mid");
+  const noon = range === "day" && dayWin === "noon";
+  const noonStart = (d: Date) => Math.floor(new Date(isoLocal(d) + "T12:00:00+07:00").getTime() / 1000);
   const { settings } = useSettings();
 
   // Monotonic request id — a slow older fetch (after a fast range/station switch or
@@ -39,15 +47,29 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   const load = useCallback((clearOnError: boolean) => {
     if (range === "lifetime") return; // lifetime has its own loader
     const id = ++reqRef.current;
+    if (range === "day" && dayWin === "noon") {
+      const d2 = new Date(ref); d2.setDate(d2.getDate() + 1);
+      const start = noonStart(ref), end = start + 86400;
+      Promise.all([
+        getHistory("day", isoLocal(ref), stationId),
+        getHistory("day", isoLocal(d2), stationId).catch(() => ({ points: [] } as any)), // tomorrow may not exist yet
+      ]).then(([a, b]) => {
+        if (id !== reqRef.current) return;
+        setPoints([...(a.points || []), ...(b.points || [])].filter((p: any) => p.ts >= start && p.ts < end));
+        setTotals(null); // calendar-day totals don't describe this window
+      }).catch(() => { if (id === reqRef.current && clearOnError) setPoints([]); });
+      return;
+    }
     getHistory(range, isoLocal(ref), stationId)
       .then((r) => { if (id === reqRef.current) { setPoints(r.points || []); setTotals(r.totals ?? null); } })
       .catch(() => { if (id === reqRef.current && clearOnError) setPoints([]); });
-  }, [range, ref, stationId]);
+  }, [range, ref, stationId, dayWin]);
 
   useEffect(() => {
     if (!active || range === "lifetime") return;
     setPoints(null); setTotals(null); setPrev(null);
     load(true);
+    if (range === "day" && dayWin === "noon") return; // no compare row in the noon window
     // Previous period (yesterday / last month / last year) — cached server-side,
     // immutable, one extra request. Failure just hides the compare row.
     const p = new Date(ref);
@@ -63,7 +85,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   // Auto-refresh the CURRENT period every 60s (เสมือน realtime) — past periods are
   // immutable so we skip them; the poll also pauses while the tab is hidden.
   const nowD = new Date();
-  const isCurrent = range === "day" ? isoLocal(ref) === isoLocal(nowD)
+  const isCurrent = range === "day" ? (dayWin === "noon" ? Date.now() / 1000 < noonStart(ref) + 86400 && Date.now() / 1000 >= noonStart(ref) : isoLocal(ref) === isoLocal(nowD))
     : range === "month" ? (ref.getFullYear() === nowD.getFullYear() && ref.getMonth() === nowD.getMonth())
       : range === "year" ? ref.getFullYear() === nowD.getFullYear() : false;
   useSmartPoll(() => load(false), 60000, active && range !== "lifetime" && isCurrent);
@@ -71,6 +93,17 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   // Clear points on tab change so we never render the previous range's data
   // shape against the new range (e.g. day frames have no .day/.month → crash).
   const changeRange = (r: Range) => { setRange(r); setRef(new Date()); setPoints(null); setTotals(null); };
+  const changeDayWin = (w: "mid" | "noon") => {
+    setDayWin(w); setPoints(null); setTotals(null); setPrev(null);
+    // Before noon, "today's" noon window hasn't started — jump to the cycle that
+    // contains now (yesterday 12:00 → today 12:00) so the toggle never lands on
+    // an empty chart. Symmetric on the way back.
+    if (w === "noon" && isoLocal(ref) === isoLocal(new Date()) && Date.now() / 1000 < noonStart(new Date())) {
+      setRef((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
+    } else if (w === "mid" && Date.now() / 1000 >= noonStart(new Date())) {
+      setRef(new Date());
+    }
+  };
   // Anchor to day 1 before month/year math so the 31st never skips a short month.
   const shift = (dir: number) => setRef((d) => {
     const n = new Date(d);
@@ -81,19 +114,22 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   });
 
   const now = new Date();
-  const atNow = range === "day" ? isoLocal(ref) === isoLocal(now)
+  const atNow = range === "day" ? (noon ? Date.now() / 1000 < noonStart(ref) + 86400 : isoLocal(ref) === isoLocal(now))
     : range === "month" ? ref.getFullYear() === now.getFullYear() && ref.getMonth() === now.getMonth()
       : ref.getFullYear() === now.getFullYear();
+  const dShort = (d: Date) => d.toLocaleDateString("th-TH-u-ca-gregory", { day: "numeric", month: "short" });
+  const refNext = new Date(ref); refNext.setDate(refNext.getDate() + 1);
   const label = range === "day"
-    ? (isoLocal(ref) === isoLocal(now) ? "วันนี้" : ref.toLocaleDateString("th-TH-u-ca-gregory", { day: "numeric", month: "short", year: "numeric" }))
+    ? noon ? `เที่ยง ${dShort(ref)} → เที่ยง ${dShort(refNext)}`
+      : (isoLocal(ref) === isoLocal(now) ? "วันนี้" : ref.toLocaleDateString("th-TH-u-ca-gregory", { day: "numeric", month: "short", year: "numeric" }))
     : range === "month" ? ref.toLocaleDateString("th-TH-u-ca-gregory", { month: "long", year: "numeric" })
       : "ปี " + ref.getFullYear();
 
   const sum = (k: string) => (points || []).reduce((a, p) => a + (Number(p[k]) || 0), 0);
   const lastSoc = points && points.length ? Math.round(Number(points[points.length - 1].soc) || 0) : 0;
   const insights = useMemo(
-    () => (points && points.length && range !== "lifetime" ? analyzeHistory(range, points, capacity, totals, settings) : []),
-    [range, points, capacity, totals, settings],
+    () => (points && points.length && range !== "lifetime" && !noon ? analyzeHistory(range, points, capacity, totals, settings) : []),
+    [range, points, capacity, totals, settings, noon],
   );
 
   // ── period money + carbon (single shared formula via economics.savingsOf) ──
@@ -150,6 +186,29 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
       saved: { now: cSaved, prev: pSaved },
     };
   }, [prev, points, periodTotals, range, isCurrent, settings]);
+  // Noon-window summary: kWh integrated from the 5-min curve (no certified totals
+  // exist for a noon→noon window), split at the clock into กลางวัน 06:00–18:00 and
+  // กลางคืน 18:00–06:00 — presentation buckets, not thresholds.
+  const noonSummary = useMemo(() => {
+    if (!noon || !points || points.length < 2) return null;
+    const rows = [...points].sort((a, b) => Number(a.ts) - Number(b.ts));
+    const acc = { dayUse: 0, nightUse: 0, gen: 0, dayBuy: 0, nightBuy: 0, sell: 0, batt: 0 };
+    for (let i = 1; i < rows.length; i++) {
+      const h = Math.min(0.25, Math.max(0, (Number(rows[i].ts) - Number(rows[i - 1].ts)) / 3600)); // cap gaps at 15 min
+      const hr = ((Number(rows[i].ts) + 7 * 3600) % 86400) / 3600; // Bangkok hour-of-day
+      const isDay = hr >= 6 && hr < 18;
+      const use = (Number(rows[i].use_power) || 0) * h / 1000;
+      const buy = Math.max(0, Number(rows[i].grid_power) || 0) * h / 1000;
+      acc[isDay ? "dayUse" : "nightUse"] += use;
+      acc[isDay ? "dayBuy" : "nightBuy"] += buy;
+      acc.gen += (Number(rows[i].gen_power) || 0) * h / 1000;
+      acc.sell += Math.max(0, -(Number(rows[i].grid_power) || 0)) * h / 1000;
+      acc.batt += Math.max(0, Number(rows[i].batt_power) || 0) * h / 1000; // discharge only
+    }
+    const totalUse = acc.dayUse + acc.nightUse;
+    return totalUse > 0.05 ? { ...acc, totalUse, dayPct: Math.round((acc.dayUse / totalUse) * 100) } : null;
+  }, [noon, points]);
+
   // CSV = exactly the rows on screen (works for any station, any source), built
   // client-side; the /api/export endpoint stays for scripts (default station, D1).
   const exportCsv = () => {
@@ -172,7 +231,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
     }
     const csv = "\ufeff" + [head, ...rows].map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n";
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const a = document.createElement("a"); a.href = url; a.download = `deye-${range}-${isoLocal(ref)}${stationId != null ? `-st${stationId}` : ""}.csv`; a.click();
+    const a = document.createElement("a"); a.href = url; a.download = `deye-${range}${noon ? "-noon" : ""}-${isoLocal(ref)}${stationId != null ? `-st${stationId}` : ""}.csv`; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
@@ -287,7 +346,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   // The all-in-one comparison — the PRIMARY view (always shown on top).
   function overview() {
     if (!points || !points.length) return null;
-    if (range === "day") return <div className="mt-3"><PowerProfile points={points} /></div>;
+    if (range === "day") return <div className="mt-3"><PowerProfile points={points} startHour={noon ? 12 : 0} key={dayWin} /></div>;
     return (
       <div className={`${plate} p-4 mt-3`}>
         <BarChart
@@ -324,6 +383,18 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
               <IconChevron className="w-6 h-6" />
             </button>
           </div>
+
+          {/* day-window toggle — 00:00–24:00 vs noon→noon (unbroken night) */}
+          {range === "day" && (
+            <div className="flex gap-1.5 mt-2">
+              {([["mid", "🕛 00:00–24:00"], ["noon", "🌗 เที่ยง→เที่ยง"]] as const).map(([w, lab]) => (
+                <button key={w} onClick={() => dayWin !== w && changeDayWin(w)}
+                  className={`h-9 px-3.5 rounded-full text-[13.5px] font-semibold transition-colors ${dayWin === w ? "bg-ink text-white" : "bg-canvas text-body"}`}>
+                  {lab}
+                </button>
+              ))}
+            </div>
+          )}
 
           {points === null ? (
             <div className="skeleton h-[280px] rounded-[20px] mt-3" />
@@ -371,6 +442,30 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
                         {compare.saved.now - compare.saved.prev >= 0 ? "+" : "−"}฿{Math.round(Math.abs(compare.saved.now - compare.saved.prev)).toLocaleString("th-TH")}
                       </div>
                       <div className="text-[10.5px] text-muted tabnum">฿{Math.round(compare.saved.prev).toLocaleString("th-TH")}→฿{Math.round(compare.saved.now).toLocaleString("th-TH")}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {noonSummary && (
+                <div className={`${cardP} mt-3`}>
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <span className="text-[12.5px] text-body">การใช้ไฟกลางวัน / กลางคืน (รอบเที่ยง→เที่ยง)</span>
+                    <InfoTip text="คำนวณจากเส้นกำลังไฟทุก 5 นาทีในหน้าต่างนี้ · กลางวัน = 06:00–18:00 กลางคืน = 18:00–06:00 · ยอดนี้เป็นค่าประมาณจากการรวมพื้นที่ใต้กราฟ ไม่ใช่มิเตอร์รายวันของ Deye" />
+                  </div>
+                  <div className="h-3 rounded-full overflow-hidden flex bg-canvas">
+                    <div className="h-full" style={{ width: `${noonSummary.dayPct}%`, background: "var(--color-pv)" }} />
+                    <div className="h-full flex-1" style={{ background: "var(--color-use)" }} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-3 text-[14px]">
+                    <div>
+                      <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-[4px] bg-pv" /><span className="text-body">☀️ กลางวัน 06–18 น.</span></div>
+                      <div className="mt-1 pl-5">ใช้ <b className="tabnum">{noonSummary.dayUse.toFixed(1)}</b> หน่วย ({noonSummary.dayPct}%)<br />
+                        <span className="text-muted text-[12.5px]">ซื้อ {noonSummary.dayBuy.toFixed(1)} · ผลิต {noonSummary.gen.toFixed(1)} หน่วย</span></div>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-[4px] bg-use" /><span className="text-body">🌙 กลางคืน 18–06 น.</span></div>
+                      <div className="mt-1 pl-5">ใช้ <b className="tabnum">{noonSummary.nightUse.toFixed(1)}</b> หน่วย ({100 - noonSummary.dayPct}%)<br />
+                        <span className="text-muted text-[12.5px]">ซื้อ {noonSummary.nightBuy.toFixed(1)} · แบตจ่าย {noonSummary.batt.toFixed(1)} หน่วย</span></div>
                     </div>
                   </div>
                 </div>

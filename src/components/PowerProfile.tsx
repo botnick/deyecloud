@@ -28,11 +28,16 @@ const PAD = { l: 34, r: 30, t: 18, b: 26 };
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 const hourOfDay = (ts: number) => { const d = new Date(ts * 1000); return d.getHours() + d.getMinutes() / 60; };
+// Hour on an axis that may start mid-day (e.g. a noon→noon window): hours before
+// `startHour` belong to the NEXT calendar day, so they continue past 24 (12…36)
+// instead of wrapping to 0 and plotting off the left edge.
+const hourOnAxis = (ts: number, startHour: number) => { const h = hourOfDay(ts); return h < startHour ? h + 24 : h; };
 const fmtClock = (ts: number) => {
   const d = new Date(ts * 1000);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
-const hourLabel = (h: number) => {
+const hourLabel = (hRaw: number) => {
+  const h = ((hRaw % 24) + 24) % 24; // axis hours can exceed 24 on a mid-day-start window
   let hh = Math.floor(h + 1e-6), mm = Math.round((h - hh) * 60);
   if (mm >= 60) { hh += 1; mm -= 60; }
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
@@ -62,11 +67,11 @@ function kwBounds(pts: PowerPoint[]): { min: number; max: number; step: number }
   return { min, max: max === min ? min + step : max, step };
 }
 
-// nearest sample index to a given hour-of-day (points are time-ordered).
-function nearestIdx(pts: PowerPoint[], hour: number): number {
+// nearest sample index to a given axis-hour (points are time-ordered).
+function nearestIdx(pts: PowerPoint[], hour: number, startHour = 0): number {
   let best = 0, bestD = Infinity;
   for (let i = 0; i < pts.length; i++) {
-    const d = Math.abs(hourOfDay(pts[i].ts) - hour);
+    const d = Math.abs(hourOnAxis(pts[i].ts, startHour) - hour);
     if (d < bestD) { bestD = d; best = i; }
   }
   return best;
@@ -78,10 +83,11 @@ interface View { h0: number; h1: number }
 
 // ---- the chart itself (shared by the inline card + the fullscreen sheet) ----
 function ChartSVG({
-  points, view, setView, vbW, vbH, cursorOn, activeIdx, setCursorHour, big,
+  points, view, setView, vbW, vbH, cursorOn, activeIdx, setCursorHour, big, startHour = 0,
 }: {
   points: PowerPoint[];
   view: View;
+  startHour?: number; // axis origin hour — 12 for the noon→noon window
   setView?: (v: View) => void; // present = pinch-zoom/pan enabled
   vbW: number; vbH: number;
   cursorOn: boolean;
@@ -99,7 +105,7 @@ function ChartSVG({
   const { min: kwMin, max: kwMax, step: kwStep } = kwBounds(points);
   const kwSpan = kwMax - kwMin || 1;
 
-  const X = (ts: number) => PAD.l + ((hourOfDay(ts) - h0) / span) * PLOT_W;
+  const X = (ts: number) => PAD.l + ((hourOnAxis(ts, startHour) - h0) / span) * PLOT_W;
   const Ykw = (kw: number) => PAD.t + PLOT_H - ((kw - kwMin) / kwSpan) * PLOT_H;
   const Ypct = (pct: number) => PAD.t + PLOT_H - (Math.max(0, Math.min(100, pct)) / 100) * PLOT_H;
 
@@ -144,7 +150,7 @@ function ChartSVG({
       let spanN = (pinch.current.hA - pinch.current.hB) / (fA - fB);
       spanN = Math.max(MIN_SPAN, Math.min(24, spanN));
       let h0n = pinch.current.hA - fA * spanN;
-      h0n = Math.max(0, Math.min(24 - spanN, h0n));
+      h0n = Math.max(startHour, Math.min(startHour + 24 - spanN, h0n)); // pan clamped to the window, wherever it starts
       setView({ h0: h0n, h1: h0n + spanN });
     } else if (e.touches.length === 1 && !pinch.current) {
       setCursorHour(hourFromX(e.touches[0].clientX));
@@ -263,7 +269,7 @@ function Legend({ p }: { p: PowerPoint }) {
   );
 }
 
-export function PowerProfile({ points }: { points: PowerPoint[] }) {
+export function PowerProfile({ points, startHour = 0 }: { points: PowerPoint[]; startHour?: number }) {
   const [cursorHour, setCursorHour] = useState<number | null>(null);
   const [zoom, setZoom] = useState(false);
 
@@ -277,7 +283,7 @@ export function PowerProfile({ points }: { points: PowerPoint[] }) {
   }
 
   const lastIdx = points.length - 1;
-  const idx = cursorHour == null ? lastIdx : nearestIdx(points, cursorHour);
+  const idx = cursorHour == null ? lastIdx : nearestIdx(points, cursorHour, startHour);
   const active = points[idx];
 
   return (
@@ -293,17 +299,17 @@ export function PowerProfile({ points }: { points: PowerPoint[] }) {
           </div>
         </div>
         <div className="mb-4"><Legend p={active} /></div>
-        <ChartSVG points={points} view={{ h0: 0, h1: 24 }} vbW={360} vbH={210} cursorOn={cursorHour != null} activeIdx={idx} setCursorHour={setCursorHour} />
+        <ChartSVG points={points} view={{ h0: startHour, h1: startHour + 24 }} startHour={startHour} vbW={360} vbH={210} cursorOn={cursorHour != null} activeIdx={idx} setCursorHour={setCursorHour} />
       </div>
 
-      {zoom && <ChartModal points={points} onClose={() => setZoom(false)} />}
+      {zoom && <ChartModal points={points} startHour={startHour} onClose={() => setZoom(false)} />}
     </>
   );
 }
 
-function ChartModal({ points, onClose }: { points: PowerPoint[]; onClose: () => void }) {
+function ChartModal({ points, startHour = 0, onClose }: { points: PowerPoint[]; startHour?: number; onClose: () => void }) {
   const [cursorHour, setCursorHour] = useState<number | null>(null);
-  const [view, setView] = useState<View>({ h0: 0, h1: 24 });
+  const [view, setView] = useState<View>({ h0: startHour, h1: startHour + 24 });
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -312,9 +318,9 @@ function ChartModal({ points, onClose }: { points: PowerPoint[]; onClose: () => 
   }, []);
 
   const lastIdx = points.length - 1;
-  const idx = cursorHour == null ? lastIdx : nearestIdx(points, cursorHour);
+  const idx = cursorHour == null ? lastIdx : nearestIdx(points, cursorHour, startHour);
   const active = points[idx];
-  const zoomed = view.h0 > 0.01 || view.h1 < 23.99;
+  const zoomed = view.h0 > startHour + 0.01 || view.h1 < startHour + 23.99;
 
   // Portal to <body> so the full-screen overlay escapes any transformed ancestor
   // (the app shell uses transforms for view/pull animations → would trap `fixed`
@@ -325,7 +331,7 @@ function ChartModal({ points, onClose }: { points: PowerPoint[]; onClose: () => 
         <div className="font-bold text-[16px]">กราฟพลังงาน · <span className="tabnum">{fmtClock(active.ts)}</span></div>
         <div className="flex items-center gap-2">
           {zoomed && (
-            <button onClick={() => setView({ h0: 0, h1: 24 })} className="h-8 px-3 rounded-full bg-white/15 text-[13px] font-bold active:scale-95 transition-transform">รีเซ็ตซูม</button>
+            <button onClick={() => setView({ h0: startHour, h1: startHour + 24 })} className="h-8 px-3 rounded-full bg-white/15 text-[13px] font-bold active:scale-95 transition-transform">รีเซ็ตซูม</button>
           )}
           <button onClick={onClose} aria-label="ปิด" className="w-9 h-9 grid place-items-center rounded-full bg-white/15 active:scale-95 transition-transform">
             <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -337,7 +343,7 @@ function ChartModal({ points, onClose }: { points: PowerPoint[]; onClose: () => 
 
       <div className="flex-1 min-h-0 px-3 py-1 flex flex-col justify-center overflow-y-auto">
         <div className="w-full max-w-[1100px] mx-auto rounded-2xl bg-white p-3">
-          <ChartSVG points={points} view={view} setView={setView} vbW={680} vbH={320} cursorOn={cursorHour != null} activeIdx={idx} setCursorHour={setCursorHour} big />
+          <ChartSVG points={points} view={view} setView={setView} vbW={680} vbH={320} cursorOn={cursorHour != null} activeIdx={idx} setCursorHour={setCursorHour} big startHour={startHour} />
         </div>
       </div>
 
