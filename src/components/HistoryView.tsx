@@ -400,12 +400,12 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
             </button>
           </div>
 
-          {/* day-window toggle — 00:00–24:00 vs noon→noon (unbroken night) */}
+          {/* day-window toggle — same segmented-control language as the range tabs */}
           {range === "day" && (
-            <div className="flex gap-1.5 mt-2">
-              {([["mid", "🕛 00:00–24:00"], ["noon", "🌗 เที่ยง→เที่ยง"]] as const).map(([w, lab]) => (
+            <div className={`flex ${cardSm} p-1.5 gap-1.5 mt-3`}>
+              {([["mid", "เต็มวัน 00–24 น."], ["noon", "รอบแดด เที่ยง→เที่ยง"]] as const).map(([w, lab]) => (
                 <button key={w} onClick={() => dayWin !== w && changeDayWin(w)}
-                  className={`h-9 px-3.5 rounded-full text-[13.5px] font-semibold transition-colors ${dayWin === w ? "bg-ink text-white" : "bg-canvas text-body"}`}>
+                  className={`flex-1 min-h-11 rounded-xl text-[14.5px] font-bold transition-colors ${dayWin === w ? "bg-primary text-ink" : "text-body"}`}>
                   {lab}
                 </button>
               ))}
