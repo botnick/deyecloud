@@ -464,24 +464,44 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
               )}
               {noonSummary && (
                 <div className={`${cardP} mt-3`}>
-                  <div className="flex items-center gap-1.5 mb-2.5">
-                    <span className="text-[12.5px] text-body">การใช้ไฟกลางวัน / กลางคืน (รอบเที่ยง→เที่ยง)</span>
-                    <InfoTip text="คำนวณจากเส้นกำลังไฟทุก 5 นาทีในหน้าต่างนี้ · กลางวัน = 06:00–18:00 กลางคืน = 18:00–06:00 · ยอดนี้เป็นค่าประมาณจากการรวมพื้นที่ใต้กราฟ ไม่ใช่มิเตอร์รายวันของ Deye" />
-                  </div>
-                  <div className="h-3 rounded-full overflow-hidden flex bg-canvas">
-                    <div className="h-full" style={{ width: `${noonSummary.dayPct}%`, background: "var(--color-pv)" }} />
-                    <div className="h-full flex-1" style={{ background: "var(--color-use)" }} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 mt-3 text-[14px]">
-                    <div>
-                      <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-[4px] bg-pv" /><span className="text-body">☀️ กลางวัน 06–18 น.</span></div>
-                      <div className="mt-1 pl-5">ใช้ <b className="tabnum">{noonSummary.dayUse.toFixed(1)}</b> หน่วย ({noonSummary.dayPct}%)<br />
-                        <span className="text-muted text-[12.5px]">ซื้อ {noonSummary.dayBuy.toFixed(1)} · ผลิต {noonSummary.gen.toFixed(1)} หน่วย</span></div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-[16px] text-title">กลางวัน · กลางคืน</span>
+                      <InfoTip text="คำนวณจากเส้นกำลังไฟทุก 5 นาทีในหน้าต่างนี้ · กลางวัน = 06:00–18:00 กลางคืน = 18:00–06:00 · เป็นค่าประมาณจากการรวมพื้นที่ใต้กราฟ ไม่ใช่มิเตอร์รายวันของ Deye" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-[4px] bg-use" /><span className="text-body">🌙 กลางคืน 18–06 น.</span></div>
-                      <div className="mt-1 pl-5">ใช้ <b className="tabnum">{noonSummary.nightUse.toFixed(1)}</b> หน่วย ({100 - noonSummary.dayPct}%)<br />
-                        <span className="text-muted text-[12.5px]">ซื้อ {noonSummary.nightBuy.toFixed(1)} · แบตจ่าย {noonSummary.nightBatt.toFixed(1)} หน่วย</span></div>
+                    <span className="text-[12px] text-muted">รอบเที่ยง→เที่ยง</span>
+                  </div>
+                  {/* 24-h split ribbon — day amber, night indigo, share labels inside */}
+                  <div className="h-7 rounded-full overflow-hidden flex text-[12px] font-bold text-white">
+                    <div className="h-full grid place-items-center transition-[width] duration-700" style={{ width: `${Math.max(8, Math.min(92, noonSummary.dayPct))}%`, background: "linear-gradient(90deg,#fbbf24,#f59e0b)" }}>
+                      {noonSummary.dayPct >= 15 && `${noonSummary.dayPct}%`}
+                    </div>
+                    <div className="h-full flex-1 grid place-items-center transition-[width] duration-700" style={{ background: "linear-gradient(90deg,#4338ca,#312e81)" }}>
+                      {100 - noonSummary.dayPct >= 15 && `${100 - noonSummary.dayPct}%`}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    {/* day tile — same gradient-tile language as the inverter summary */}
+                    <div className="rounded-2xl p-4 text-white shadow-[0_10px_22px_-10px_rgba(245,158,11,0.55)]" style={{ background: "linear-gradient(135deg,#fbbf24,#f59e0b)" }}>
+                      <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-white/90">
+                        <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.2 5.2l1.7 1.7M17.1 17.1l1.7 1.7M18.8 5.2l-1.7 1.7M6.9 17.1l-1.7 1.7" /></svg>
+                        กลางวัน <span className="text-white/70 font-medium">06–18 น.</span>
+                      </div>
+                      <div className="text-[26px] font-extrabold tabnum leading-none mt-2">{noonSummary.dayUse.toFixed(1)}<span className="text-[13px] font-semibold text-white/80 ml-1">หน่วย</span></div>
+                      <div className="text-[12px] text-white/85 mt-2 leading-snug">☀️ ผลิต {noonSummary.gen.toFixed(1)} · ซื้อ {noonSummary.dayBuy.toFixed(1)} หน่วย</div>
+                    </div>
+                    {/* night tile */}
+                    <div className="rounded-2xl p-4 text-white shadow-[0_10px_22px_-10px_rgba(49,46,129,0.6)]" style={{ background: "linear-gradient(135deg,#4338ca,#1e1b4b)" }}>
+                      <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-white/90">
+                        <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" /></svg>
+                        กลางคืน <span className="text-white/70 font-medium">18–06 น.</span>
+                      </div>
+                      {noonSummary.nightUse < 0.05 && isCurrent ? (
+                        <div className="text-[14px] font-semibold mt-3 text-white/85">ยังไม่ถึงช่วงกลางคืน</div>
+                      ) : (
+                        <div className="text-[26px] font-extrabold tabnum leading-none mt-2">{noonSummary.nightUse.toFixed(1)}<span className="text-[13px] font-semibold text-white/80 ml-1">หน่วย</span></div>
+                      )}
+                      <div className="text-[12px] text-white/85 mt-2 leading-snug">🔋 แบตจ่าย {noonSummary.nightBatt.toFixed(1)} · ซื้อ {noonSummary.nightBuy.toFixed(1)} หน่วย</div>
                     </div>
                   </div>
                 </div>
