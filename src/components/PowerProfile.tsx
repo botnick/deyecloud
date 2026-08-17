@@ -27,14 +27,16 @@ const GRIDLINE = "#eeeeee";
 const PAD = { l: 34, r: 30, t: 18, b: 26 };
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-const hourOfDay = (ts: number) => { const d = new Date(ts * 1000); return d.getHours() + d.getMinutes() / 60; };
+// All clock math is explicit Asia/Bangkok (+07:00, no DST) via UTC getters —
+// a viewer in another timezone must still see BKK noon plotted at 12:00.
+const hourOfDay = (ts: number) => { const d = new Date((ts + 7 * 3600) * 1000); return d.getUTCHours() + d.getUTCMinutes() / 60; };
 // Hour on an axis that may start mid-day (e.g. a noon→noon window): hours before
 // `startHour` belong to the NEXT calendar day, so they continue past 24 (12…36)
 // instead of wrapping to 0 and plotting off the left edge.
 const hourOnAxis = (ts: number, startHour: number) => { const h = hourOfDay(ts); return h < startHour ? h + 24 : h; };
 const fmtClock = (ts: number) => {
-  const d = new Date(ts * 1000);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const d = new Date((ts + 7 * 3600) * 1000); // Asia/Bangkok wall clock
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 };
 const hourLabel = (hRaw: number) => {
   const h = ((hRaw % 24) + 24) % 24; // axis hours can exceed 24 on a mid-day-start window
