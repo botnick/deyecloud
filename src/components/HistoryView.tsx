@@ -472,8 +472,9 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
                     <span className="text-[12px] text-muted">รอบเที่ยง→เที่ยง</span>
                   </div>
                   {/* 24-h split ribbon — day amber, night indigo, share labels inside */}
-                  <div className="h-7 rounded-full overflow-hidden flex text-[12px] font-bold text-white">
-                    <div className="h-full grid place-items-center transition-[width] duration-700" style={{ width: `${Math.max(8, Math.min(92, noonSummary.dayPct))}%`, background: "linear-gradient(90deg,#fbbf24,#f59e0b)" }}>
+                  {/* night gradient painted on the track so a 100/0 split renders truthfully */}
+                  <div className="h-7 rounded-full overflow-hidden flex text-[12px] font-bold text-white" style={{ background: "linear-gradient(90deg,#4338ca,#312e81)" }}>
+                    <div className="h-full grid place-items-center transition-[width] duration-700" style={{ width: `${noonSummary.dayPct}%`, background: "linear-gradient(90deg,#fbbf24,#f59e0b)" }}>
                       {noonSummary.dayPct >= 15 && `${noonSummary.dayPct}%`}
                     </div>
                     <div className="h-full flex-1 grid place-items-center transition-[width] duration-700" style={{ background: "linear-gradient(90deg,#4338ca,#312e81)" }}>
@@ -496,7 +497,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
                         <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" /></svg>
                         กลางคืน <span className="text-white/70 font-medium">18–06 น.</span>
                       </div>
-                      {noonSummary.nightUse < 0.05 && isCurrent ? (
+                      {isCurrent && Date.now() / 1000 < noonStart(ref) + 6 * 3600 ? ( // before 18:00 BKK — gate on the phase, not measured usage
                         <div className="text-[14px] font-semibold mt-3 text-white/85">ยังไม่ถึงช่วงกลางคืน</div>
                       ) : (
                         <div className="text-[26px] font-extrabold tabnum leading-none mt-2">{noonSummary.nightUse.toFixed(1)}<span className="text-[13px] font-semibold text-white/80 ml-1">หน่วย</span></div>
