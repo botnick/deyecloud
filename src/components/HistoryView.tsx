@@ -102,7 +102,12 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   // The ref date whose window CONTAINS now, per mode: mid = today; noon = today
   // after 12:00 BKK, else yesterday (that cycle runs yesterday 12:00 → today 12:00).
   const currentAnchor = (w: "mid" | "noon") => {
-    const n = new Date();
+    // BKK "today" (not the viewer's): take now+7h in UTC for the day key, then
+    // materialize it as viewer-local midnight so isoLocal(d) round-trips to that
+    // key. At 13:00 BKK = 23:00 previous day in LA, the active noon cycle is
+    // still the BKK 17th — viewer-local fields would anchor a day early.
+    const key = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+    const n = new Date(key + "T00:00:00");
     if (w === "noon" && Date.now() / 1000 < noonStart(n)) n.setDate(n.getDate() - 1);
     return n;
   };
