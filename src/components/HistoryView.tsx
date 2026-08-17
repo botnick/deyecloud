@@ -23,7 +23,9 @@ const TABS: { k: Range; label: string }[] = [
 ];
 const pad = (n: number) => String(n).padStart(2, "0");
 const isoLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const hhmm = (ts: number) => new Date(ts * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+// Asia/Bangkok wall clock (UTC getters on a +7h-shifted date) — sample timestamps
+// are BKK-day data, so labels must not follow the viewer's timezone.
+const hhmm = (ts: number) => { const d = new Date((ts + 7 * 3600) * 1000); return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`; };
 
 export function HistoryView({ active, stationId, capacity }: { active: boolean; stationId?: number | null; capacity?: number }) {
   const [range, setRange] = useState<Range>("day");
@@ -50,9 +52,14 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
     if (range === "day" && dayWin === "noon") {
       const d2 = new Date(ref); d2.setDate(d2.getDate() + 1);
       const start = noonStart(ref), end = start + 86400;
+      // Day B (the window's second half) starts at BKK midnight = start+12h. Before
+      // that moment it cannot have data — skip the request (the current window would
+      // otherwise refetch an empty tomorrow every 60 s). Once B is in the past its
+      // failure is a REAL failure: swallowing it would silently show half a window.
+      const bExists = Date.now() / 1000 >= start + 12 * 3600;
       Promise.all([
         getHistory("day", isoLocal(ref), stationId),
-        getHistory("day", isoLocal(d2), stationId).catch(() => ({ points: [] } as any)), // tomorrow may not exist yet
+        bExists ? getHistory("day", isoLocal(d2), stationId) : Promise.resolve({ points: [] } as any),
       ]).then(([a, b]) => {
         if (id !== reqRef.current) return;
         setPoints([...(a.points || []), ...(b.points || [])].filter((p: any) => p.ts >= start && p.ts < end));
@@ -92,17 +99,21 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
 
   // Clear points on tab change so we never render the previous range's data
   // shape against the new range (e.g. day frames have no .day/.month → crash).
-  const changeRange = (r: Range) => { setRange(r); setRef(new Date()); setPoints(null); setTotals(null); };
+  // The ref date whose window CONTAINS now, per mode: mid = today; noon = today
+  // after 12:00 BKK, else yesterday (that cycle runs yesterday 12:00 → today 12:00).
+  const currentAnchor = (w: "mid" | "noon") => {
+    const n = new Date();
+    if (w === "noon" && Date.now() / 1000 < noonStart(n)) n.setDate(n.getDate() - 1);
+    return n;
+  };
+  const changeRange = (r: Range) => { reqRef.current++; setRange(r); setRef(r === "day" ? currentAnchor(dayWin) : new Date()); setPoints(null); setTotals(null); setPrev(null); };
   const changeDayWin = (w: "mid" | "noon") => {
+    reqRef.current++; // kill any in-flight fetch of the old window immediately
     setDayWin(w); setPoints(null); setTotals(null); setPrev(null);
-    // Before noon, "today's" noon window hasn't started — jump to the cycle that
-    // contains now (yesterday 12:00 → today 12:00) so the toggle never lands on
-    // an empty chart. Symmetric on the way back.
-    if (w === "noon" && isoLocal(ref) === isoLocal(new Date()) && Date.now() / 1000 < noonStart(new Date())) {
-      setRef((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
-    } else if (w === "mid" && Date.now() / 1000 >= noonStart(new Date())) {
-      setRef(new Date());
-    }
+    // Re-anchor ONLY when leaving the cycle that contains now — a historical date
+    // the user navigated to stays put in both directions.
+    const leavingCurrent = isoLocal(ref) === isoLocal(currentAnchor(dayWin));
+    if (leavingCurrent) setRef(currentAnchor(w));
   };
   // Anchor to day 1 before month/year math so the 31st never skips a short month.
   const shift = (dir: number) => setRef((d) => {
@@ -114,7 +125,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   });
 
   const now = new Date();
-  const atNow = range === "day" ? (noon ? Date.now() / 1000 < noonStart(ref) + 86400 : isoLocal(ref) === isoLocal(now))
+  const atNow = range === "day" ? (noon ? Date.now() / 1000 < noonStart(ref) + 86400 && Date.now() / 1000 >= noonStart(ref) : isoLocal(ref) === isoLocal(now))
     : range === "month" ? ref.getFullYear() === now.getFullYear() && ref.getMonth() === now.getMonth()
       : ref.getFullYear() === now.getFullYear();
   const dShort = (d: Date) => d.toLocaleDateString("th-TH-u-ca-gregory", { day: "numeric", month: "short" });
@@ -192,7 +203,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
   const noonSummary = useMemo(() => {
     if (!noon || !points || points.length < 2) return null;
     const rows = [...points].sort((a, b) => Number(a.ts) - Number(b.ts));
-    const acc = { dayUse: 0, nightUse: 0, gen: 0, dayBuy: 0, nightBuy: 0, sell: 0, batt: 0 };
+    const acc = { dayUse: 0, nightUse: 0, gen: 0, dayBuy: 0, nightBuy: 0, sell: 0, nightBatt: 0 };
     for (let i = 1; i < rows.length; i++) {
       const h = Math.min(0.25, Math.max(0, (Number(rows[i].ts) - Number(rows[i - 1].ts)) / 3600)); // cap gaps at 15 min
       const hr = ((Number(rows[i].ts) + 7 * 3600) % 86400) / 3600; // Bangkok hour-of-day
@@ -203,7 +214,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
       acc[isDay ? "dayBuy" : "nightBuy"] += buy;
       acc.gen += (Number(rows[i].gen_power) || 0) * h / 1000;
       acc.sell += Math.max(0, -(Number(rows[i].grid_power) || 0)) * h / 1000;
-      acc.batt += Math.max(0, Number(rows[i].batt_power) || 0) * h / 1000; // discharge only
+      if (!isDay) acc.nightBatt += Math.max(0, Number(rows[i].batt_power) || 0) * h / 1000; // discharge, night bucket only (shown under กลางคืน)
     }
     const totalUse = acc.dayUse + acc.nightUse;
     return totalUse > 0.05 ? { ...acc, totalUse, dayPct: Math.round((acc.dayUse / totalUse) * 100) } : null;
@@ -465,7 +476,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
                     <div>
                       <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-[4px] bg-use" /><span className="text-body">🌙 กลางคืน 18–06 น.</span></div>
                       <div className="mt-1 pl-5">ใช้ <b className="tabnum">{noonSummary.nightUse.toFixed(1)}</b> หน่วย ({100 - noonSummary.dayPct}%)<br />
-                        <span className="text-muted text-[12.5px]">ซื้อ {noonSummary.nightBuy.toFixed(1)} · แบตจ่าย {noonSummary.batt.toFixed(1)} หน่วย</span></div>
+                        <span className="text-muted text-[12.5px]">ซื้อ {noonSummary.nightBuy.toFixed(1)} · แบตจ่าย {noonSummary.nightBatt.toFixed(1)} หน่วย</span></div>
                     </div>
                   </div>
                 </div>
