@@ -824,14 +824,19 @@ const PEAK_WINDOW_DAYS = 60;
 const PEAK_MIN_SAMPLES = 7;
 const PEAK_PERCENTILE = 0.95;
 async function robustPeakW(env: Env): Promise<number> {
-  const pick = (rows: { p: number }[]) => rows.length ? rows[Math.min(rows.length - 1, Math.floor((1 - PEAK_PERCENTILE) * rows.length))].p : 0;
-  const cutoff = bkkDayOf(Date.now() - PEAK_WINDOW_DAYS * 86400000);
+  // Nearest-rank p95, but never index 0: with 7–19 samples floor(0.05·n)=0 IS the
+  // raw MAX, which defeats the whole point — so at least the single highest
+  // sample is always trimmed once we have ≥2 (codex).
+  const pick = (rows: { p: number }[]) =>
+    rows.length < 2 ? (rows[0]?.p || 0)
+    : rows[Math.min(rows.length - 1, Math.max(1, Math.floor((1 - PEAK_PERCENTILE) * rows.length)))].p;
+  const cutoff = bkkDayOf(Date.now() - (PEAK_WINDOW_DAYS - 1) * 86400000); // inclusive bound → exactly ≤60 dates
   const recent = ((await env.DB.prepare(
     "SELECT peak_power p FROM daily WHERE peak_power > 0 AND day >= ? ORDER BY p DESC").bind(cutoff).all()).results || []) as any[];
   if (recent.length >= PEAK_MIN_SAMPLES) return pick(recent);
   const all = ((await env.DB.prepare(
     "SELECT peak_power p FROM daily WHERE peak_power > 0 ORDER BY p DESC").all()).results || []) as any[];
-  return all.length >= PEAK_MIN_SAMPLES ? pick(all) : (all[0]?.p || 0);
+  return pick(all); // <2 samples degrades to the raw value inside pick()
 }
 
 // Lifetime aggregate across every stored daily roll-up — powers the "ตลอด" tab

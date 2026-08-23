@@ -10,11 +10,14 @@ import { cardP } from "../lib/ui";
 const RANGES = [1, 7, 30, 90] as const;
 const first = (dev: Device, ...keys: string[]) => keys.find((k) => dev.dataList.some((d) => d.key === k));
 
+// Telemetry timestamps are site moments — pin the site's zone so a viewer abroad
+// sees the same clock the inverter lived through.
+const TZ = { timeZone: "Asia/Bangkok" } as const;
 function fmtT(t: number, days: number) {
   const d = new Date(t * 1000);
   return days <= 1
-    ? d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
-    : d.toLocaleDateString("th-TH-u-ca-gregory", { day: "numeric", month: "short" });
+    ? d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", ...TZ })
+    : d.toLocaleDateString("th-TH-u-ca-gregory", { day: "numeric", month: "short", ...TZ });
 }
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -53,7 +56,7 @@ export function DeviceTrends({ dev }: { dev: Device }) {
   const notes: string[] = [];
   if (h) {
     const socMin = vals(want.soc, "min"); const st = times(want.soc);
-    if (socMin.length) { const i = socMin.indexOf(Math.min(...socMin)); notes.push(`แบตต่ำสุด ${Math.round(socMin[i])}% (${fmtT(st[i], days)}${days > 1 ? " " + new Date(st[i] * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : ""})`); }
+    if (socMin.length) { const i = socMin.indexOf(Math.min(...socMin)); notes.push(`แบตต่ำสุด ${Math.round(socMin[i])}% (${fmtT(st[i], days)}${days > 1 ? " " + new Date(st[i] * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", ...TZ }) : ""})`); }
     const tb = vals(want.tBatt, "max"); if (tb.length) notes.push(`แบตร้อนสุด ${r1(Math.max(...tb))}°C`);
     const ti = vals(want.tInv, "max"); if (ti.length) notes.push(`เครื่องร้อนสุด ${r1(Math.max(...ti))}°C`);
     if (want.pv.length >= 2) {
