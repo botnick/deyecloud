@@ -4,10 +4,23 @@ export const fmtPower = (w: number) => {
   return a < 1000 ? `${Math.round(a)} W` : `${(a / 1000).toFixed(2)} kW`;
 };
 
-export const timeStr = (ts: number) =>
-  new Date((ts || Date.now() / 1000) * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+// Data timestamps are the SITE's moments — render them on the Bangkok clock
+// (see bkkClock below), not the viewer's locale.
+export const timeStr = (ts: number) => bkkClock(ts || Date.now() / 1000);
 
 export const greeting = () => {
   const h = new Date().getHours();
   return h < 12 ? "สวัสดีตอนเช้า" : h < 17 ? "สวัสดีตอนบ่าย" : "สวัสดีตอนเย็น";
 };
+
+// ---- Asia/Bangkok clock helpers (+07:00, no DST) ----
+// Sample timestamps describe the SITE's day; every clock-of-day decision must use
+// Bangkok wall time via UTC getters, never the viewer's locale — a user opening
+// the app abroad must see the same hours the inverter lived through.
+export const bkkDate = (tsSec: number) => new Date((tsSec + 7 * 3600) * 1000);
+export const bkkHour = (tsSec: number) => bkkDate(tsSec).getUTCHours() + bkkDate(tsSec).getUTCMinutes() / 60;
+export const bkkClock = (tsSec: number) => {
+  const d = bkkDate(tsSec);
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+};
+export const bkkToday = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10); // YYYY-MM-DD

@@ -1,0 +1,21 @@
+# CI: typecheck + unit tests + build on every push/PR to main.
+# Deploy stays with Cloudflare Workers Builds — this workflow only guards quality.
+name: ci
+on:
+  push:
+    branches: [main, "room/**"]
+  pull_request:
+    branches: [main]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
