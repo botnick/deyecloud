@@ -6,6 +6,7 @@ import { getLatest, getHistory, listStations, getStationMeta, listDevices, devic
 import { sunInfo } from "./sun";
 import { analyzeDevice } from "../lib/diagnostics";
 import { evaluateAlerts, notify, alertsConfigured, delivered } from "./alerts";
+import { pickPeak } from "../lib/peak";
 
 // --- External endpoints + defaults — centralized, not scattered as inline literals.
 //     Per-account/site values (email, coords) come from env; stable public API
@@ -822,14 +823,8 @@ app.get("/api/history", async (c) => {
 // time when the window is thin, and only then falling back to the raw MAX.
 const PEAK_WINDOW_DAYS = 60;
 const PEAK_MIN_SAMPLES = 7;
-const PEAK_PERCENTILE = 0.95;
 async function robustPeakW(env: Env): Promise<number> {
-  // Nearest-rank p95, but never index 0: with 7–19 samples floor(0.05·n)=0 IS the
-  // raw MAX, which defeats the whole point — so at least the single highest
-  // sample is always trimmed once we have ≥2 (codex).
-  const pick = (rows: { p: number }[]) =>
-    rows.length < 2 ? (rows[0]?.p || 0)
-    : rows[Math.min(rows.length - 1, Math.max(1, Math.floor((1 - PEAK_PERCENTILE) * rows.length)))].p;
+  const pick = pickPeak; // shared, unit-tested picker — see src/lib/peak.ts
   const cutoff = bkkDayOf(Date.now() - (PEAK_WINDOW_DAYS - 1) * 86400000); // inclusive bound → exactly ≤60 dates
   const recent = ((await env.DB.prepare(
     "SELECT peak_power p FROM daily WHERE peak_power > 0 AND day >= ? ORDER BY p DESC").bind(cutoff).all()).results || []) as any[];

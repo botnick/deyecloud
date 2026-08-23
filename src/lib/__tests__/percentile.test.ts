@@ -1,12 +1,6 @@
 import { describe, it, expect } from "vitest";
-
-// Mirror of robustPeakW's nearest-rank pick (src/worker/index.ts) — kept in sync
-// by this test's comments; the worker function itself needs a D1 env. The
-// property under test: the single highest sample is ALWAYS trimmed at n ≥ 2.
-const PEAK_PERCENTILE = 0.95;
-const pick = (rows: { p: number }[]) =>
-  rows.length < 2 ? (rows[0]?.p || 0)
-  : rows[Math.min(rows.length - 1, Math.max(1, Math.floor((1 - PEAK_PERCENTILE) * rows.length)))].p;
+// The REAL picker the worker uses (src/lib/peak.ts) — no mirrored copy to drift.
+import { pickPeak as pick } from "../peak";
 
 const desc = (...v: number[]) => v.sort((a, b) => b - a).map((p) => ({ p }));
 
