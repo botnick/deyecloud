@@ -259,8 +259,8 @@ async function capacityW(env: Env): Promise<number | null> {
   const sm = await getStationMeta(env).catch(() => null);
   let w: number | null = sm && sm.capacity && Number(sm.capacity) > 0 ? Number(sm.capacity) * 1000 : null;
   if (!w) {
-    const r = (await env.DB.prepare("SELECT MAX(peak_power) p FROM daily").first()) as { p: number | null } | null;
-    w = r && r.p && r.p > 0 ? Number(r.p) : null;
+    const p = await robustPeakW(env).catch(() => 0);
+    w = p > 0 ? p : null;
   }
   memCap = { at: Date.now(), w };
   return w;
@@ -815,6 +815,25 @@ app.get("/api/history", async (c) => {
   }
 });
 
+// Effective array size in W from observed production. A lifetime MAX is fragile —
+// one spurious spike (clipping glitch, meter hiccup) inflates every forecast
+// forever. Instead: the 95th percentile of daily peaks over the last 60 days with
+// data (recent + robust, tracks panel degradation/added strings), widening to all
+// time when the window is thin, and only then falling back to the raw MAX.
+const PEAK_WINDOW_DAYS = 60;
+const PEAK_MIN_SAMPLES = 7;
+const PEAK_PERCENTILE = 0.95;
+async function robustPeakW(env: Env): Promise<number> {
+  const pick = (rows: { p: number }[]) => rows.length ? rows[Math.min(rows.length - 1, Math.floor((1 - PEAK_PERCENTILE) * rows.length))].p : 0;
+  const cutoff = bkkDayOf(Date.now() - PEAK_WINDOW_DAYS * 86400000);
+  const recent = ((await env.DB.prepare(
+    "SELECT peak_power p FROM daily WHERE peak_power > 0 AND day >= ? ORDER BY p DESC").bind(cutoff).all()).results || []) as any[];
+  if (recent.length >= PEAK_MIN_SAMPLES) return pick(recent);
+  const all = ((await env.DB.prepare(
+    "SELECT peak_power p FROM daily WHERE peak_power > 0 ORDER BY p DESC").all()).results || []) as any[];
+  return all.length >= PEAK_MIN_SAMPLES ? pick(all) : (all[0]?.p || 0);
+}
+
 // Lifetime aggregate across every stored daily roll-up — powers the "ตลอด" tab
 // (total production, savings, CO₂, payback). One cheap SUM over the tiny daily
 // table, lightly cached. peakPower (best PV watts ever) lets the production
@@ -827,8 +846,9 @@ app.get("/api/totals", async (c) => {
   const agg = (await env.DB.prepare(
     `SELECT COUNT(*) days, MIN(day) firstDay, MAX(day) lastDay,
             SUM(gen) gen, SUM(use) use, SUM(buy) buy, SUM(sell) sell,
-            SUM(charge) charge, SUM(discharge) discharge, MAX(peak_power) peak FROM daily`
+            SUM(charge) charge, SUM(discharge) discharge FROM daily`
   ).first()) as any;
+  const peakW = await robustPeakW(env);
   // genTotal = the inverter's own lifetime kWh meter (more accurate than summing
   // daily, which only goes back to install) — prefer it, fall back to the sum.
   // Skip NULLs: only the cron writes gen_total, so backfilled rows (history frames
@@ -844,7 +864,7 @@ app.get("/api/totals", async (c) => {
     gen: agg?.gen || 0, use: agg?.use || 0, buy: agg?.buy || 0, sell: agg?.sell || 0,
     charge: agg?.charge || 0, discharge: agg?.discharge || 0,
     genTotal: (last && last.gen_total) || 0,
-    peakPower: agg?.peak || 0, // W — best PV power ever seen (≈ system AC capacity)
+    peakPower: peakW, // W — robust recent peak (95th pct, 60 d) ≈ real array size; see robustPeakW
     years: yrs,
   };
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('totals_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();

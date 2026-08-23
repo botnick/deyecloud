@@ -1,6 +1,7 @@
 import type { Latest } from "./api";
 import { DEFAULT_SETTINGS, type Settings } from "./settings";
 import { savingsOf } from "./economics";
+import { bkkHour, bkkClock, bkkToday } from "./format";
 
 export interface Insight { tone: "ok" | "info" | "warn" | "tip"; title: string; detail: string; sub?: string[]; }
 
@@ -23,7 +24,7 @@ export function analyze(l: Latest, capacityKw?: number, settings?: Settings): In
   const out: Insight[] = [];
   const st = rateOf(settings);
   const bs = (l.battStatus || "").toUpperCase();
-  const hour = new Date((l.updatedAt || Date.now() / 1000) * 1000).getHours();
+  const hour = bkkHour(l.updatedAt || Date.now() / 1000); // site (Bangkok) clock, not the viewer's
   const daytime = hour >= 6 && hour < 18;
   const kw = (w: number) => (Math.abs(w) / 1000).toFixed(2);
   // ชนิดระบบ: ตรวจว่ามีแบตไหม → on-grid (ไม่มีแบต) จะไม่แสดงการ์ดแบต/บรรทัดแบตที่ทำให้เข้าใจผิด
@@ -133,8 +134,7 @@ export function analyze(l: Latest, capacityKw?: number, settings?: Settings): In
 const TH_MONTH = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 const monthTh = (ym: string) => { const m = Number(String(ym).slice(5, 7)); return TH_MONTH[m - 1] || ym; };
 
-const pad2 = (n: number) => String(n).padStart(2, "0");
-const clockOf = (ts: number) => { const d = new Date(ts * 1000); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+const clockOf = (ts: number) => bkkClock(ts); // site clock — see format.ts
 const clamp100 = (x: number) => Math.round(Math.max(0, Math.min(100, x)));
 
 // วิเคราะห์ข้อมูลย้อนหลังของช่วงที่เลือก (วัน = เส้นกำลังไฟ / เดือน·ปี = พลังงานรวมจาก Deye).
@@ -299,9 +299,9 @@ function analyzeDay(points: any[], cap: number, st: Settings, totals?: DayTotals
   return out;
 }
 
-// อ่านรูปทรงเส้นผลิตช่วงกลางวัน (10:00–14:00 น. เวลาเครื่อง) → แดดต่อเนื่อง / มีเมฆบังเป็นช่วงๆ / ครึ้มทั้งวัน
+// อ่านรูปทรงเส้นผลิตช่วงกลางวัน (10:00–14:00 น. เวลาไทย) → แดดต่อเนื่อง / มีเมฆบังเป็นช่วงๆ / ครึ้มทั้งวัน
 function middayClouds(fr: any[]): "clear" | "intermittent" | "overcast" | null {
-  const core = fr.filter((p) => { const h = new Date(p.ts * 1000).getHours(); return h >= 10 && h < 14; });
+  const core = fr.filter((p) => { const h = bkkHour(p.ts); return h >= 10 && h < 14; });
   if (core.length < 4) return null;
   let peak = 0;
   for (const p of core) peak = Math.max(peak, p.gen_power || 0);
@@ -345,7 +345,7 @@ function dayVerdict(m: {
 
   // คำแนะนำที่ทำได้จริง 1 ข้อ — ตามชนิดระบบ + จุดที่ปรับปรุงได้มากสุด
   const lowSoc = m.socMin != null && m.socMin <= 15;
-  const lowAtNight = lowSoc && (() => { const h = new Date(m.socMinTs * 1000).getHours(); return h < 6 || h >= 18; })();
+  const lowAtNight = lowSoc && (() => { const h = bkkHour(m.socMinTs); return h < 6 || h >= 18; })();
   if (m.hasBatt && !m.usedGrid && m.socMin != null && m.socMin <= 12) parts.push("แบตลงต่ำมากและไม่มีกริดสำรอง — เสี่ยงไฟดับ ควรลดโหลดและรอแดดมาชาร์จ");
   else if (!m.hasBatt && m.genKwh > 0.1 && m.expKwh > m.genKwh * 0.2) parts.push("ระบบไม่มีแบต ไฟที่ผลิตเกินจะไหลย้อนทิ้ง — ใช้ไฟตอนกลางวันให้มากที่สุดจะคุ้มสุด");
   else if (m.genKwh > 0.1 && m.expKwh > m.genKwh * 0.2) parts.push("มีไฟไหลย้อนทิ้งเยอะ — ลองเลื่อนเครื่องใช้ไฟฟ้าหนักมาช่วงกลางวันจะคุ้มกว่า");
@@ -381,11 +381,13 @@ function analyzeSpan(range: "month" | "year", points: any[], cap: number, st: Se
   const noBuyDays = points.filter((p) => (p.buy || 0) < 0.5).length;
 
   // ช่วงนี้คือช่วงปัจจุบันที่ยังไม่จบหรือไม่ (ไว้คาดการณ์ทั้งช่วง)
-  const todayUTC = new Date().toISOString().slice(0, 10);
+  // Bangkok "today" — plain toISOString (UTC) would call the wrong month/year
+  // current between 00:00 and 07:00 Thai time on boundary days.
+  const todayBkk = bkkToday();
   const last = points[points.length - 1] || {};
   const isCurrent = range === "month"
-    ? String(last.day || "").slice(0, 7) === todayUTC.slice(0, 7)
-    : String(last.month || "").slice(0, 4) === todayUTC.slice(0, 4);
+    ? String(last.day || "").slice(0, 7) === todayBkk.slice(0, 7)
+    : String(last.month || "").slice(0, 4) === todayBkk.slice(0, 4);
 
   out.push({
     tone: "tip", title: "สรุปภาพรวม",
@@ -394,7 +396,7 @@ function analyzeSpan(range: "month" | "year", points: any[], cap: number, st: Se
 
   // คาดการณ์ทั้งช่วง (เฉพาะช่วงปัจจุบันที่ยังไม่จบ)
   if (isCurrent && n >= 2) {
-    const total = range === "month" ? new Date(Date.UTC(Number(todayUTC.slice(0, 4)), Number(todayUTC.slice(5, 7)), 0)).getUTCDate() : 12;
+    const total = range === "month" ? new Date(Date.UTC(Number(todayBkk.slice(0, 4)), Number(todayBkk.slice(5, 7)), 0)).getUTCDate() : 12;
     if (n < total) {
       const projGen = (s.gen / n) * total, projSaved = (saved / n) * total;
       out.push({
