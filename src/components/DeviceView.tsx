@@ -253,8 +253,8 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
                 <div className="min-w-0 flex-1">
                   <div className="text-[14px] font-semibold leading-tight">{a.name} <span className="text-[12px] font-normal text-muted">· {a.level >= 2 ? "Fault" : "Warning"}</span></div>
                   <div className="text-[12.5px] text-muted mt-0.5">
-                    {a.end == null ? "กำลังเกิดอยู่ · เริ่ม " : ""}{new Date(a.start * 1000).toLocaleString("th-TH-u-ca-gregory", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                    {a.end != null && ` → หายเมื่อ ${new Date(a.end * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} (${Math.max(1, Math.round((a.end - a.start) / 60))} นาที)`}
+                    {a.end == null ? "กำลังเกิดอยู่ · เริ่ม " : ""}{new Date(a.start * 1000).toLocaleString("th-TH-u-ca-gregory", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })}
+                    {a.end != null && ` → หายเมื่อ ${new Date(a.end * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })} (${Math.max(1, Math.round((a.end - a.start) / 60))} นาที)`}
                   </div>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { sunInfo } from "../../worker/sun";
 import { bkkHour, bkkClock, bkkToday } from "../format";
 
@@ -47,7 +47,15 @@ describe("Bangkok clock helpers (viewer-timezone independence)", () => {
     // 17:30Z = 00:30 BKK next day
     expect(bkkHour(atUTC("2026-08-23T17:30:00Z") / 1000)).toBeCloseTo(0.5);
   });
-  it("bkkToday: 23:30 BKK (16:30Z) and 00:30 BKK straddle a day boundary", () => {
-    expect(bkkToday()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  it("bkkToday straddles the BKK day boundary at a month end (fake clock)", () => {
+    vi.useFakeTimers();
+    try {
+      // 2026-08-31T16:30:00Z = 23:30 BKK Aug 31 — still the 31st in Bangkok
+      vi.setSystemTime(new Date("2026-08-31T16:30:00Z"));
+      expect(bkkToday()).toBe("2026-08-31");
+      // one hour later, 17:30Z = 00:30 BKK Sep 1 — Bangkok has rolled the month
+      vi.setSystemTime(new Date("2026-08-31T17:30:00Z"));
+      expect(bkkToday()).toBe("2026-09-01");
+    } finally { vi.useRealTimers(); }
   });
 });
