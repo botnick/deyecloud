@@ -857,7 +857,7 @@ app.get("/api/totals", async (c) => {
   try {
     const sm = await getStationMeta(env);
     if (sm && sm.lat != null && sm.lng != null) {
-      const cutoff = bkkDayOf(Date.now() - 59 * 86400000);
+      const cutoff = bkkDayOf(Date.now() - 60 * 86400000); // with day<today: exactly 60 complete dates
       // strictly BEFORE today: the running day is partial and would both pad the
       // ≥7-day gate and (late in the day) contaminate the clear-day sample
       const rows = ((await env.DB.prepare("SELECT day, gen FROM daily WHERE gen > 0 AND day >= ? AND day < ?").bind(cutoff, bkkDayOf(Date.now())).all()).results || []) as any[];
