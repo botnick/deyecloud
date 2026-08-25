@@ -124,7 +124,10 @@ export default function App() {
   // The cron/D1 history (totals, calibration, weather) describes the PRIMARY
   // station only — the one /api/station reports. Forecast calibration must not
   // leak onto a sibling station of a multi-station account.
-  const isPrimaryStation = !active || !station || active.id === station.id;
+  // Fail CLOSED while the primary's identity is unknown: on a multi-station
+  // account with /api/station still loading (or failed), a selected sibling must
+  // not receive primary calibration just because we can't compare ids yet.
+  const isPrimaryStation = !active || (station ? String(active.id) === String(station.id) : stations.length <= 1);
   const shownLatest = sim ? scenarioByKey(sim)?.latest ?? latest : latest;
   const [spinning, setSpinning] = useState(false);
   const [splashDone, setSplashDone] = useState(() => {
