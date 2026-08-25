@@ -38,11 +38,11 @@ function Stat({ label, value, color, sub }: { label: string; value: string; colo
   );
 }
 
-export function WeatherView({ weather, capacity }: { weather: Weather | null; capacity?: number }) {
+export function WeatherView({ weather, capacity, isPrimary = true }: { weather: Weather | null; capacity?: number; isPrimary?: boolean }) {
   // Effective capacity for the production forecast: the station's installed kWp, or
   // — when unknown — derived from the best PV power ever produced (peakPower). Only
   // fetched (cheaply, cached) when the station never reported its capacity.
-  const effCap = useEffectiveCapacity(capacity);
+  const effCap = useEffectiveCapacity(capacity, isPrimary);
 
   if (!weather || weather.temp == null) {
     return (
@@ -131,7 +131,7 @@ export function WeatherView({ weather, capacity }: { weather: Weather | null; ca
               <IconSun className="w-5 h-5" />
             </span>
             <div className="font-bold text-[16px] text-title">คาดการณ์การผลิตไฟ</div>
-            <InfoTip className="ml-1" text={`ค่าประมาณการผลิตไฟแต่ละวัน คิดจากขนาดระบบ ${effCap.toFixed(1)} kW × ปริมาณแสงแดดที่คาดไว้ ค่าจริงขึ้นกับเมฆ ฝน และการใช้งานจริงครับ`} />
+            <InfoTip className="ml-1" text={`ค่าประมาณการผลิตไฟแต่ละวัน คิดจากกำลังผลิตอ้างอิง ${effCap.toFixed(1)} kW — สอบเทียบจากวันแดดดีจริงของระบบนี้เมื่อมีประวัติพอ (ไม่งั้นใช้ขนาดระบบตามป้าย) × ปริมาณแสงแดดที่คาดไว้ ค่าจริงขึ้นกับเมฆ ฝน และการใช้งานจริงครับ`} />
           </div>
           <div className="grid grid-cols-3 gap-2.5 mt-3">
             {fc.slice(0, 3).map((f, i) => (
