@@ -858,7 +858,9 @@ app.get("/api/totals", async (c) => {
     const sm = await getStationMeta(env);
     if (sm && sm.lat != null && sm.lng != null) {
       const cutoff = bkkDayOf(Date.now() - 59 * 86400000);
-      const rows = ((await env.DB.prepare("SELECT day, gen FROM daily WHERE gen > 0 AND day >= ?").bind(cutoff).all()).results || []) as any[];
+      // strictly BEFORE today: the running day is partial and would both pad the
+      // ≥7-day gate and (late in the day) contaminate the clear-day sample
+      const rows = ((await env.DB.prepare("SELECT day, gen FROM daily WHERE gen > 0 AND day >= ? AND day < ?").bind(cutoff, bkkDayOf(Date.now())).all()).results || []) as any[];
       calib = calibKwFrom(rows.map((r) => ({
         gen: Number(r.gen) || 0,
         psh: sunInfo(Number(sm.lat), Number(sm.lng), 420, Date.parse(r.day + "T05:00:00Z")).psh, // noon-ish BKK of that day

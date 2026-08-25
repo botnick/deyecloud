@@ -4,7 +4,7 @@ import { IconAlert } from "../lib/icons";
 import { cardP, h2Mid } from "../lib/ui";
 import { useSettings } from "../lib/settings";
 import { savingsOf, savingsLabel } from "../lib/economics";
-import { forecast, clearSkyPsh } from "../lib/forecast";
+import { forecast, clearSkyPsh, forecastDayKwh } from "../lib/forecast";
 import { useEffectiveCapacity } from "../lib/useCapacity";
 import { InfoTip } from "./InfoTip";
 import { HeroHome } from "./HeroHome";
@@ -19,14 +19,15 @@ function Skeleton() {
   );
 }
 
-export function HomeView({ latest, weather, capacity, stationName, onDevice }: { latest: Latest | null; weather: Weather | null; capacity?: number; stationName?: string; onDevice: () => void }) {
+export function HomeView({ latest, weather, capacity, isPrimary = true, stationName, onDevice }: { latest: Latest | null; weather: Weather | null; capacity?: number; isPrimary?: boolean; stationName?: string; onDevice: () => void }) {
   const { settings } = useSettings();
-  const effCap = useEffectiveCapacity(capacity); // kWp: installed, else derived from peakPower
+  const effCap = useEffectiveCapacity(capacity, isPrimary); // kWp: calibrated → installed → peak (see useCapacity)
   if (!latest) return <Skeleton />;
   const ok = (latest.warningStatus || "NORMAL") === "NORMAL";
-  // today's clear-sky potential = array kWp × astronomical peak-sun-hours for this
-  // site/date (from the weather payload) — no regional constant.
-  const potential = effCap * clearSkyPsh(weather);
+  // Today's ACHIEVABLE clear-day production — same formula the forecast uses for a
+  // clear sky (kWp × PSH × clear factor), so a calibration-clear day reads ~100%,
+  // not the lossless-theoretical 80%.
+  const potential = forecastDayKwh({ cond: 1 } as any, clearSkyPsh(weather), effCap);
   const prodPct = potential > 0 ? Math.round(Math.min(100, (latest.genToday / potential) * 100)) : Math.min(100, Math.round(latest.genToday));
   // shared economics formula (self-consumption + export income, user's own rates)
   const sv = savingsLabel(savingsOf({ use: latest.useToday, buy: latest.buyToday, sell: latest.sellToday }, settings), "ประหยัดวันนี้");

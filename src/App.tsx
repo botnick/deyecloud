@@ -121,6 +121,10 @@ export default function App() {
     return () => { live = false; };
   }, [stale, latest?.updatedAt]);
   const active = stations.find((s) => s.id === selectedId) || station; // selected (or default) station
+  // The cron/D1 history (totals, calibration, weather) describes the PRIMARY
+  // station only — the one /api/station reports. Forecast calibration must not
+  // leak onto a sibling station of a multi-station account.
+  const isPrimaryStation = !active || !station || active.id === station.id;
   const shownLatest = sim ? scenarioByKey(sim)?.latest ?? latest : latest;
   const [spinning, setSpinning] = useState(false);
   const [splashDone, setSplashDone] = useState(() => {
@@ -247,9 +251,9 @@ export default function App() {
           {offline && !sim && <OfflineBanner latest={latest} onRetry={() => refresh(true)} />}
           {stale && !sim && <StaleBanner ageMin={staleMin} health={health} />}
           <div key={view} className="view-anim">
-            {view === "home" && <HomeView latest={shownLatest} weather={weather} capacity={active?.capacity} stationName={active?.name} onDevice={() => go("device")} />}
+            {view === "home" && <HomeView latest={shownLatest} weather={weather} capacity={active?.capacity} isPrimary={isPrimaryStation} stationName={active?.name} onDevice={() => go("device")} />}
             {view === "today" && <TodayView latest={shownLatest} capacity={active?.capacity} />}
-            {view === "weather" && <WeatherView weather={weather} capacity={active?.capacity} />}
+            {view === "weather" && <WeatherView weather={weather} capacity={active?.capacity} isPrimary={isPrimaryStation} />}
             {view === "device" && <DeviceView latest={shownLatest} active={true} stationId={stations.length > 1 ? selectedId : undefined} onBack={() => go("home")} />}
           </div>
           <div className={view === "history" ? "view-anim" : "hidden"}>
