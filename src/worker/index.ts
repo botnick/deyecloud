@@ -7,6 +7,7 @@ import { sunInfo } from "./sun";
 import { analyzeDevice } from "../lib/diagnostics";
 import { evaluateAlerts, notify, alertsConfigured, delivered } from "./alerts";
 import { pickPeak } from "../lib/peak";
+import { calibKwFrom } from "../lib/calib";
 
 // --- External endpoints + defaults — centralized, not scattered as inline literals.
 //     Per-account/site values (email, coords) come from env; stable public API
@@ -849,6 +850,21 @@ app.get("/api/totals", async (c) => {
             SUM(charge) charge, SUM(discharge) discharge FROM daily`
   ).first()) as any;
   const peakW = await robustPeakW(env);
+  // Self-calibrated effective capacity from the site's own recent production —
+  // see src/lib/calib.ts. psh per past day is recomputed astronomically for the
+  // station's coordinates (pure CPU, no requests). 0 = not enough history yet.
+  let calib = { kw: 0, days: 0 };
+  try {
+    const sm = await getStationMeta(env);
+    if (sm && sm.lat != null && sm.lng != null) {
+      const cutoff = bkkDayOf(Date.now() - 59 * 86400000);
+      const rows = ((await env.DB.prepare("SELECT day, gen FROM daily WHERE gen > 0 AND day >= ?").bind(cutoff).all()).results || []) as any[];
+      calib = calibKwFrom(rows.map((r) => ({
+        gen: Number(r.gen) || 0,
+        psh: sunInfo(Number(sm.lat), Number(sm.lng), 420, Date.parse(r.day + "T05:00:00Z")).psh, // noon-ish BKK of that day
+      })));
+    }
+  } catch (e) { console.warn("calibration skipped", (e as Error).message); }
   // genTotal = the inverter's own lifetime kWh meter (more accurate than summing
   // daily, which only goes back to install) — prefer it, fall back to the sum.
   // Skip NULLs: only the cron writes gen_total, so backfilled rows (history frames
@@ -865,6 +881,7 @@ app.get("/api/totals", async (c) => {
     charge: agg?.charge || 0, discharge: agg?.discharge || 0,
     genTotal: (last && last.gen_total) || 0,
     peakPower: peakW, // W — robust recent peak (95th pct, 60 d) ≈ real array size; see robustPeakW
+    calibKw: calib.kw, calibDays: calib.days, // measured clear-sky-equivalent kWp (0 = insufficient history)
     years: yrs,
   };
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('totals_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();

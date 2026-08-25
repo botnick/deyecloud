@@ -74,7 +74,10 @@ export interface YearTotal { year: string; gen: number; use: number; buy: number
 export interface Totals {
   days: number; firstDay: string | null; lastDay: string | null;
   gen: number; use: number; buy: number; sell: number; charge: number; discharge: number;
-  genTotal: number; peakPower: number; years: YearTotal[];
+  genTotal: number; peakPower: number;
+  // measured clear-sky-equivalent capacity from the site's own history (see lib/calib.ts); 0 = not enough data yet
+  calibKw: number; calibDays: number;
+  years: YearTotal[];
 }
 export const getTotals = () => api<Totals>("/api/totals");
 
