@@ -34,6 +34,7 @@
 | `ALERT_WEBHOOK_URL` | ⬜ | **แจ้งเตือนเข้า Discord** — สร้าง Webhook ในห้อง Discord (Edit Channel → Integrations → Webhooks) แล้ววาง URL · ระบบจะเตือนเมื่อ: อินเวอร์เตอร์ออฟไลน์ / ดึง Deye ไม่ได้ติดกัน 3 รอบ / แดดจัดแต่ผลิต ≈0 / ไฟกริดหาย / แบตต่ำ / เจอจุดผิดปกติ · และส่ง "กลับมาปกติ" เมื่อหาย · ทดสอบ: `POST /api/_alert_test` (ต้องล็อกอิน PIN) |
 | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | ⬜ | แจ้งเตือนเข้า Telegram (ใช้คู่กับหรือแทน webhook) |
 | `ALERT_SOC_MIN` | ⬜ | เตือนเมื่อแบตต่ำกว่า % นี้ (ไม่ตั้ง = ไม่เตือนแบตต่ำ) · `ALERT_REPEAT_MIN` = เตือนซ้ำทุกกี่นาทีถ้ายังไม่หาย (ค่าเริ่มต้น 360) |
+| `ALERT_HEURISTICS` / `ALERT_MUTE` | ⬜ | ผลวิเคราะห์ (เฟสไม่สมดุล / ช่องแบต ฯลฯ) เป็น "คำแนะนำ" **ไม่ส่งออกเป็นแจ้งเตือน** เว้นแต่ตั้ง `ALERT_HEURISTICS=1` · `ALERT_MUTE=offline,no_production` ปิดกติกาเป็นรายตัว (คีย์: offline · poll_failed · no_production · grid_out · soc_low · deye: · attention) |
 | `TMD_TOKEN` | ⬜ | โทเคนพยากรณ์อากาศกรมอุตุฯ → <https://data.tmd.go.th/nwpapi> (สมัครขอ token) · **ไม่ใส่ก็ได้** → ระบบใช้ Open-Meteo แทนอัตโนมัติ |
 
 ค่าที่มี **ค่าตั้งต้นให้แล้ว** (แก้เฉพาะถ้าจำเป็น) — อยู่ใน `wrangler.jsonc` → `vars`:

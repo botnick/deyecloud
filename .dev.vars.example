@@ -24,3 +24,8 @@ TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 ALERT_SOC_MIN=
 ALERT_REPEAT_MIN=
+# Analysis findings (phase balance, battery channel sharing…) are advice, not events —
+# they stay in the app and are NOT pushed unless ALERT_HEURISTICS=1.
+ALERT_HEURISTICS=
+# Silence individual rules: offline, poll_failed, no_production, grid_out, soc_low, deye:, attention
+ALERT_MUTE=
