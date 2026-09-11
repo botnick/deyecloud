@@ -22,11 +22,30 @@ export interface AlertEnv extends Env {
   TELEGRAM_CHAT_ID?: string;
   ALERT_SOC_MIN?: string;
   ALERT_REPEAT_MIN?: string;
+  ALERT_HEURISTICS?: string;     // "1" = also push the analysis findings (attention:*) outbound; default off
+  ALERT_MUTE?: string;           // comma list of rule keys/prefixes to silence, e.g. "offline,no_production,deye:"
 }
 
 const GRID_ABSENT_V = 50;        // no grid on earth sits this low while energised
 const CONSECUTIVE_TICKS = 3;     // ~15 min at */5 — one bad sample is noise
+const NO_PROD_TICKS = 4;         // ~20 min: production needs the longest confirmation (clouds move)
 const NO_PROD_FRACTION = 0.02;   // "≈0" = under 2 % of the array's known size
+const NO_PROD_CORE_MARGIN_MIN = 60; // ignore the first/last hour of the sun-peak window (low-angle sun + haze)
+const CLEAR_COND_MAX = 2;        // TMD cond 1–2 = clear / partly cloudy; anything cloudier explains low PV by itself
+
+// ---- pure policy helpers (unit-tested) ----
+export const parseMute = (s?: string) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
+// A mute entry matches a rule key exactly, or as a prefix when it ends with ":" or
+// is a family name (attention / deye) — so "deye:" or "attention" silence the group.
+export const isMuted = (key: string, mute: string[]) =>
+  mute.some((m) => key === m || key.startsWith(m.endsWith(":") ? m : m + ":"));
+const toMin = (hhmmStr: string) => Number(hhmmStr.slice(0, 2)) * 60 + Number(hhmmStr.slice(3, 5));
+// Inside [peakStart+margin, peakEnd−margin] — the core of the day where clear-sky
+// irradiance is unambiguously strong. Edges are where haze/low sun make ≈0 W legit.
+export const inCoreWindow = (nowHHMM: string, peakStart: string, peakEnd: string, marginMin = NO_PROD_CORE_MARGIN_MIN) => {
+  const n = toMin(nowHHMM), a = toMin(peakStart) + marginMin, b = toMin(peakEnd) - marginMin;
+  return b > a && n >= a && n <= b;
+};
 
 interface Cond { key: string; title: string; detail: string; active: boolean; }
 interface AlertState { [key: string]: { since: number; lastSent: number; sent: boolean; ticks: number; title?: string } }
@@ -81,7 +100,6 @@ export interface EvalInput {
   stationName?: string;
   pollError?: string | null;     // set by the scheduled catch path
 }
-const RAINY_COND = 5; // TMD cond ≥5 = rain/thunder: near-zero PV is expected, not a fault
 
 // Evaluate every rule against this tick, update state, send what changed.
 export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<void> {
@@ -100,24 +118,33 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
   conds.push({ key: "poll_failed", title: "ดึงข้อมูลจาก Deye ไม่ได้", detail: inp.pollError ? `ล้มเหลวติดกัน ${pf.ticks} รอบ · ${inp.pollError}` : "", active: pf.ticks >= CONSECUTIVE_TICKS });
 
   if (dev && dev.availability) {
-    conds.push({ key: "offline", title: "อินเวอร์เตอร์ออฟไลน์", detail: dev.availability.reason || "", active: dev.availability.status === "offline" });
+    // Deye's device timestamp can lag a few minutes behind the poll; a single
+    // "stale" reading is not an outage. Confirm across ticks like every other rule.
+    const off = st.offline || { since: now, lastSent: 0, sent: false, ticks: 0 };
+    const isOff = dev.availability.status === "offline";
+    off.ticks = isOff ? off.ticks + 1 : 0;
+    if (isOff && off.ticks === 1) off.since = now;
+    st.offline = off;
+    conds.push({ key: "offline", title: "อินเวอร์เตอร์ออฟไลน์", detail: `${dev.availability.reason || ""} · ติดกัน ${off.ticks} รอบ`, active: off.ticks >= CONSECUTIVE_TICKS });
   }
 
   if (l && inp.sun && inp.capacityW && inp.capacityW > 0) {
     const t = hhmm(Date.now());
-    const inPeak = t >= inp.sun.peakStart && t <= inp.sun.peakEnd;
-    const rainy = inp.weatherCond != null && inp.weatherCond >= RAINY_COND;
+    const inCore = inCoreWindow(t, inp.sun.peakStart, inp.sun.peakEnd);
+    // Only a clear / partly-cloudy sky makes "≈0 W" suspicious. Unknown weather
+    // counts as not-clear: never raise on missing data.
+    const clear = inp.weatherCond != null && inp.weatherCond <= CLEAR_COND_MAX;
     const np = st.no_production || { since: now, lastSent: 0, sent: false, ticks: 0 };
-    // Rain/thunder pauses the counter (doesn't reset it): a storm passing over a
-    // dead array shouldn't clear the alarm, but it must not raise it either.
-    const zero = inPeak && !rainy && Number(l.genPower) < inp.capacityW * NO_PROD_FRACTION;
-    np.ticks = zero ? np.ticks + 1 : rainy && inPeak ? np.ticks : 0;
+    // Cloud/rain PAUSES the counter (doesn't reset it): weather passing over a dead
+    // array shouldn't clear the alarm, but it must not raise it either.
+    const zero = inCore && clear && Number(l.genPower) < inp.capacityW * NO_PROD_FRACTION;
+    np.ticks = zero ? np.ticks + 1 : inCore && !clear ? np.ticks : 0;
     if (zero && np.ticks === 1) np.since = now;
     st.no_production = np;
     conds.push({
-      key: "no_production", title: "ช่วงกลางวันแต่ไม่ผลิตไฟเลย",
-      detail: `ผลิต ${Math.round(Number(l.genPower))} W ในช่วงแดด (คำนวณจากตำแหน่งดวงอาทิตย์) ${inp.sun.peakStart}–${inp.sun.peakEnd} ฝนไม่ตก ติดกัน ${np.ticks} รอบ`,
-      active: np.ticks >= CONSECUTIVE_TICKS,
+      key: "no_production", title: "ฟ้าโปร่งกลางวันแต่ไม่ผลิตไฟเลย",
+      detail: `ผลิต ${Math.round(Number(l.genPower))} W ทั้งที่ท้องฟ้าโปร่ง ในช่วงแดดแรง (${inp.sun.peakStart}–${inp.sun.peakEnd} ตัดหัวท้าย 1 ชม.) ติดกัน ${np.ticks} รอบ`,
+      active: np.ticks >= NO_PROD_TICKS,
     });
   }
 
@@ -147,13 +174,28 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
   }
   if (dev && dev.alarms) for (const k of Object.keys(st)) if (k.startsWith("deye:") && !seenAl.has(k)) conds.push({ key: k, title: st[k].title || k, detail: "", active: false });
 
-  // attention:* — one condition per finding; findings that vanished are "cleared"
-  const seenAtt = new Set<string>();
-  for (const title of (dev && dev.attention) || []) {
-    const k = keyOf(title); seenAtt.add(k);
-    conds.push({ key: k, title, detail: "จากการวิเคราะห์ค่าจากเครื่อง (ไม่ใช่ alarm ของ Deye)", active: true });
+  // attention:* — heuristic findings from analyzeDevice. They are ADVICE, not
+  // events: a permanently-idle second battery channel or a one-phase air-con
+  // would otherwise nag every ALERT_REPEAT_MIN forever. Outbound only when the
+  // owner opts in (ALERT_HEURISTICS=1); the app still shows them either way.
+  const heuristics = env.ALERT_HEURISTICS === "1" || env.ALERT_HEURISTICS === "true";
+  if (heuristics) {
+    const seenAtt = new Set<string>();
+    for (const title of (dev && dev.attention) || []) {
+      const k = keyOf(title); seenAtt.add(k);
+      conds.push({ key: k, title, detail: "จากการวิเคราะห์ค่าจากเครื่อง (ไม่ใช่ alarm ของ Deye)", active: true });
+    }
+    for (const k of Object.keys(st)) if (k.startsWith("attention:") && !seenAtt.has(k)) conds.push({ key: k, title: st[k].title || k, detail: "", active: false });
+  } else {
+    for (const k of Object.keys(st)) if (k.startsWith("attention:")) delete st[k]; // silently forget — no "recovered" spam
   }
-  for (const k of Object.keys(st)) if (k.startsWith("attention:") && !seenAtt.has(k)) conds.push({ key: k, title: st[k].title || k, detail: "", active: false });
+
+  // ALERT_MUTE — drop silenced rules entirely and forget their state without a
+  // recovery message (the owner asked for silence, not a farewell).
+  const mute = parseMute(env.ALERT_MUTE);
+  const live = conds.filter((c) => !isMuted(c.key, mute));
+  for (const c of conds) if (isMuted(c.key, mute) && st[c.key]) delete st[c.key];
+  conds.length = 0; conds.push(...live);
 
   // Diff against state → messages. State transitions that mean "the user has been
   // told" are COMMITTED ONLY IF a channel actually accepted the message (2xx);

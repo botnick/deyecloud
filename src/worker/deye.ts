@@ -30,6 +30,8 @@ export interface Env {
   TELEGRAM_CHAT_ID?: string;
   ALERT_SOC_MIN?: string;       // e.g. "20" — battery-low alert threshold (%)
   ALERT_REPEAT_MIN?: string;    // re-send an ongoing alert every N minutes (default 360)
+  ALERT_HEURISTICS?: string;    // "1" = also push analysis findings (attention:*) outbound; default off
+  ALERT_MUTE?: string;          // comma list of rule keys/prefixes to silence, e.g. "offline,no_production"
 }
 
 // Day key in Thailand local time (UTC+7, no DST). Deye reports "today" energy in
