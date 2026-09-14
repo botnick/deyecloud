@@ -47,7 +47,11 @@ export const inCoreWindow = (nowHHMM: string, peakStart: string, peakEnd: string
   return b > a && n >= a && n <= b;
 };
 
-interface Cond { key: string; title: string; detail: string; active: boolean; }
+// active   = the incident is on (raise if not yet sent; keep open)
+// evidence = THIS tick independently confirms it (default true). Repeats are sent
+//            only with evidence — an open incident under unknown/cloudy weather
+//            neither repeats nor recovers.
+interface Cond { key: string; title: string; detail: string; active: boolean; evidence?: boolean; }
 interface AlertState { [key: string]: { since: number; lastSent: number; sent: boolean; ticks: number; title?: string } }
 
 export const alertsConfigured = (env: AlertEnv) => !!(env.ALERT_WEBHOOK_URL || (env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID));
@@ -122,10 +126,14 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
     // "stale" reading is not an outage. Confirm across ticks like every other rule.
     const off = st.offline || { since: now, lastSent: 0, sent: false, ticks: 0 };
     const isOff = dev.availability.status === "offline";
-    off.ticks = isOff ? off.ticks + 1 : 0;
-    if (isOff && off.ticks === 1) off.since = now;
+    // An already-open incident (sent=true — including state written by the
+    // pre-counter version) stays open while still offline: never re-debounce it
+    // into a false "recovered". Only a NEW incident needs CONSECUTIVE_TICKS.
+    if (isOff && off.sent) off.ticks = Math.max(off.ticks + 1, CONSECUTIVE_TICKS);
+    else off.ticks = isOff ? off.ticks + 1 : 0;
+    if (isOff && !off.sent && off.ticks === 1) off.since = now;
     st.offline = off;
-    conds.push({ key: "offline", title: "อินเวอร์เตอร์ออฟไลน์", detail: `${dev.availability.reason || ""} · ติดกัน ${off.ticks} รอบ`, active: off.ticks >= CONSECUTIVE_TICKS });
+    conds.push({ key: "offline", title: "อินเวอร์เตอร์ออฟไลน์", detail: `${dev.availability.reason || ""} · ติดกัน ${off.ticks} รอบ`, active: isOff && (off.sent || off.ticks >= CONSECUTIVE_TICKS) });
   }
 
   if (l && inp.sun && inp.capacityW && inp.capacityW > 0) {
@@ -137,14 +145,21 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
     const np = st.no_production || { since: now, lastSent: 0, sent: false, ticks: 0 };
     // Cloud/rain PAUSES the counter (doesn't reset it): weather passing over a dead
     // array shouldn't clear the alarm, but it must not raise it either.
-    const zero = inCore && clear && Number(l.genPower) < inp.capacityW * NO_PROD_FRACTION;
-    np.ticks = zero ? np.ticks + 1 : inCore && !clear ? np.ticks : 0;
-    if (zero && np.ticks === 1) np.since = now;
+    const producing = Number(l.genPower) >= inp.capacityW * NO_PROD_FRACTION;
+    const zero = inCore && clear && !producing; // fresh, unambiguous evidence this tick
+    // Observed production clears the counter whatever the sky says; clear-sky zero
+    // counts; anything else (cloud, unknown weather, outside the core) freezes it.
+    if (producing) np.ticks = 0;
+    else if (zero) np.ticks += 1;
+    if (zero && !np.sent && np.ticks === 1) np.since = now;
     st.no_production = np;
     conds.push({
       key: "no_production", title: "ฟ้าโปร่งกลางวันแต่ไม่ผลิตไฟเลย",
       detail: `ผลิต ${Math.round(Number(l.genPower))} W ทั้งที่ท้องฟ้าโปร่ง ในช่วงแดดแรง (${inp.sun.peakStart}–${inp.sun.peakEnd} ตัดหัวท้าย 1 ชม.) ติดกัน ${np.ticks} รอบ`,
-      active: np.ticks >= NO_PROD_TICKS,
+      // raise only on evidence; an open incident stays open until production is
+      // actually observed (a dead array is still dead under a cloud, and at night)
+      active: zero ? np.ticks >= NO_PROD_TICKS : (np.sent && !producing),
+      evidence: zero,
     });
   }
 
@@ -194,7 +209,7 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
   // recovery message (the owner asked for silence, not a farewell).
   const mute = parseMute(env.ALERT_MUTE);
   const live = conds.filter((c) => !isMuted(c.key, mute));
-  for (const c of conds) if (isMuted(c.key, mute) && st[c.key]) delete st[c.key];
+  for (const k of Object.keys(st)) if (isMuted(k, mute)) delete st[k]; // ALL matching state, not just rules evaluable this tick
   conds.length = 0; conds.push(...live);
 
   // Diff against state → messages. State transitions that mean "the user has been
@@ -210,7 +225,7 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
       if (!st[c.key] || (!s.sent && !s.since)) s.since = now;
       s.title = c.title;
       st[c.key] = s;
-      if (!s.sent || now - s.lastSent >= repeatS) {
+      if (!s.sent || (now - s.lastSent >= repeatS && c.evidence !== false)) {
         msgs.push(`${s.sent ? "🔁" : "🚨"} ${name}${c.title}${c.detail ? `\n${c.detail}` : ""}${s.sent ? `\nยังไม่หาย · เริ่ม ${hhmm(s.since * 1000)} (${mins(now - s.since)})` : ""}`);
         onDelivered.push(() => { s.sent = true; s.lastSent = now; });
       }
