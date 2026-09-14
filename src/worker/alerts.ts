@@ -158,7 +158,10 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
       detail: `ผลิต ${Math.round(Number(l.genPower))} W ทั้งที่ท้องฟ้าโปร่ง ในช่วงแดดแรง (${inp.sun.peakStart}–${inp.sun.peakEnd} ตัดหัวท้าย 1 ชม.) ติดกัน ${np.ticks} รอบ`,
       // raise only on evidence; an open incident stays open until production is
       // actually observed (a dead array is still dead under a cloud, and at night)
-      active: zero ? np.ticks >= NO_PROD_TICKS : (np.sent && !producing),
+      // Open-incident invariant (same as offline): once sent, it stays active
+      // until production is observed — a clear-sky tick after a FAILED recovery
+      // delivery must not bypass the latch and close a still-failing incident.
+      active: !producing && (np.sent || (zero && np.ticks >= NO_PROD_TICKS)),
       evidence: zero,
     });
   }

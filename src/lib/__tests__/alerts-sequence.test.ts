@@ -81,6 +81,24 @@ describe("no_production — evidence-gated, production clears regardless of sky"
     tick(10); await evaluateAlerts(h.env, inp(3000, 3));
     const m = h.take(); expect(m).toHaveLength(1); expect(m[0]).toContain("กลับมาปกติ");
   });
+  it("failed recovery delivery (503) then a clear zero tick: incident stays open, no false RECOVERED", async () => {
+    const h = harness();
+    for (let i = 0; i < 4; i++) { await evaluateAlerts(h.env, inp(0, 1)); tick(); }
+    expect(h.take()[0]).toContain("ไม่ผลิตไฟ");
+    // recovery attempt is NOT delivered → sent must stay latched
+    const ok = globalThis.fetch;
+    globalThis.fetch = vi.fn(async () => ({ status: 503 } as any)) as any;
+    tick(); await evaluateAlerts(h.env, inp(3000, 3));
+    globalThis.fetch = ok;
+    expect(h.state().no_production.sent).toBe(true);
+    // next clear-sky zero tick (ticks reset to 1): still open → no "recovered", no raise
+    tick(); await evaluateAlerts(h.env, inp(0, 1));
+    expect(h.take().filter((m) => m.includes("กลับมาปกติ"))).toEqual([]);
+    expect(h.state().no_production.sent).toBe(true);
+    // real production with a working webhook → exactly one recovery
+    tick(); await evaluateAlerts(h.env, inp(3000, 3));
+    const m = h.take(); expect(m).toHaveLength(1); expect(m[0]).toContain("กลับมาปกติ");
+  });
   it("pending 4 ticks (unsent) under unknown weather does NOT raise", async () => {
     const h = harness({ no_production: { since: 0, lastSent: 0, sent: false, ticks: 4 } });
     await evaluateAlerts(h.env, inp(0, null));
