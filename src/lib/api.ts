@@ -53,6 +53,7 @@ export interface Device {
   availability?: { status: "online" | "offline" | "unknown"; reason: string };
   attention?: string[];                                  // warn-level findings from our analysis
   alarms?: { active: DeyeAlert[]; recent: DeyeAlert[] }; // Deye's own alarm log (undefined = unavailable)
+  battChannelsActive?: number[];                         // DC channels seen carrying current in 30 d (undefined = no history yet)
 }
 
 export const getStation = () => api<Station>("/api/station");
