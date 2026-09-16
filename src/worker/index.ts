@@ -302,7 +302,18 @@ async function buildDeviceData(env: Env, sid?: string) {
     : ageS != null && ageS > STALE_AFTER_S ? { status: "offline", reason: `ข้อมูลล่าสุดจากเครื่องเมื่อ ${Math.round(ageS / 60)} นาทีที่แล้ว` }
     : st === 1 || st === 2 || inv.connectStatus === 1 ? { status: "online", reason: st === 2 ? "Deye รายงานสถานะ alarm ที่ตัวเครื่อง" : "" }
     : { status: "unknown", reason: "" };
-  const attention = analyzeDevice(dataList, gridNominal).filter((i) => i.tone === "warn").map((i) => i.title);
+  // Battery channels that have carried current in the last 30 days (learned by
+  // captureTelemetry). undefined until history exists → channel check silent.
+  let battChannelsActive: number[] | undefined;
+  try {
+    const row = (await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(`batt_chan_seen_${sn}`).first()) as { v: string } | null;
+    if (row) {
+      const seen = JSON.parse(row.v) as Record<string, number>;
+      const cutoff = Math.floor(Date.now() / 1000) - 30 * 86400;
+      battChannelsActive = Object.entries(seen).filter(([, t]) => Number(t) >= cutoff).map(([c]) => Number(c)).sort((a, b) => a - b);
+    }
+  } catch {}
+  const attention = analyzeDevice(dataList, gridNominal, { activeBatteryChannels: battChannelsActive }).filter((i) => i.tone === "warn").map((i) => i.title);
   // Deye's OWN alarm log (real faults/warnings the inverter raised). Ongoing =
   // no end time. One memoised call; failure just leaves alarms undefined (unknown).
   let alarms: { active: DeyeAlert[]; recent: DeyeAlert[] } | undefined;
@@ -317,7 +328,7 @@ async function buildDeviceData(env: Env, sid?: string) {
   return {
     sn, type: inv.deviceType, state: dd.deviceState,
     online: availability.status === "online",
-    availability, attention, alarms,
+    availability, attention, alarms, battChannelsActive,
     collectionTime: dd.collectionTime || inv.collectionTime,
     collectorSn: collector && collector.deviceSn,
     gridNominal,
@@ -353,7 +364,23 @@ async function captureTelemetry(env: Env, ts: number) {
   for (let i = 0; i < list.length; i++) {
     const d = list[i];
     if (!d || !d.dataList || !d.dataList.length) continue;
-    rows.push(st.bind(String(d.deviceSn || d.sn || sns[i] || sns[0]), ts, JSON.stringify(d.dataList)));
+    const sn = String(d.deviceSn || d.sn || sns[i] || sns[0]);
+    rows.push(st.bind(sn, ts, JSON.stringify(d.dataList)));
+    // Learn which battery DC channels really carry current (|I| ≥ 1 A): a channel
+    // key that never does is a model placeholder, and diagnostics must not call it
+    // "idle". One read + one upsert only on ticks where some channel is active.
+    const live: Record<string, number> = {};
+    for (const x of d.dataList) {
+      const m = /^BatteryCurrent(\d+)$/.exec(String(x.key || ""));
+      if (m && Math.abs(Number(x.value)) >= 1) live[m[1]] = ts;
+    }
+    if (Object.keys(live).length) {
+      const k = `batt_chan_seen_${sn}`;
+      const prev = (await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(k).first()) as { v: string } | null;
+      let seen: Record<string, number> = {};
+      try { seen = prev ? JSON.parse(prev.v) : {}; } catch {}
+      rows.push(env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(k, JSON.stringify({ ...seen, ...live })));
+    }
   }
   if (!rows.length) return;
   rows.push(env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_telemetry',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(ts)));

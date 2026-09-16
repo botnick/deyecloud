@@ -187,7 +187,7 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
   // Device-level health checks (phase balance, channel sharing, V/Hz, temps).
   // Silent when nothing is out of range — an always-on wall of "OK" trains people
   // to skip the section, which defeats the point of warning at all.
-  const diag = analyzeDevice(dev.dataList, dev.gridNominal || {});
+  const diag = analyzeDevice(dev.dataList, dev.gridNominal || {}, { activeBatteryChannels: dev.battChannelsActive });
 
   const battNote = battAh
     ? `ความจุที่ตั้งไว้ ${Math.round(battAh)} Ah` +

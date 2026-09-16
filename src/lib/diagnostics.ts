@@ -47,7 +47,17 @@ function spread(vals: number[]): { max: number; min: number; sum: number; pct: n
   return { max, min, sum, pct: max > 0 ? ((max - min) / max) * 100 : 0 };
 }
 
-export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {}): Insight[] {
+// Site knowledge learned from history (worker: device_samples). Like GridNominal it
+// is supplied, never inferred from the snapshot being judged:
+//   activeBatteryChannels — DC channels that have carried real current in the last
+//   30 days. A `BatteryCurrentN` key that has NEVER shown current is a placeholder
+//   of the inverter model (parallel packs report through one BMS master), not a
+//   tripped pack. undefined = no history yet → the channel check stays silent.
+export interface DeviceContext { activeBatteryChannels?: number[]; }
+const PHASE_LOAD_INFO = 0.5;  // heavy phase ≥50 % of its rated share → worth a note
+const PHASE_LOAD_WARN = 0.8;  // ≥80 % → real thermal/breaker stress → warn
+
+export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {}, ctx: DeviceContext = {}): Insight[] {
   const out: Insight[] = [];
   if (!dataList || !dataList.length) return out;
   const n = reader(dataList);
@@ -57,14 +67,19 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {})
   // ไฟบ้าน 3 เฟสควรกระจายใกล้เคียงกัน ถ้าเฟสเดียวรับหนักจะร้อน สายเสื่อมเร็ว
   // และนิวทรัลมีกระแสไหลมาก — เป็นปัญหาที่แก้ได้ด้วยการย้ายวงจร
   const load = phases.map((p) => n(`LoadPhasePower${p}`)).filter((x): x is number => x != null);
-  if (load.length === 3) {
+  // Imbalance only matters relative to what a phase can carry: the baseline is the
+  // inverter's rated power ÷ 3 (a supplied nameplate, not inferred). One 1.5 kW
+  // air-con on a 4 kW/phase inverter is 37 % of the phase — normal life, silent.
+  // No RatedPower → no baseline → silent (config-or-silent, as with grid nominals).
+  const rated = n("RatedPower");
+  const perPhase = rated && rated > 0 ? rated / 3 : null;
+  if (load.length === 3 && perPhase) {
     const s = spread(load.map(Math.abs));
-    if (s.sum > 500 && s.pct >= 40) {
+    const stress = s.max / perPhase;
+    if (s.pct >= 40 && stress >= PHASE_LOAD_INFO) {
       const heavy = phases[load.map(Math.abs).indexOf(s.max)];
-      // warn (→ Home card + alert) only when the imbalance carries real power:
-      // a lone 1 kW appliance on one phase is normal life, not a wiring problem.
       out.push({
-        tone: s.pct >= 65 && s.sum >= 2000 ? "warn" : "info",
+        tone: s.pct >= 65 && stress >= PHASE_LOAD_WARN ? "warn" : "info",
         title: `โหลด 3 เฟสไม่สมดุล (${Math.round(s.pct)}%)`,
         detail:
           `เฟส ${heavy} รับหนักสุด ${w(s.max)} W คิดเป็น ${Math.round((s.max / s.sum) * 100)}% ของโหลดทั้งบ้าน` +
@@ -81,7 +96,8 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {})
   // ช่องแบตที่ต่อขนานควรจ่าย/รับกระแสใกล้เคียงกัน ถ้าช่องหนึ่งนิ่งสนิทขณะอีกช่องทำงาน
   // มักแปลว่าเบรกเกอร์ปิด สายหลวม BMS ตัด หรือแรงดันสองฝั่งต่างกันมาก
   // (เป็น "ช่อง" ของอินเวอร์เตอร์ ไม่ใช่จำนวนลูกแบต — หนึ่งช่องอาจต่อหลายลูกขนานกัน)
-  const chans = batteryChannels(dataList);
+  // Only channels KNOWN to carry current (from history) can be "idle" — see DeviceContext.
+  const chans = ctx.activeBatteryChannels ? batteryChannels(dataList).filter((ch) => ctx.activeBatteryChannels!.includes(ch)) : [];
   if (chans.length >= 2) {
     const cur = chans.map((ch) => n(`BatteryCurrent${ch}`) ?? 0);
     const mag = cur.map(Math.abs);
@@ -102,7 +118,7 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {})
   }
 
   // ---- 3) โหลดของอินเวอร์เตอร์เทียบพิกัด ------------------------------------
-  const rated = n("RatedPower");
+  // (rated read once above, for the phase-load baseline)
   const outPow = n("TotalInverterOutputPower");
   if (rated && rated > 0 && outPow != null && outPow > 50) {
     const pct = (outPow / rated) * 100;
