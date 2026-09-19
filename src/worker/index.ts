@@ -8,6 +8,7 @@ import { analyzeDevice } from "../lib/diagnostics";
 import { evaluateAlerts, notify, alertsConfigured, delivered } from "./alerts";
 import { pickPeak } from "../lib/peak";
 import { calibKwFrom } from "../lib/calib";
+import { observedChannelActivity, activeChannels } from "./battChannels";
 
 // --- External endpoints + defaults — centralized, not scattered as inline literals.
 //     Per-account/site values (email, coords) come from env; stable public API
@@ -302,16 +303,13 @@ async function buildDeviceData(env: Env, sid?: string) {
     : ageS != null && ageS > STALE_AFTER_S ? { status: "offline", reason: `ข้อมูลล่าสุดจากเครื่องเมื่อ ${Math.round(ageS / 60)} นาทีที่แล้ว` }
     : st === 1 || st === 2 || inv.connectStatus === 1 ? { status: "online", reason: st === 2 ? "Deye รายงานสถานะ alarm ที่ตัวเครื่อง" : "" }
     : { status: "unknown", reason: "" };
-  // Battery channels that have carried current in the last 30 days (learned by
-  // captureTelemetry). undefined until history exists → channel check silent.
+  // Battery channels ever observed carrying current (learned by captureTelemetry,
+  // never aged out — see battChannels.ts). undefined until history exists →
+  // channel check silent.
   let battChannelsActive: number[] | undefined;
   try {
     const row = (await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(`batt_chan_seen_${sn}`).first()) as { v: string } | null;
-    if (row) {
-      const seen = JSON.parse(row.v) as Record<string, number>;
-      const cutoff = Math.floor(Date.now() / 1000) - 30 * 86400;
-      battChannelsActive = Object.entries(seen).filter(([, t]) => Number(t) >= cutoff).map(([c]) => Number(c)).sort((a, b) => a - b);
-    }
+    if (row) battChannelsActive = activeChannels(JSON.parse(row.v));
   } catch {}
   const attention = analyzeDevice(dataList, gridNominal, { activeBatteryChannels: battChannelsActive }).filter((i) => i.tone === "warn").map((i) => i.title);
   // Deye's OWN alarm log (real faults/warnings the inverter raised). Ongoing =
@@ -366,15 +364,12 @@ async function captureTelemetry(env: Env, ts: number) {
     if (!d || !d.dataList || !d.dataList.length) continue;
     const sn = String(d.deviceSn || d.sn || sns[i] || sns[0]);
     rows.push(st.bind(sn, ts, JSON.stringify(d.dataList)));
-    // Learn which battery DC channels really carry current (|I| ≥ 1 A): a channel
-    // key that never does is a model placeholder, and diagnostics must not call it
-    // "idle". One read + one upsert only on ticks where some channel is active.
-    const live: Record<string, number> = {};
-    for (const x of d.dataList) {
-      const m = /^BatteryCurrent(\d+)$/.exec(String(x.key || ""));
-      if (m && Math.abs(Number(x.value)) >= 1) live[m[1]] = ts;
-    }
-    if (Object.keys(live).length) {
+    // Learn which battery DC channels really carry current — see battChannels.ts:
+    // keyed by the device's own collectionTime, and only from a fresh sample of an
+    // online device (a stale replay or offline device teaches nothing). One read +
+    // one upsert only on ticks where some channel is live.
+    const live = observedChannelActivity(d.dataList, { collectionTime: d.collectionTime, deviceState: d.deviceState }, ts, STALE_AFTER_S);
+    if (live && Object.keys(live).length) {
       const k = `batt_chan_seen_${sn}`;
       const prev = (await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(k).first()) as { v: string } | null;
       let seen: Record<string, number> = {};
