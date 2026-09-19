@@ -49,10 +49,12 @@ function spread(vals: number[]): { max: number; min: number; sum: number; pct: n
 
 // Site knowledge learned from history (worker: device_samples). Like GridNominal it
 // is supplied, never inferred from the snapshot being judged:
-//   activeBatteryChannels — DC channels that have carried real current in the last
-//   30 days. A `BatteryCurrentN` key that has NEVER shown current is a placeholder
-//   of the inverter model (parallel packs report through one BMS master), not a
-//   tripped pack. undefined = no history yet → the channel check stays silent.
+//   activeBatteryChannels — DC channels that have EVER carried real current (known
+//   topology is permanent per inverter SN; a deliberate rewiring needs an explicit
+//   reset of meta batt_chan_seen_<sn>, never an age-out). A `BatteryCurrentN` key
+//   that has never shown current is a placeholder of the inverter model (parallel
+//   packs report through one BMS master), not a tripped pack. undefined = no
+//   history yet → the channel check stays silent.
 export interface DeviceContext { activeBatteryChannels?: number[]; }
 const PHASE_LOAD_INFO = 0.5;  // heavy phase ≥50 % of its rated share → worth a note
 const PHASE_LOAD_WARN = 0.8;  // ≥80 % → real thermal/breaker stress → warn

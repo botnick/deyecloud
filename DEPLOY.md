@@ -118,6 +118,7 @@ npx wrangler d1 execute deye-monitor --remote --command "SELECT COUNT(*) FROM sa
 | แอปขึ้นแถบเหลือง "ระบบเก็บข้อมูลหยุด" | เปิด `/api/_health` (ไม่ต้อง PIN) — ดู `lastPollError` และ `deyeLogin` · ถ้า `deyeLogin.ok=false` = รหัส/secret Deye ผิด → แก้ secret แล้วรอ `holdUntil` หรือ deploy ใหม่ (isolate ใหม่จะลอง login เมื่อ hold หมด) · ระบบเติมข้อมูลช่วงที่หายให้เองเมื่อกลับมา (ย้อนหลังได้ 2 วัน/รอบ) — เก่ากว่านั้น `POST /api/_backfill?from=YYYY-MM-DD` |
 | ใส่ PIN แล้วบอก "ลองผิดหลายครั้ง — รออีก N วินาที" | มีการเดา PIN (หรือพิมพ์ผิดเกิน 3 ครั้ง) → รอตามที่บอก (สูงสุด 15 นาที) · ใส่ถูกครั้งเดียวจะรีเซ็ต |
 | `/api/_poll` `/api/_backfill` ตอบ 403 | ต้องตั้ง `APP_PIN` และ login ก่อน — route ผู้ดูแลไม่เปิดสาธารณะแม้ไม่ตั้ง PIN |
+| การ์ด "ตรวจสุขภาพ" บอกช่องแบตไม่จ่ายกระแสหลังย้ายสาย/ถอดแบต | ระบบจำโครงสร้างช่องแบตที่เคยมีกระแส (ถาวรต่อเครื่อง) — เปลี่ยนสายจริงให้รีเซ็ต: `wrangler d1 execute deye-monitor --remote --command "DELETE FROM meta WHERE k LIKE 'batt_chan_seen_%'"` แล้วระบบเรียนรู้ใหม่ใน ~15 นาที |
 | แจ้งเตือนไม่มา | `POST /api/_alert_test` (login แล้ว) → ต้องได้ `ok:true` · ถ้า `delivered.webhook` ไม่ใช่ 2xx เช็ค URL webhook · กติกาส่วนใหญ่ต้องเกิดติดกัน 3 รอบ (15 นาที) ก่อนเตือน |
 
 ---
