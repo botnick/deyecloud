@@ -264,6 +264,16 @@ export async function getStationId(env: Env): Promise<string> {
   return "";
 }
 
+// A measure-point / field value is a reading only if it is a finite number.
+// null, "", "  ", "N/A" are ABSENT — Number("") is 0, which is how a missing SOC
+// used to become a fake 0 % reading.
+export function pointValue(raw: unknown): number | undefined {
+  if (raw == null) return undefined;
+  if (typeof raw === "string" && raw.trim() === "") return undefined;
+  const v = Number(raw);
+  return Number.isFinite(v) ? v : undefined;
+}
+
 export interface Latest {
   genPower: number; usePower: number; gridPower: number; battPower: number; soc: number;
   genToday: number; useToday: number; buyToday: number; sellToday: number;
@@ -364,7 +374,7 @@ async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
     gridPower: wire,
     battPower: batt,
     soc: n(d.batterySOC ?? d.batterySoc ?? d.soc),
-    socKnown: (d.batterySOC ?? d.batterySoc ?? d.soc) != null && Number.isFinite(Number(d.batterySOC ?? d.batterySoc ?? d.soc)),
+    socKnown: pointValue(d.batterySOC ?? d.batterySoc ?? d.soc) != null,
     genToday: n(tt.generationValue),
     useToday,
     buyToday,
@@ -425,11 +435,7 @@ async function getInverterFlow(
   const res = await deviceLatest(env, [sn]);
   const list = ((res.deviceDataList && res.deviceDataList[0]) || {}).dataList || [];
   if (!list.length) return null;
-  const num = (k: string) => {
-    const r = list.find((x: any) => x.key === k);
-    const v = r ? Number(r.value) : NaN;
-    return Number.isNaN(v) ? undefined : v;
-  };
+  const num = (k: string) => pointValue((list.find((x: any) => x.key === k) || {}).value);
   return {
     genPower: num("TotalSolarPower"),
     usePower: num("TotalConsumptionPower"),

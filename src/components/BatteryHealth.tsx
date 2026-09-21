@@ -20,7 +20,7 @@ export function BatteryHealthCard() {
     <div className={`${cardP} mt-3`}>
       <div className="flex items-center gap-1.5">
         <span className="font-bold text-[16px] text-title">สุขภาพแบตเตอรี่</span>
-        <InfoTip text={`วัดจากช่วงคายประจุต่อเนื่อง: พลังงานที่จ่ายออก ÷ %SOC ที่ลดลง = ความจุใช้งานจริง (kWh ต่อ 100%) ค่ากลางของ 10 วันล่าสุด · SOH = เทียบกับพิกัด BMS ${h.ratedAh ?? "?"} Ah × แรงดันปกติที่วัดได้ ${h.nominalV ?? "?"} V · รอบ = พลังงานคายสะสม ÷ ความจุ · ข้อมูล ${h.days} วันล่าสุด`} />
+        <InfoTip text={`ค่าประมาณจากตัวอย่างทุก 5 นาที (ไม่ใช่การวัดสภาพแบตโดยตรง): ช่วงคายประจุต่อเนื่อง พลังงานที่จ่ายออก ÷ %SOC ที่ลดลง = ความจุใช้งาน (kWh ต่อ 100%) · ค่ากลางของ 10 ค่าประมาณล่าสุด (ล่าสุด ${h.lastEstimateDay ? new Date(h.lastEstimateDay + "T00:00:00").toLocaleDateString("th-TH-u-ca-gregory", { day: "numeric", month: "short" }) : "-"}) · SOH = เทียบพิกัด BMS ${h.ratedAh ?? "?"} Ah × แรงดันกลาง SOC ที่วัดได้ ${h.nominalV ?? "?"} V${h.sn ? ` (เครื่อง ${h.sn})` : ""} · รอบ = พลังงานคายสะสม ÷ ความจุ · ข้อมูล ${h.days} วัน, มี SOC ใช้ได้ ${h.coverage?.withSoc ?? "?"}/${h.coverage?.samples ?? "?"} ตัวอย่าง${h.ambiguous ? ` · ระบบมี ${h.inverters} inverter — ค่านี้เป็นระดับทั้งระบบ จึงไม่แสดง SOH ต่อแพ็ก` : ""}`} />
       </div>
       <div className="grid grid-cols-3 gap-2 mt-3 text-center">
         <div><div className={`text-[28px] font-extrabold tabnum leading-none ${sohTone}`}>{h.soh != null ? `${h.soh}%` : "—"}</div><div className="text-[11.5px] text-muted mt-1">SOH{h.ratedKwh ? ` (พิกัด ${h.ratedKwh} kWh)` : ""}</div></div>

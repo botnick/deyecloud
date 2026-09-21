@@ -750,8 +750,14 @@ app.get("/api/battery/health", async (c) => {
     }
   } catch (e) { console.warn("battery rating lookup skipped", (e as Error).message); }
   const ratedKwh = ratedAh && nominalV ? Math.round((ratedAh * nominalV) / 100) / 10 : null;
-  const h = batteryHealth(pts, ratedKwh, days);
-  const data = h ? { ...h, ratedAh, nominalV, sn, lastEstimateDay: h.trend.length ? h.trend[h.trend.length - 1].day : null } : null;
+  // samples.soc/batt_power come from the FIRST inverter's live points when present
+  // and from the station aggregate otherwise (and from backfill). On a multi-
+  // inverter site those describe different things (one pack vs. the sum), so a
+  // per-pack SOH would be fiction: measure capacity, but refuse the SOH claim.
+  const snCount = ((await env.DB.prepare("SELECT COUNT(DISTINCT sn) c FROM device_samples WHERE ts >= ?").bind(from).first()) as { c: number } | null)?.c || 0;
+  const ambiguous = snCount > 1;
+  const h = batteryHealth(pts, ambiguous ? null : ratedKwh, days);
+  const data = h ? { ...h, soh: ambiguous ? null : h.soh, ambiguous, inverters: snCount, ratedAh, nominalV, sn, lastEstimateDay: h.trend.length ? h.trend[h.trend.length - 1].day : null } : null;
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
   return c.json(data);
 });
@@ -906,7 +912,7 @@ async function fetchHistFromDeye(env: Env, range: string, dateStr: string, sid?:
     });
     data = { range, date: dateStr, points, source: "deye", todayGen: null };
   }
-  const ck = `hist_v2_${range}_${dateStr}${sid ? "_" + sid : ""}`;
+  const ck = `hist_v3_${range}_${dateStr}${sid ? "_" + sid : ""}`;
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
   return data;
 }
@@ -915,7 +921,7 @@ async function fetchHistFromDeye(env: Env, range: string, dateStr: string, sid?:
 // (e.g. days before the app was installed) without hammering Deye when many
 // requests land at once. Skips if the period was refreshed in the last 30 min.
 async function revalidateHist(env: Env, range: string, dateStr: string) {
-  const ck = `hist_v2_${range}_${dateStr}`;
+  const ck = `hist_v3_${range}_${dateStr}`;
   const row = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first();
   if (row) { try { const cc = JSON.parse((row as any).v); if (Date.now() - cc._at < 30 * 60 * 1000) return; } catch {} }
   await fetchHistFromDeye(env, range, dateStr).catch(() => {});
@@ -950,7 +956,7 @@ app.get("/api/history", async (c) => {
 
   // ─ Cold path (D1 has nothing yet, an old day past the 90-day sample window, or a
   //   non-default station): use the meta cache, else fetch Deye live this once.
-  const ck = `hist_v2_${range}_${dateStr}${sid ? "_" + sid : ""}`;
+  const ck = `hist_v3_${range}_${dateStr}${sid ? "_" + sid : ""}`;
   const ttl = range === "day" ? 5 * 60 * 1000 : range === "month" ? 20 * 60 * 1000 : 30 * 60 * 1000;
   const row = await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first();
   if (row) { try { const cc = JSON.parse((row as any).v); if (cc.data?.points?.length && (!isCurrent || Date.now() - cc._at < ttl)) return c.json({ ...cc.data, cached: true }); } catch {} }
@@ -1251,7 +1257,7 @@ async function backfillRange(env: Env, from: string, to: string, maxDays = BACKF
   // (two statements) rather than two per day — statements are budget, see above.
   if (touched.length) {
     await env.DB.batch([
-      env.DB.prepare(`DELETE FROM meta WHERE k LIKE 'hist_v2_%' AND (${touched.map(() => "k LIKE ?").join(" OR ")})`)
+      env.DB.prepare(`DELETE FROM meta WHERE k LIKE 'hist_v3_%' AND (${touched.map(() => "k LIKE ?").join(" OR ")})`)
         .bind(...touched.map((d) => `%${d}%`)),
       env.DB.prepare("DELETE FROM meta WHERE k='totals_cache'"),
     ]).catch((e: unknown) => console.error("backfill cache invalidation failed", e));
