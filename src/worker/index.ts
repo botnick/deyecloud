@@ -10,7 +10,7 @@ import { pickPeak } from "../lib/peak";
 import { calibKwFrom } from "../lib/calib";
 import { observedChannelActivity, activeChannels } from "./battChannels";
 import { learnSky, accuracySummary } from "../lib/skylearn";
-import { batteryHealth } from "../lib/battery";
+import { batteryHealth, sohIdentity } from "../lib/battery";
 import { forecastDayKwh, DEFAULT_SKY } from "../lib/forecast";
 
 // --- External endpoints + defaults — centralized, not scattered as inline literals.
@@ -754,10 +754,14 @@ app.get("/api/battery/health", async (c) => {
   // and from the station aggregate otherwise (and from backfill). On a multi-
   // inverter site those describe different things (one pack vs. the sum), so a
   // per-pack SOH would be fiction: measure capacity, but refuse the SOH claim.
-  const snCount = ((await env.DB.prepare("SELECT COUNT(DISTINCT sn) c FROM device_samples WHERE ts >= ?").bind(from).first()) as { c: number } | null)?.c || 0;
-  const ambiguous = snCount > 1;
-  const h = batteryHealth(pts, ambiguous ? null : ratedKwh, days);
-  const data = h ? { ...h, soh: ambiguous ? null : h.soh, ambiguous, inverters: snCount, ratedAh, nominalV, sn, lastEstimateDay: h.trend.length ? h.trend[h.trend.length - 1].day : null } : null;
+  // Identity comes from PERSISTED topology (every SN that ever carried battery
+  // current, learned by captureTelemetry), never from the requested window: a
+  // per-pack SOH needs exactly one known SN and it must be the one we rated.
+  const known = (((await env.DB.prepare("SELECT k FROM meta WHERE k LIKE 'batt_chan_seen_%'").all()).results || []) as { k: string }[])
+    .map((r) => r.k.slice("batt_chan_seen_".length));
+  const id = sohIdentity(sn, known);
+  const h = batteryHealth(pts, id.ok ? ratedKwh : null, days);
+  const data = h ? { ...h, soh: id.ok ? h.soh : null, ambiguous: !id.ok, identity: id.ok ? "ok" : id.reason, inverters: known.length, ratedAh, nominalV, sn, lastEstimateDay: h.trend.length ? h.trend[h.trend.length - 1].day : null } : null;
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
   return c.json(data);
 });

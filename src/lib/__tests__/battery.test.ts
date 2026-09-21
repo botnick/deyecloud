@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dischargeSegments, batteryHealth } from "../battery";
+import { dischargeSegments, batteryHealth, sohIdentity } from "../battery";
 
 // Synthetic pack: 20 kWh usable. A 6-hour discharge at 2 kW = 12 kWh should cost 60 % SOC.
 const T0 = Math.floor(1_790_000_000 / 86400) * 86400 - 3600; // 23:00Z = 06:00 Bangkok, so a 6 h stretch stays inside one BKK day
@@ -55,4 +55,12 @@ describe("batteryHealth", () => {
     const pts = Array.from({ length: 100 }, (_, i) => ({ ts: T0 + i * 300, p: 0, soc: 0 }));
     expect(batteryHealth(pts, null, 1)).toBeNull();
   });
+});
+
+describe("sohIdentity — per-pack SOH only for a positively identified sole SN", () => {
+  it("no known topology → unknown", () => expect(sohIdentity("A", [])).toEqual({ ok: false, reason: "unknown" }));
+  it("no snapshot SN → unknown even with one known", () => expect(sohIdentity(null, ["A"])).toEqual({ ok: false, reason: "unknown" }));
+  it("sole known SN that is NOT the rated one → mismatch", () => expect(sohIdentity("A", ["B"])).toEqual({ ok: false, reason: "mismatch" }));
+  it("several known SNs (even if old) → multi", () => expect(sohIdentity("A", ["A", "B"])).toEqual({ ok: false, reason: "multi" }));
+  it("sole matching SN → ok", () => expect(sohIdentity("A", ["A", "A"])).toEqual({ ok: true }));
 });

@@ -84,7 +84,7 @@ export interface Totals {
   years: YearTotal[];
 }
 export const getTotals = () => api<Totals>("/api/totals");
-export interface BatteryHealth { ambiguous?: boolean; inverters?: number; coverage: { samples: number; withSoc: number; unknownSoc: number }; sn?: string | null; lastEstimateDay?: string | null; days: number; ratedKwh: number | null; capKwh: number | null; soh: number | null; cycles: number | null; dischargeKwh: number; dod: { avg: number | null; minSoc: number | null; lowDays: number }; trend: { day: string; capKwh: number; segments: number }[]; firstCapKwh: number | null; nominalV?: number | null; ratedAh?: number | null; }
+export interface BatteryHealth { ambiguous?: boolean; identity?: "ok" | "unknown" | "mismatch" | "multi"; inverters?: number; coverage: { samples: number; withSoc: number; unknownSoc: number }; sn?: string | null; lastEstimateDay?: string | null; days: number; ratedKwh: number | null; capKwh: number | null; soh: number | null; cycles: number | null; dischargeKwh: number; dod: { avg: number | null; minSoc: number | null; lowDays: number }; trend: { day: string; capKwh: number; segments: number }[]; firstCapKwh: number | null; nominalV?: number | null; ratedAh?: number | null; }
 export const getBatteryHealth = (days = 60) => api<BatteryHealth | null>(`/api/battery/health?days=${days}`);
 export interface ForecastAccuracy { days: number; n: number; score: number | null; bias: number | null; mae: number | null; rows: { day: string; predicted: number; actual: number | null; cond: number }[]; }
 export const getForecastAccuracy = (days = 30) => api<ForecastAccuracy>(`/api/forecast/accuracy?days=${days}`);

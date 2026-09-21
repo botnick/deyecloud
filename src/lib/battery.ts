@@ -105,3 +105,17 @@ export function batteryHealth(raw: SamplePt[], ratedKwh: number | null, days: nu
     coverage: { samples: pts.length, withSoc: withSoc.length, unknownSoc: pts.length - withSoc.length },
   };
 }
+
+// Per-pack SOH is a claim about ONE identified inverter's battery. It is allowed
+// only when the persisted battery topology (every inverter SN that has ever
+// carried battery current — see worker battChannels, independent of any query
+// window) contains exactly that SN and nothing else. Unknown identity, a sole
+// known SN that is not the one we rated, or several known SNs → no SOH.
+export type SohIdentity = { ok: true } | { ok: false; reason: "unknown" | "mismatch" | "multi" };
+export function sohIdentity(ratedSn: string | null | undefined, knownSns: string[]): SohIdentity {
+  if (!ratedSn) return { ok: false, reason: "unknown" };
+  const known = [...new Set(knownSns.map(String).filter(Boolean))];
+  if (known.length === 0) return { ok: false, reason: "unknown" };
+  if (known.length > 1) return { ok: false, reason: "multi" };
+  return known[0] === String(ratedSn) ? { ok: true } : { ok: false, reason: "mismatch" };
+}
