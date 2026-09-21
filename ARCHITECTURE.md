@@ -83,6 +83,8 @@ PWA ดูข้อมูลระบบโซลาร์เซลล์แบ�
 | `GET /api/device` | ค่าเครื่อง (เฟส/PV/BMS) cache 60s · รับ `?station=` |
 | `GET /api/weather` | TMD/Open-Meteo + UV (cache 30 นาที) |
 | `GET /api/history?range=day\|month\|year` | กราฟย้อนหลัง (D1 ก่อน → Deye) · รับ `?station=` |
+| `GET /api/forecast/accuracy?days=` | คาดพรุ่งนี้ (จาก `forecast_log`) vs `daily.gen` ของวันที่จบแล้ว — คะแนน 100−MAPE, bias, MAE + แถว |
+| `GET /api/battery/health?days=` | ความจุใช้ได้จริงจากช่วงคายประจุ (samples), SOH = ÷ (Ah × V ที่วัดกลาง SOC), รอบ, DoD · cache 6 ชม. |
 | `GET /api/device/history?sn=&days=&keys=` | แนวโน้มค่าเครื่องจาก `device_samples` (bucket ≤240 จุด/คีย์, memo 10 นาที) |
 | `GET /api/export?range=day\|month\|year\|all&date=` | CSV จาก D1 ของสถานีหลัก (BOM, attachment) — สำหรับสคริปต์ · ปุ่มในแอปสร้าง CSV ฝั่ง client จากข้อมูลที่แสดงอยู่ (ทุกสถานี) |
 | `GET /api/settings` / `POST /api/settings` | ค่าไฟ/ขายคืน/ทุน/CO₂ (whitelist) |
@@ -106,6 +108,7 @@ middleware: `ensureSchema` → auth gate (`/api/*` ยกเว้น login/sess
 - `samples(ts, gen_power, use_power, grid_power, batt_power, soc, *_today, gen_total)` — snapshot ทุก 5 นาที · **prune >90 วัน** (`SAMPLES_RETENTION_DAYS`) — backfill/self-heal เขียนด้วย DO NOTHING (แถวจาก cron ชนะ)
 - `device_samples(sn, ts, data)` — measure point ทั้งหมดของทุก inverter ทุก ~15 นาที · **prune >180 วัน** (`DEVICE_RETENTION_DAYS`) — อ่านโดย `/api/device/history`
 - `daily(day, gen, use, buy, sell, charge, discharge, peak_power, peak_ts)` — สรุปรายวัน เก็บถาวร · peak ขยับขึ้นเท่านั้น
+- `forecast_log(day, predicted, cond, psh, cap_kw, made_at)` (schema v3) — "คาดพรุ่งนี้" ตัวสุดท้ายของแต่ละวัน เขียนทับทุก tick; ประเมินเทียบ `daily.gen` เมื่อวันจบ → ความแม่นยำ + เรียนรู้ค่าเมฆ (`lib/skylearn.ts`: median ต่อ cond ถ่วงด้วย prior K=3)
 
 ---
 
@@ -145,6 +148,7 @@ src/
   lib/      api.ts (ApiError + ?station=) format.ts weather.ts analysis.ts device.ts
             diagnostics.ts (สุขภาพเครื่อง — config-or-silent) forecast.ts (PSH จาก sun) useCapacity.ts (kWp หรือ peakPower)
             economics.ts (savings signed + savingsLabel, co2Of(settings)) settings.ts (rate/sellRate/systemCost/co2Factor)
+            calib.ts (kWp จากวันแดดดี) skylearn.ts (ค่าเมฆเรียนรู้ + accuracy) battery.ts (SOH/รอบ/DoD) season.ts (ปี/ฤดู/คาดทั้งปี) peak.ts
             config.ts (ค่าเริ่มต้น) ui.ts (glass/plate tokens) icons.tsx wxicon.tsx (Meteocons) haptics.ts scenarios.ts brand.ts
   components/ Splash PinGate Header BottomNav StationSwitcher PullToRefresh DevPanel InstallPrompt
               HomeView TodayView WeatherView HistoryView (compare + CSV) LifetimeView DeviceView (alarm log + DeviceTrends)
