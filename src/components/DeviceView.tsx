@@ -86,7 +86,7 @@ function Section({ title, count, open, onToggle, children }: { title: string; co
   );
 }
 
-export function DeviceView({ latest, active, stationId, onBack }: { latest: Latest | null; active: boolean; stationId?: number | null; onBack: () => void }) {
+export function DeviceView({ latest, active, stationId, isPrimary = true, onBack }: { latest: Latest | null; active: boolean; stationId?: number | null; isPrimary?: boolean; onBack: () => void }) {
   const [dev, setDev] = useState<Device | null>(null);
   const [err, setErr] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({ pv: true, ac: true, grid: true, load: true });
@@ -272,7 +272,7 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
         </div>
       )}
 
-      {stationId == null && <BatteryHealthCard />}
+      {isPrimary && <BatteryHealthCard />}
       <div className="mt-3.5"><DeviceTrends dev={dev} /></div>
 
       {latest && (

@@ -38,6 +38,19 @@ describe("batteryHealth", () => {
     expect(h.dod.avg).toBe(67);
     expect(h.trend).toHaveLength(3);
   });
+  it("a missing-SOC sample stored as 0 mid-discharge is UNKNOWN: no fabricated capacity loss", () => {
+    // 59 samples at 80 % / 2 kW discharging, then one bogus 0 % (old ingestion) → no ΔSOC=80 segment
+    const pts = Array.from({ length: 59 }, (_, i) => ({ ts: T0 + i * 300, p: 2000, soc: 80 }));
+    pts.push({ ts: T0 + 59 * 300, p: 2000, soc: 0 });
+    const h = batteryHealth(pts, 20, 1);
+    expect(h === null || h.capKwh === null).toBe(true);
+    if (h) { expect(h.dod.minSoc).toBe(80); expect(h.coverage.unknownSoc).toBe(1); }
+  });
+  it("a genuine gradual run to 0 % counts (segment AND DoD floor)", () => {
+    const pts = discharge(10, 2, 100, 20); // 20 kWh over 10 h → exactly 0 %
+    const h = batteryHealth(pts, 20, 1)!;
+    expect(h.capKwh).toBeCloseTo(20, 0); expect(h.dod.minSoc).toBeCloseTo(0, 0); expect(h.dod.lowDays).toBe(1);
+  });
   it("no battery → null", () => {
     const pts = Array.from({ length: 100 }, (_, i) => ({ ts: T0 + i * 300, p: 0, soc: 0 }));
     expect(batteryHealth(pts, null, 1)).toBeNull();

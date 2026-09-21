@@ -22,11 +22,30 @@ export interface BatteryHealth {
   dod: { avg: number | null; minSoc: number | null; lowDays: number }; // daily SOC swing / floor / days below 20 %
   trend: DayEstimate[];              // one point per day with a usable stretch
   firstCapKwh: number | null;        // median of the first RECENT_DAYS estimates (for "since start")
+  coverage: { samples: number; withSoc: number; unknownSoc: number }; // how much of the window carried a usable SOC reading
 }
 export const SEG_MIN_W = 100;
 export const SEG_MIN_DSOC = 15;
 export const SEG_MAX_GAP_S = 15 * 60;
 export const RECENT_DAYS = 10;
+// A BMS cannot move SOC more than this per 5-min sample (a 16 kWh pack at 2 kW is
+// ~1 %/5 min). A bigger step is a data glitch — typically a missing reading that
+// older ingestion stored as 0 — so the sample is treated as UNKNOWN, not as a
+// real reading. Genuine 0 % is reached gradually and therefore survives.
+export const SOC_MAX_STEP_PER_5MIN = 15;
+export function cleanSoc(pts: SamplePt[]): SamplePt[] {
+  const out: SamplePt[] = [];
+  let lastKnown: SamplePt | null = null;
+  for (const p of pts) {
+    if (p.soc == null || !Number.isFinite(p.soc)) { out.push({ ...p, soc: null }); continue; }
+    if (lastKnown) {
+      const steps = Math.max(1, (p.ts - lastKnown.ts) / 300);
+      if (Math.abs(p.soc - lastKnown.soc!) > SOC_MAX_STEP_PER_5MIN * steps) { out.push({ ...p, soc: null }); continue; } // glitch → unknown; do NOT advance lastKnown
+    }
+    out.push(p); lastKnown = p;
+  }
+  return out;
+}
 const bkkDay = (ts: number) => new Date((ts + 7 * 3600) * 1000).toISOString().slice(0, 10);
 const median = (a: number[]) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
 
@@ -54,8 +73,9 @@ export function dischargeSegments(pts: SamplePt[]): Segment[] {
   return out;
 }
 
-export function batteryHealth(pts: SamplePt[], ratedKwh: number | null, days: number): BatteryHealth | null {
-  const withSoc = pts.filter((p) => p.soc != null && p.soc > 0);
+export function batteryHealth(raw: SamplePt[], ratedKwh: number | null, days: number): BatteryHealth | null {
+  const pts = cleanSoc(raw);
+  const withSoc = pts.filter((p) => p.soc != null); // genuine 0 % is a reading and counts toward DoD
   if (withSoc.length < 50 || !pts.some((p) => Math.abs(p.p) > SEG_MIN_W)) return null; // no battery / no data
   const segs = dischargeSegments(pts);
   const byDay = new Map<string, number[]>();
@@ -82,5 +102,6 @@ export function batteryHealth(pts: SamplePt[], ratedKwh: number | null, days: nu
     dischargeKwh: Math.round(dischargeKwh * 10) / 10,
     dod: { avg: swings.length ? Math.round(swings.reduce((a, b) => a + b, 0) / swings.length) : null, minSoc, lowDays },
     trend, firstCapKwh,
+    coverage: { samples: pts.length, withSoc: withSoc.length, unknownSoc: pts.length - withSoc.length },
   };
 }
