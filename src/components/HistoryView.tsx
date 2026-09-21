@@ -13,6 +13,7 @@ import { PowerProfile } from "./PowerProfile";
 import { LifetimeView } from "./LifetimeView";
 import { InsightList } from "./InsightList";
 import { analyzeHistory } from "../lib/analysis";
+import { YearInsights } from "./YearInsights";
 
 type Range = "day" | "month" | "year" | "lifetime";
 const TABS: { k: Range; label: string }[] = [
@@ -508,6 +509,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
                 </div>
               )}
               {overview()}
+              {range === "year" && <YearInsights year={ref.getFullYear()} points={points} prevPoints={prev ? prev.points : null} primary={stationId == null} />}
               {/* per-metric breakdown — folded by default, tap to expand */}
               <Collapsible variant="bare" title="ดูแยกแต่ละค่า" subtitle="ผลิต · ใช้ไฟ · กริด · แบต">
                 {sections()}

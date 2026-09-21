@@ -704,6 +704,14 @@ async function forecastModel(env: Env) {
   memModel = { at: Date.now(), m: { capKw, calibDays, sky, skyDays } };
   return memModel.m;
 }
+// Clear-sky PSH for the 15th of each month at the station — the site's own
+// seasonality from geometry (year-view projections scale by it). Pure CPU.
+async function pshByMonth(env: Env): Promise<number[] | null> {
+  const sm = await getStationMeta(env).catch(() => null);
+  if (!sm || sm.lat == null || sm.lng == null) return null;
+  const y = Number(bkkDayOf(Date.now()).slice(0, 4));
+  return Array.from({ length: 12 }, (_, i) => sunInfo(Number(sm.lat), Number(sm.lng), 420, Date.UTC(y, i, 15, 5)).psh);
+}
 
 // Battery health from the 5-min samples (primary station): measured usable capacity
 // from continuous discharge stretches, SOH vs the BMS rated Ah × nominal V, cycles,
@@ -996,6 +1004,7 @@ app.get("/api/totals", async (c) => {
     peakPower: peakW, // W — robust recent peak (95th pct, 60 d) ≈ real array size; see robustPeakW
     calibKw: fm.capKw, calibDays: fm.calibDays, // measured clear-sky-equivalent kWp (0 = insufficient history)
     sky: fm.sky, skyDays: fm.skyDays,           // site-learned sky factors (+ evaluated days behind them)
+    pshByMonth: await pshByMonth(env),          // astronomical seasonality at the station (Jan..Dec)
     years: yrs,
   };
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('totals_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();

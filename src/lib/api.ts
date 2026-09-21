@@ -80,6 +80,7 @@ export interface Totals {
   calibKw: number; calibDays: number;
   // site-learned sky factors (TMD cond → fraction of clear-sky yield) + how many evaluated days fed them
   sky?: Record<number, number>; skyDays?: number;
+  pshByMonth?: number[] | null; // clear-sky PSH per month at the station (seasonality from geometry)
   years: YearTotal[];
 }
 export const getTotals = () => api<Totals>("/api/totals");
