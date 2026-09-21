@@ -78,9 +78,13 @@ export interface Totals {
   genTotal: number; peakPower: number;
   // measured clear-sky-equivalent capacity from the site's own history (see lib/calib.ts); 0 = not enough data yet
   calibKw: number; calibDays: number;
+  // site-learned sky factors (TMD cond → fraction of clear-sky yield) + how many evaluated days fed them
+  sky?: Record<number, number>; skyDays?: number;
   years: YearTotal[];
 }
 export const getTotals = () => api<Totals>("/api/totals");
+export interface ForecastAccuracy { days: number; n: number; score: number | null; bias: number | null; mae: number | null; rows: { day: string; predicted: number; actual: number | null; cond: number }[]; }
+export const getForecastAccuracy = (days = 30) => api<ForecastAccuracy>(`/api/forecast/accuracy?days=${days}`);
 
 // User economics, stored server-side (shared across devices). Empty object = defaults.
 export interface RawSettings { rate?: number; sellRate?: number; systemCost?: number | null; co2Factor?: number; }

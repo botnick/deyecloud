@@ -9,6 +9,8 @@ import { evaluateAlerts, notify, alertsConfigured, delivered } from "./alerts";
 import { pickPeak } from "../lib/peak";
 import { calibKwFrom } from "../lib/calib";
 import { observedChannelActivity, activeChannels } from "./battChannels";
+import { learnSky, accuracySummary } from "../lib/skylearn";
+import { forecastDayKwh, DEFAULT_SKY } from "../lib/forecast";
 
 // --- External endpoints + defaults — centralized, not scattered as inline literals.
 //     Per-account/site values (email, coords) come from env; stable public API
@@ -28,6 +30,9 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS daily (day TEXT PRIMARY KEY, gen REAL, use REAL, buy REAL, sell REAL, charge REAL, discharge REAL, peak_power REAL, peak_ts INTEGER)`,
   `CREATE TABLE IF NOT EXISTS device_samples (sn TEXT, ts INTEGER, data TEXT, PRIMARY KEY (sn, ts))`,
   `DROP INDEX IF EXISTS idx_samples_ts`,
+  // day-ahead forecast log: the 'พรุ่งนี้คาดผลิต' figure as last shown on day-1,
+  // evaluated against daily.gen once the day completes (accuracy + sky learning)
+  `CREATE TABLE IF NOT EXISTS forecast_log (day TEXT PRIMARY KEY, predicted REAL, cond INTEGER, psh REAL, cap_kw REAL, made_at INTEGER)`,
 ];
 // Widen tables created before the long-term redesign (idempotent — a duplicate
 // column just throws and is ignored, so first-run-with-new-SCHEMA is a no-op too).
@@ -40,7 +45,7 @@ const MIGRATE = [
   `ALTER TABLE daily ADD COLUMN peak_power REAL`,
   `ALTER TABLE daily ADD COLUMN peak_ts INTEGER`,
 ];
-const SCHEMA_V = 2;
+const SCHEMA_V = 3;
 let schemaReady = false;
 async function ensureSchema(env: Env) {
   if (schemaReady) return;
@@ -244,6 +249,21 @@ async function pollAndStore(env: Env) {
     // Keep the weather cache warm too (getWeather refetches only when its own 30-min
     // TTL lapses) so the อากาศ tab never waits on TMD/Open-Meteo.
     const wx = await getWeather(env).catch(() => null);
+    // Day-ahead forecast log: overwrite tomorrow's row every tick so that at
+    // midnight it holds the LAST figure the owner could have seen today. Uses the
+    // same model (calibrated kWp + learned sky) the app shows. 1 statement.
+    try {
+      const fm = await forecastModel(env);
+      const tmr = wx && wx.daily && wx.daily[1];
+      const sm = await getStationMeta(env).catch(() => null);
+      if (fm.capKw > 0 && tmr && sm && sm.lat != null && sm.lng != null) {
+        const tday = bkkDay(1);
+        const psh = sunInfo(Number(sm.lat), Number(sm.lng), 420, Date.parse(tday + "T05:00:00Z")).psh;
+        const predicted = forecastDayKwh(tmr, psh, fm.capKw, fm.sky);
+        await env.DB.prepare("INSERT INTO forecast_log (day, predicted, cond, psh, cap_kw, made_at) VALUES (?,?,?,?,?,?) ON CONFLICT(day) DO UPDATE SET predicted=excluded.predicted, cond=excluded.cond, psh=excluded.psh, cap_kw=excluded.cap_kw, made_at=excluded.made_at")
+          .bind(tday, Math.round(predicted * 100) / 100, Number(tmr.cond) || 0, psh, fm.capKw, ts).run();
+      }
+    } catch (e) { console.warn("forecast log skipped", (e as Error).message); }
     // Outbound alerts — evaluated on what this tick already has (no extra Deye call).
     if (alertsConfigured(env)) {
       const cap = await capacityW(env).catch(() => null);
@@ -647,6 +667,51 @@ app.get("/api/export", async (c) => {
   return c.body(body, 200, { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="${name}"`, "cache-control": "no-store" });
 });
 
+// ---- forecast model: calibrated capacity + site-learned sky factors ----
+// One place both the app (/api/totals) and the cron's day-ahead log read from, so
+// what gets evaluated is exactly what was shown. Memoised per isolate 30 min.
+let memModel: { at: number; m: { capKw: number; calibDays: number; sky: Record<number, number>; skyDays: number } } | null = null;
+async function evaluatedForecastRows(env: Env, days: number) {
+  const today = bkkDayOf(Date.now());
+  const cutoff = bkkDayOf(Date.now() - days * 86400000);
+  const { results } = await env.DB.prepare(
+    `SELECT f.day, f.predicted, f.cond, f.psh, f.cap_kw, d.gen AS actual FROM forecast_log f LEFT JOIN daily d ON d.day = f.day
+     WHERE f.day >= ? AND f.day < ? ORDER BY f.day`).bind(cutoff, today).all();
+  return (results || []) as { day: string; predicted: number; cond: number; psh: number; cap_kw: number; actual: number | null }[];
+}
+async function forecastModel(env: Env) {
+  if (memModel && Date.now() - memModel.at < 30 * 60 * 1000) return memModel.m;
+  let capKw = 0, calibDays = 0;
+  try {
+    const sm = await getStationMeta(env);
+    if (sm && sm.lat != null && sm.lng != null) {
+      const cutoff = bkkDayOf(Date.now() - 60 * 86400000);
+      const rows = ((await env.DB.prepare("SELECT day, gen FROM daily WHERE gen > 0 AND day >= ? AND day < ?").bind(cutoff, bkkDayOf(Date.now())).all()).results || []) as any[];
+      const c = calibKwFrom(rows.map((r) => ({ gen: Number(r.gen) || 0, psh: sunInfo(Number(sm.lat), Number(sm.lng), 420, Date.parse(r.day + "T05:00:00Z")).psh })));
+      capKw = c.kw; calibDays = c.days;
+    }
+  } catch (e) { console.warn("calibration skipped", (e as Error).message); }
+  let sky: Record<number, number> = { ...DEFAULT_SKY }, skyDays = 0;
+  try {
+    // ratio = actual / (capKw_at_the_time × psh): the sky's share of clear yield
+    const rows = await evaluatedForecastRows(env, 120);
+    const obs = rows.filter((r) => r.actual != null && r.actual > 0.5 && r.cap_kw > 0 && r.psh > 0)
+      .map((r) => ({ cond: Number(r.cond), ratio: Number(r.actual) / (Number(r.cap_kw) * Number(r.psh)) }));
+    const l = learnSky(obs);
+    sky = l.sky; skyDays = l.days;
+  } catch (e) { console.warn("sky learning skipped", (e as Error).message); }
+  memModel = { at: Date.now(), m: { capKw, calibDays, sky, skyDays } };
+  return memModel.m;
+}
+
+// Day-ahead forecast accuracy over the last N completed days (+ the rows, for the card).
+app.get("/api/forecast/accuracy", async (c) => {
+  const days = Math.min(365, Math.max(7, Number(c.req.query("days")) || 30));
+  const rows = await evaluatedForecastRows(c.env, days);
+  const s = accuracySummary(rows.filter((r) => r.actual != null).map((r) => ({ day: r.day, predicted: Number(r.predicted), actual: Number(r.actual) })));
+  return c.json({ days, ...s, rows: rows.map((r) => ({ day: r.day, predicted: Number(r.predicted), actual: r.actual == null ? null : Number(r.actual), cond: Number(r.cond) })) });
+});
+
 app.get("/api/weather", async (c) => c.json(await getWeather(c.env)));
 
 // Trend of selected measure points from device_samples (the 15-min telemetry the
@@ -875,20 +940,7 @@ app.get("/api/totals", async (c) => {
   // Self-calibrated effective capacity from the site's own recent production —
   // see src/lib/calib.ts. psh per past day is recomputed astronomically for the
   // station's coordinates (pure CPU, no requests). 0 = not enough history yet.
-  let calib = { kw: 0, days: 0 };
-  try {
-    const sm = await getStationMeta(env);
-    if (sm && sm.lat != null && sm.lng != null) {
-      const cutoff = bkkDayOf(Date.now() - 60 * 86400000); // with day<today: exactly 60 complete dates
-      // strictly BEFORE today: the running day is partial and would both pad the
-      // ≥7-day gate and (late in the day) contaminate the clear-day sample
-      const rows = ((await env.DB.prepare("SELECT day, gen FROM daily WHERE gen > 0 AND day >= ? AND day < ?").bind(cutoff, bkkDayOf(Date.now())).all()).results || []) as any[];
-      calib = calibKwFrom(rows.map((r) => ({
-        gen: Number(r.gen) || 0,
-        psh: sunInfo(Number(sm.lat), Number(sm.lng), 420, Date.parse(r.day + "T05:00:00Z")).psh, // noon-ish BKK of that day
-      })));
-    }
-  } catch (e) { console.warn("calibration skipped", (e as Error).message); }
+  const fm = await forecastModel(env); // calibrated kWp + learned sky (shared with the cron's day-ahead log)
   // genTotal = the inverter's own lifetime kWh meter (more accurate than summing
   // daily, which only goes back to install) — prefer it, fall back to the sum.
   // Skip NULLs: only the cron writes gen_total, so backfilled rows (history frames
@@ -905,7 +957,8 @@ app.get("/api/totals", async (c) => {
     charge: agg?.charge || 0, discharge: agg?.discharge || 0,
     genTotal: (last && last.gen_total) || 0,
     peakPower: peakW, // W — robust recent peak (95th pct, 60 d) ≈ real array size; see robustPeakW
-    calibKw: calib.kw, calibDays: calib.days, // measured clear-sky-equivalent kWp (0 = insufficient history)
+    calibKw: fm.capKw, calibDays: fm.calibDays, // measured clear-sky-equivalent kWp (0 = insufficient history)
+    sky: fm.sky, skyDays: fm.skyDays,           // site-learned sky factors (+ evaluated days behind them)
     years: yrs,
   };
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('totals_cache',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();

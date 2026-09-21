@@ -5,7 +5,7 @@ import { cardP, h2Mid } from "../lib/ui";
 import { useSettings } from "../lib/settings";
 import { savingsOf, savingsLabel } from "../lib/economics";
 import { forecast, clearSkyPsh, forecastDayKwh } from "../lib/forecast";
-import { useEffectiveCapacity } from "../lib/useCapacity";
+import { useForecastModel } from "../lib/useCapacity";
 import { InfoTip } from "./InfoTip";
 import { HeroHome } from "./HeroHome";
 import { ProductionRing } from "./ProductionRing";
@@ -21,18 +21,19 @@ function Skeleton() {
 
 export function HomeView({ latest, weather, capacity, isPrimary = true, stationName, onDevice }: { latest: Latest | null; weather: Weather | null; capacity?: number; isPrimary?: boolean; stationName?: string; onDevice: () => void }) {
   const { settings } = useSettings();
-  const effCap = useEffectiveCapacity(capacity, isPrimary); // kWp: calibrated → installed → peak (see useCapacity)
+  const model = useForecastModel(capacity, isPrimary); // calibrated kWp + site-learned sky factors
+  const effCap = model.capKw;
   if (!latest) return <Skeleton />;
   const ok = (latest.warningStatus || "NORMAL") === "NORMAL";
   // Today's ACHIEVABLE clear-day production — same formula the forecast uses for a
   // clear sky (kWp × PSH × clear factor), so a calibration-clear day reads ~100%,
   // not the lossless-theoretical 80%.
-  const potential = forecastDayKwh({ cond: 1 } as any, clearSkyPsh(weather), effCap);
+  const potential = forecastDayKwh({ cond: 1 } as any, clearSkyPsh(weather), effCap, model.sky);
   const prodPct = potential > 0 ? Math.round(Math.min(100, (latest.genToday / potential) * 100)) : Math.min(100, Math.round(latest.genToday));
   // shared economics formula (self-consumption + export income, user's own rates)
   const sv = savingsLabel(savingsOf({ use: latest.useToday, buy: latest.buyToday, sell: latest.sellToday }, settings), "ประหยัดวันนี้");
   // tomorrow's expected production (shown only when capacity is known here)
-  const tomorrow = effCap ? forecast(weather, effCap)[1] : undefined;
+  const tomorrow = effCap ? forecast(weather, effCap, model.sky)[1] : undefined;
 
   return (
     <>
