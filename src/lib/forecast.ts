@@ -10,13 +10,16 @@ import type { Weather, WeatherDay } from "./api";
 //   info); it changes slowly across a week, so today's value is a fine baseline.
 // • skyFactor folds the cloud derate + typical system losses (PR ~0.8) into one
 //   factor per sky condition — keyed on the same TMD cond codes used everywhere.
-const SKY: Record<number, number> = {
+// Regional PRIOR only — the worker learns the site's own factors from forecast-vs-
+// actual history (lib/skylearn.ts) and every caller passes the learned map in.
+export const DEFAULT_SKY: Record<number, number> = {
   1: 0.80, 2: 0.72, 12: 0.80, // แจ่มใส / มีเมฆบางส่วน / ร้อนจัด(โปร่ง)
   3: 0.52,                      // เมฆเป็นส่วนมาก
   4: 0.40, 9: 0.40, 10: 0.42, 11: 0.42, // เมฆมาก / หนาว
   5: 0.30, 6: 0.22, 7: 0.15, 8: 0.18,   // ฝนเล็ก→หนัก / ฟ้าคะนอง
 };
-const skyFactor = (cond: number) => SKY[cond] ?? 0.5;
+export type SkyMap = Record<number, number>;
+export const skyFactor = (cond: number, sky: SkyMap = DEFAULT_SKY) => sky[cond] ?? DEFAULT_SKY[cond] ?? 0.5;
 
 // Installed kWp if known, else derived from the highest PV watts ever produced.
 export function effectiveCapacityKw(capacity?: number | null, peakPowerW?: number | null): number {
@@ -25,17 +28,17 @@ export function effectiveCapacityKw(capacity?: number | null, peakPowerW?: numbe
   return 0;
 }
 
-export function forecastDayKwh(day: WeatherDay, pshClear: number, capKw: number): number {
+export function forecastDayKwh(day: WeatherDay, pshClear: number, capKw: number, sky: SkyMap = DEFAULT_SKY): number {
   if (!capKw || !pshClear) return 0;
-  return capKw * pshClear * skyFactor(day.cond);
+  return capKw * pshClear * skyFactor(day.cond, sky);
 }
 
 // Expected production (kWh) within one hour: panels track the sun, so output ≈
 // installed kWp × the clear-sky irradiance fraction sin(sun elevation) × the
 // hour's sky factor. Zero when the sun is down.
-export function hourlyKwh(elevDeg: number, cond: number, capKw: number): number {
+export function hourlyKwh(elevDeg: number, cond: number, capKw: number, sky: SkyMap = DEFAULT_SKY): number {
   if (!capKw || elevDeg <= 0) return 0;
-  return capKw * Math.sin((elevDeg * Math.PI) / 180) * skyFactor(cond);
+  return capKw * Math.sin((elevDeg * Math.PI) / 180) * skyFactor(cond, sky);
 }
 
 export interface ForecastItem { time: string; kwh: number; }
@@ -50,8 +53,8 @@ export function clearSkyPsh(weather: Weather | null): number {
   return p && p > 0 ? p : 0;
 }
 
-export function forecast(weather: Weather | null, capKw: number): ForecastItem[] {
+export function forecast(weather: Weather | null, capKw: number, sky: SkyMap = DEFAULT_SKY): ForecastItem[] {
   const psh = clearSkyPsh(weather);
   if (!weather || !capKw || !psh) return [];
-  return (weather.daily || []).map((d) => ({ time: d.time, kwh: forecastDayKwh(d, psh, capKw) }));
+  return (weather.daily || []).map((d) => ({ time: d.time, kwh: forecastDayKwh(d, psh, capKw, sky) }));
 }

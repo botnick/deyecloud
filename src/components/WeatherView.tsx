@@ -1,4 +1,5 @@
-import { useEffectiveCapacity } from "../lib/useCapacity";
+import { useForecastModel } from "../lib/useCapacity";
+import { ForecastAccuracyCard } from "./ForecastAccuracy";
 import { type Weather, type WeatherHour } from "../lib/api";
 import { condText, solarInfo, DAYLBL, shortDate, isNightAt, isNightNow } from "../lib/weather";
 import { forecast, hourlyKwh } from "../lib/forecast";
@@ -42,7 +43,8 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
   // Effective capacity for the production forecast: the station's installed kWp, or
   // — when unknown — derived from the best PV power ever produced (peakPower). Only
   // fetched (cheaply, cached) when the station never reported its capacity.
-  const effCap = useEffectiveCapacity(capacity, isPrimary);
+  const model = useForecastModel(capacity, isPrimary);
+  const effCap = model.capKw;
 
   if (!weather || weather.temp == null) {
     return (
@@ -53,7 +55,7 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
     );
   }
   const w = weather;
-  const fc = forecast(w, effCap); // expected kWh per available day (today included)
+  const fc = forecast(w, effCap, model.sky); // expected kWh per available day (today included)
   const night = isNightNow();
   const d0 = w.daily?.[0];
   const s = solarInfo(w.cond, d0?.swdown);
@@ -147,6 +149,7 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
       {/* sun & solar reception */}
       {sun && (
         <>
+          {isPrimary && <ForecastAccuracyCard skyDays={model.skyDays} />}
           <h2 className={h2Mid}>ดวงอาทิตย์และการรับแสง</h2>
           <div className={cardP}>
             <SunPath sun={sun} />
@@ -181,7 +184,7 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
               <div className="text-[13px] font-bold text-body">{it.d.getTime() === nowMs ? "ตอนนี้" : it.d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</div>
               <WxIcon cond={it.h.cond} night={isNightAt(it.h.time)} className="w-10 h-10 mx-auto my-1.5" />
               <div className="text-[17px] font-extrabold">{Math.round(it.h.tc)}°</div>
-              {effCap > 0 && (() => { const kwh = hourlyKwh(elevAt(it.d), it.h.cond, effCap); return (
+              {effCap > 0 && (() => { const kwh = hourlyKwh(elevAt(it.d), it.h.cond, effCap, model.sky); return (
                 <div className="text-[10px] font-bold text-pv-high leading-none mt-1 min-h-[12px] whitespace-nowrap">{kwh > 0.05 ? `~${kwh.toFixed(1)} หน่วย` : ""}</div>
               ); })()}
               <div className="text-[11px] font-bold text-grid min-h-[14px] leading-none mt-1">{it.h.rain > 0 ? `${(+it.h.rain).toFixed(1)}มม` : ""}</div>
