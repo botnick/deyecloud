@@ -257,10 +257,10 @@ export default function App() {
             {view === "home" && <HomeView latest={shownLatest} weather={weather} capacity={active?.capacity} isPrimary={isPrimaryStation} stationName={active?.name} onDevice={() => go("device")} />}
             {view === "today" && <TodayView latest={shownLatest} capacity={active?.capacity} />}
             {view === "weather" && <WeatherView weather={weather} capacity={active?.capacity} isPrimary={isPrimaryStation} />}
-            {view === "device" && <DeviceView latest={shownLatest} active={true} stationId={stations.length > 1 ? selectedId : undefined} onBack={() => go("home")} />}
+            {view === "device" && <DeviceView latest={shownLatest} active={true} stationId={stations.length > 1 ? selectedId : undefined} isPrimary={isPrimaryStation} onBack={() => go("home")} />}
           </div>
           <div className={view === "history" ? "view-anim" : "hidden"}>
-            <HistoryView active={view === "history"} stationId={stations.length > 1 ? selectedId : undefined} capacity={active?.capacity} />
+            <HistoryView active={view === "history"} stationId={stations.length > 1 ? selectedId : undefined} isPrimary={isPrimaryStation} capacity={active?.capacity} />
           </div>
 
           {/* ── Open-source credit · โปรดเก็บไว้ อย่าลบ (please keep this attribution — do not delete) ── */}

@@ -183,7 +183,7 @@ async function pollAndStore(env: Env) {
          batt_power=excluded.batt_power, soc=excluded.soc, gen_today=excluded.gen_today, use_today=excluded.use_today,
          buy_today=excluded.buy_today, sell_today=excluded.sell_today, charge_today=excluded.charge_today,
          discharge_today=excluded.discharge_today, gen_total=excluded.gen_total`
-    ).bind(ts, l.genPower, l.usePower, l.gridPower, l.battPower, l.soc,
+    ).bind(ts, l.genPower, l.usePower, l.gridPower, l.battPower, l.socKnown ? l.soc : null, // unknown SOC → NULL, never a fake 0
            ...(l.totalsOk ? [l.genToday, l.useToday, l.buyToday, l.sellToday, l.chargeToday, l.dischargeToday] : [null, null, null, null, null, null]), l.genTotal),
     // The poll succeeded, so any recorded cron failure is history (one statement
     // in the same batch — no extra round trip).
@@ -728,23 +728,30 @@ app.get("/api/battery/health", async (c) => {
   const { results } = await env.DB.prepare("SELECT ts, batt_power p, soc FROM samples WHERE ts >= ? ORDER BY ts").bind(from).all();
   const pts = (results as any[]).map((r) => ({ ts: Number(r.ts), p: Number(r.p) || 0, soc: r.soc == null ? null : Number(r.soc) }));
   // rated Ah from the latest device snapshot; nominal V measured at mid-SOC
-  let ratedAh: number | null = null, nominalV: number | null = null;
+  // Rating and voltage must describe the SAME inverter (multi-inverter sites
+  // capture every SN into device_samples): scope both to the snapshot's sn and
+  // fail closed (no SOH) when that identity is missing.
+  let ratedAh: number | null = null, nominalV: number | null = null, sn: string | null = null;
   try {
     const dc = (await env.DB.prepare("SELECT v FROM meta WHERE k='device_cache'").first()) as { v: string } | null;
-    const list = dc ? (JSON.parse(dc.v).data?.dataList || []) : [];
+    const snap = dc ? JSON.parse(dc.v).data : null;
+    const list = snap?.dataList || [];
+    sn = snap && snap.sn ? String(snap.sn) : null;
     const ah = Number((list.find((x: any) => x.key === "BatteryRatedCapacity") || {}).value);
     if (Number.isFinite(ah) && ah > 0) ratedAh = ah;
-    const v = (await env.DB.prepare(
-      `SELECT AVG(CAST(json_extract(b.value,'$.value') AS REAL)) v FROM device_samples, json_each(device_samples.data) AS b
-       WHERE ts >= ? AND json_extract(b.value,'$.key') IN ('BatteryVoltage','BMSVoltage')
-         AND EXISTS (SELECT 1 FROM json_each(device_samples.data) s WHERE json_extract(s.value,'$.key') IN ('BMSSOC','SOC')
-                     AND CAST(json_extract(s.value,'$.value') AS REAL) BETWEEN 40 AND 60)`
-    ).bind(Math.floor(Date.now() / 1000) - 30 * 86400).first()) as { v: number | null } | null;
-    if (v && v.v && v.v > 10) nominalV = Math.round(v.v * 10) / 10;
+    if (sn) {
+      const v = (await env.DB.prepare(
+        `SELECT AVG(CAST(json_extract(b.value,'$.value') AS REAL)) v FROM device_samples, json_each(device_samples.data) AS b
+         WHERE device_samples.sn = ? AND ts >= ? AND json_extract(b.value,'$.key') IN ('BatteryVoltage','BMSVoltage')
+           AND EXISTS (SELECT 1 FROM json_each(device_samples.data) s WHERE json_extract(s.value,'$.key') IN ('BMSSOC','SOC')
+                       AND CAST(json_extract(s.value,'$.value') AS REAL) BETWEEN 40 AND 60)`
+      ).bind(sn, Math.floor(Date.now() / 1000) - 30 * 86400).first()) as { v: number | null } | null;
+      if (v && v.v && v.v > 10) nominalV = Math.round(v.v * 10) / 10;
+    }
   } catch (e) { console.warn("battery rating lookup skipped", (e as Error).message); }
   const ratedKwh = ratedAh && nominalV ? Math.round((ratedAh * nominalV) / 100) / 10 : null;
   const h = batteryHealth(pts, ratedKwh, days);
-  const data = h ? { ...h, ratedAh, nominalV } : null;
+  const data = h ? { ...h, ratedAh, nominalV, sn, lastEstimateDay: h.trend.length ? h.trend[h.trend.length - 1].day : null } : null;
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
   return c.json(data);
 });
@@ -841,10 +848,15 @@ async function histFromD1(env: Env, range: string, dateStr: string) {
     const { results } = await env.DB.prepare("SELECT day, gen, use, buy, sell, charge, discharge FROM daily WHERE day >= ? AND day < ? ORDER BY day").bind(ym + "-01", nextM + "-01").all();
     return { range, date: dateStr, points: results, source: "d1" };
   }
+  // `days` = coverage (how many daily rows the month really has) so the year
+  // insights can tell a complete month from a mid-month install or a hole, and a
+  // verified zero from an absent month. `todayGen` lets the running month be
+  // rated over completed days only.
   const { results } = await env.DB.prepare(
-    `SELECT substr(day,1,7) AS month, SUM(gen) gen, SUM(use) use, SUM(buy) buy, SUM(sell) sell, SUM(charge) charge, SUM(discharge) discharge FROM daily WHERE day >= ? AND day < ? GROUP BY month ORDER BY month`
+    `SELECT substr(day,1,7) AS month, SUM(gen) gen, SUM(use) use, SUM(buy) buy, SUM(sell) sell, SUM(charge) charge, SUM(discharge) discharge, COUNT(*) days FROM daily WHERE day >= ? AND day < ? GROUP BY month ORDER BY month`
   ).bind(`${y}-01-01`, `${y + 1}-01-01`).all();
-  return { range, date: dateStr, points: results, source: "d1" };
+  const todayRow = (await env.DB.prepare("SELECT gen FROM daily WHERE day = ?").bind(bkkDay()).first()) as { gen: number } | null;
+  return { range, date: dateStr, points: results, source: "d1", todayGen: todayRow ? Number(todayRow.gen) || 0 : null };
 }
 
 // Live Deye fetch for a history period (+ persist daily roll-ups & the meta cache).
@@ -885,11 +897,14 @@ async function fetchHistFromDeye(env: Env, range: string, dateStr: string, sid?:
     }
   } else {
     const res = await getHistory(env, 3, `${y}-01`, `${y}-12`, sid);
-    const points = (res.stationDataItems || []).map((x: any) => ({
-      month: `${x.year}-${p2(x.month)}`, gen: x.generationValue ?? 0, use: x.consumptionValue ?? 0, buy: x.purchaseValue ?? 0, sell: x.gridValue ?? 0,
-      charge: x.chargeValue ?? 0, discharge: x.dischargeValue ?? 0,
-    }));
-    data = { range, date: dateStr, points, source: "deye" };
+    const points = (res.stationDataItems || []).map((x: any) => {
+      const gen = x.generationValue ?? 0, use = x.consumptionValue ?? 0;
+      // Deye's monthly meter is complete by construction — but a 0/0 month is a
+      // pre-install placeholder, not a verified zero: coverage 0 (unknown).
+      const days = gen > 0 || use > 0 ? new Date(Date.UTC(Number(x.year), Number(x.month), 0)).getUTCDate() : 0;
+      return { month: `${x.year}-${p2(x.month)}`, gen, use, buy: x.purchaseValue ?? 0, sell: x.gridValue ?? 0, charge: x.chargeValue ?? 0, discharge: x.dischargeValue ?? 0, days };
+    });
+    data = { range, date: dateStr, points, source: "deye", todayGen: null };
   }
   const ck = `hist_v2_${range}_${dateStr}${sid ? "_" + sid : ""}`;
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();

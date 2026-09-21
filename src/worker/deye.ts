@@ -272,6 +272,9 @@ export interface Latest {
   // false when Deye's day-history call failed: the *Today fields are then unknown
   // (0 placeholders) and must not be persisted as the day's totals.
   totalsOk: boolean;
+  // false when neither the station nor the inverter reported SOC — soc is then a
+  // 0 placeholder for the UI and must be persisted as NULL, never as a reading.
+  socKnown: boolean;
   selfSufficiency: number; updatedAt: number; raw?: any;
 }
 
@@ -361,6 +364,7 @@ async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
     gridPower: wire,
     battPower: batt,
     soc: n(d.batterySOC ?? d.batterySoc ?? d.soc),
+    socKnown: (d.batterySOC ?? d.batterySoc ?? d.soc) != null && Number.isFinite(Number(d.batterySOC ?? d.batterySoc ?? d.soc)),
     genToday: n(tt.generationValue),
     useToday,
     buyToday,
@@ -390,7 +394,7 @@ async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
       if (inv.usePower != null) out.usePower = inv.usePower;
       if (inv.gridPower != null) { out.gridPower = inv.gridPower; out.gridStatus = inv.gridPower >= 0 ? "PURCHASE" : "REVERSE"; }
       if (inv.battPower != null) { out.battPower = inv.battPower; out.battStatus = inv.battPower > 20 ? "DISCHARGE" : inv.battPower < -20 ? "CHARGE" : "STATIC"; }
-      if (inv.soc != null) out.soc = inv.soc;
+      if (inv.soc != null) { out.soc = inv.soc; out.socKnown = true; }
       if (inv.genTotal != null) out.genTotal = inv.genTotal; // lifetime kWh (not in station API)
     }
   } catch {}

@@ -28,11 +28,12 @@ const isoLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad
 // are BKK-day data, so labels must not follow the viewer's timezone.
 const hhmm = (ts: number) => { const d = new Date((ts + 7 * 3600) * 1000); return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`; };
 
-export function HistoryView({ active, stationId, capacity }: { active: boolean; stationId?: number | null; capacity?: number }) {
+export function HistoryView({ active, stationId, isPrimary = true, capacity }: { active: boolean; stationId?: number | null; isPrimary?: boolean; capacity?: number }) {
   const [range, setRange] = useState<Range>("day");
   const [ref, setRef] = useState(() => new Date());
   const [points, setPoints] = useState<any[] | null>(null);
   const [totals, setTotals] = useState<HistTotals | null>(null);
+  const [todayGen, setTodayGen] = useState<number | null>(null); // year view: today's partial production (from the year payload)
   const [prev, setPrev] = useState<{ points: any[]; totals: HistTotals | null } | null>(null); // previous period, for the compare row
   // Day-view window: "mid" = calendar day 00:00→24:00 (certified totals, compare,
   // insights). "noon" = เที่ยงวัน→เที่ยงวันถัดไป — the night sits UNBROKEN in the
@@ -69,7 +70,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
       return;
     }
     getHistory(range, isoLocal(ref), stationId)
-      .then((r) => { if (id === reqRef.current) { setPoints(r.points || []); setTotals(r.totals ?? null); } })
+      .then((r) => { if (id === reqRef.current) { setPoints(r.points || []); setTotals(r.totals ?? null); setTodayGen((r as any).todayGen ?? null); } })
       .catch(() => { if (id === reqRef.current && clearOnError) setPoints([]); });
   }, [range, ref, stationId, dayWin]);
 
@@ -509,7 +510,7 @@ export function HistoryView({ active, stationId, capacity }: { active: boolean; 
                 </div>
               )}
               {overview()}
-              {range === "year" && <YearInsights year={ref.getFullYear()} points={points} prevPoints={prev ? prev.points : null} primary={stationId == null} />}
+              {range === "year" && <YearInsights year={ref.getFullYear()} points={points} prevPoints={prev ? prev.points : null} todayGen={todayGen} primary={isPrimary} />}
               {/* per-metric breakdown — folded by default, tap to expand */}
               <Collapsible variant="bare" title="ดูแยกแต่ละค่า" subtitle="ผลิต · ใช้ไฟ · กริด · แบต">
                 {sections()}
