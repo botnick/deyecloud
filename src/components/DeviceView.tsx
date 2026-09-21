@@ -9,6 +9,7 @@ import { FlowDiagram } from "./FlowDiagram";
 import { InsightList } from "./InsightList";
 import { analyzeDevice } from "../lib/diagnostics";
 import { DeviceTrends } from "./DeviceTrends";
+import { BatteryHealthCard } from "./BatteryHealth";
 
 const tcol = (t: number) => (t >= 60 ? "#e8603c" : t >= 45 ? "#d98c00" : "#18a673");
 function TempChip({ label, t }: { label: string; t: number }) {
@@ -271,6 +272,7 @@ export function DeviceView({ latest, active, stationId, onBack }: { latest: Late
         </div>
       )}
 
+      {stationId == null && <BatteryHealthCard />}
       <div className="mt-3.5"><DeviceTrends dev={dev} /></div>
 
       {latest && (

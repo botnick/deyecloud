@@ -10,6 +10,7 @@ import { pickPeak } from "../lib/peak";
 import { calibKwFrom } from "../lib/calib";
 import { observedChannelActivity, activeChannels } from "./battChannels";
 import { learnSky, accuracySummary } from "../lib/skylearn";
+import { batteryHealth } from "../lib/battery";
 import { forecastDayKwh, DEFAULT_SKY } from "../lib/forecast";
 
 // --- External endpoints + defaults — centralized, not scattered as inline literals.
@@ -703,6 +704,42 @@ async function forecastModel(env: Env) {
   memModel = { at: Date.now(), m: { capKw, calibDays, sky, skyDays } };
   return memModel.m;
 }
+
+// Battery health from the 5-min samples (primary station): measured usable capacity
+// from continuous discharge stretches, SOH vs the BMS rated Ah × nominal V, cycles,
+// depth of discharge. Nominal V is measured too — the mean pack voltage while the
+// BMS sits at mid-SOC (40–60 %) over the last 30 days — never a chemistry constant.
+// Heavy read (≈17k rows for 60 d) → cached 6 h in meta.
+app.get("/api/battery/health", async (c) => {
+  const env = c.env;
+  const days = Math.min(180, Math.max(7, Number(c.req.query("days")) || 60));
+  const ck = `batt_health_${days}`;
+  const cached = (await env.DB.prepare("SELECT v FROM meta WHERE k=?").bind(ck).first()) as { v: string } | null;
+  if (cached) { try { const cc = JSON.parse(cached.v); if (Date.now() - cc._at < 6 * 3600 * 1000) return c.json(cc.data); } catch {} }
+  const from = Math.floor(Date.now() / 1000) - days * 86400;
+  const { results } = await env.DB.prepare("SELECT ts, batt_power p, soc FROM samples WHERE ts >= ? ORDER BY ts").bind(from).all();
+  const pts = (results as any[]).map((r) => ({ ts: Number(r.ts), p: Number(r.p) || 0, soc: r.soc == null ? null : Number(r.soc) }));
+  // rated Ah from the latest device snapshot; nominal V measured at mid-SOC
+  let ratedAh: number | null = null, nominalV: number | null = null;
+  try {
+    const dc = (await env.DB.prepare("SELECT v FROM meta WHERE k='device_cache'").first()) as { v: string } | null;
+    const list = dc ? (JSON.parse(dc.v).data?.dataList || []) : [];
+    const ah = Number((list.find((x: any) => x.key === "BatteryRatedCapacity") || {}).value);
+    if (Number.isFinite(ah) && ah > 0) ratedAh = ah;
+    const v = (await env.DB.prepare(
+      `SELECT AVG(CAST(json_extract(b.value,'$.value') AS REAL)) v FROM device_samples, json_each(device_samples.data) AS b
+       WHERE ts >= ? AND json_extract(b.value,'$.key') IN ('BatteryVoltage','BMSVoltage')
+         AND EXISTS (SELECT 1 FROM json_each(device_samples.data) s WHERE json_extract(s.value,'$.key') IN ('BMSSOC','SOC')
+                     AND CAST(json_extract(s.value,'$.value') AS REAL) BETWEEN 40 AND 60)`
+    ).bind(Math.floor(Date.now() / 1000) - 30 * 86400).first()) as { v: number | null } | null;
+    if (v && v.v && v.v > 10) nominalV = Math.round(v.v * 10) / 10;
+  } catch (e) { console.warn("battery rating lookup skipped", (e as Error).message); }
+  const ratedKwh = ratedAh && nominalV ? Math.round((ratedAh * nominalV) / 100) / 10 : null;
+  const h = batteryHealth(pts, ratedKwh, days);
+  const data = h ? { ...h, ratedAh, nominalV } : null;
+  await env.DB.prepare("INSERT INTO meta (k,v) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(ck, JSON.stringify({ _at: Date.now(), data })).run();
+  return c.json(data);
+});
 
 // Day-ahead forecast accuracy over the last N completed days (+ the rows, for the card).
 app.get("/api/forecast/accuracy", async (c) => {
