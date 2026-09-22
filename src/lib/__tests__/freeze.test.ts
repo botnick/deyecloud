@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isFrozenReading, observedAtOf } from "../freeze";
+import { isFrozenReading, observedAtOf, composeObservedAt } from "../freeze";
 
 const NOW = 1_790_000_000, STALE = 720;
 describe("isFrozenReading — freshness of the value source, independent of monotonicity", () => {
@@ -26,4 +26,31 @@ describe("observedAtOf — oldest contributing source bounds freshness", () => {
     expect(observedAtOf([{ used: true, ts: S }, { used: true, ts: null }])).toBeNull();
   });
   it("nothing contributed → null", () => expect(observedAtOf([{ used: false, ts: S }])).toBeNull());
+});
+
+describe("composeObservedAt — actual Latest composition cases", () => {
+  const S = 1_790_000_000, OLD = 1_789_650_000; // fresh vs 4 days old
+  const full = (ts: number, extra: Partial<import("../freeze").InvFlow> = {}) => ({ genPower: 4000, usePower: 900, gridPower: -3000, battPower: 100, soc: 75, observedAt: ts, ...extra });
+  it("old station + fresh inverter with ALL 4 powers + SOC, NO lifetime point → fresh (lifetime is not instantaneous)", () => {
+    expect(composeObservedAt(full(S), OLD, true)).toBe(S);
+  });
+  it("old station + fresh inverter powers, SOC absent on BOTH → fresh (absent SOC contributes nothing)", () => {
+    expect(composeObservedAt(full(S, { soc: undefined }), OLD, false)).toBe(S);
+  });
+  it("old station + fresh inverter powers, SOC absent on inverter but known on station → station contributes → old", () => {
+    expect(composeObservedAt(full(S, { soc: undefined }), OLD, true)).toBe(OLD);
+  });
+  it("fresh station + 4-day-old device that only has SOC → device contributes → old", () => {
+    expect(composeObservedAt({ soc: 75, observedAt: OLD }, S, true)).toBe(OLD);
+  });
+  it("fresh station + device with no mapped field (e.g. only BatteryRatedCapacity) → station only → fresh", () => {
+    expect(composeObservedAt({ observedAt: null }, S, true)).toBe(S);
+    expect(composeObservedAt(null, S, true)).toBe(S);
+  });
+  it("zero values are real contributions (gen 0 at night from the inverter counts as inverter-sourced)", () => {
+    expect(composeObservedAt(full(S, { genPower: 0, gridPower: 0, battPower: 0 }), OLD, true)).toBe(S);
+  });
+  it("partial override with a timestamp-less device → unprovable", () => {
+    expect(composeObservedAt({ genPower: 4000, observedAt: null }, S, true)).toBeNull();
+  });
 });
