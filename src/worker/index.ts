@@ -11,6 +11,7 @@ import { calibKwFrom } from "../lib/calib";
 import { observedChannelActivity, activeChannels } from "./battChannels";
 import { learnSky, accuracySummary } from "../lib/skylearn";
 import { batteryHealth, sohIdentity } from "../lib/battery";
+import { isFrozenReading } from "../lib/freeze";
 import { forecastDayKwh, DEFAULT_SKY } from "../lib/forecast";
 
 // --- External endpoints + defaults — centralized, not scattered as inline literals.
@@ -160,6 +161,25 @@ async function pollAndStore(env: Env) {
   const l = await getLatest(env);
   const ts = Math.floor(Date.now() / 60000) * 60;
   const day = bkkDay();
+  // Frozen reading (logger offline, Deye re-serving its last value): record that
+  // the poll itself succeeded, but write NO sample/daily — see lib/freeze.ts.
+  const lastReading = (await env.DB.prepare("SELECT v FROM meta WHERE k='last_reading_ts'").first()) as { v: string } | null;
+  const fz = isFrozenReading(Number(l.updatedAt) || 0, lastReading ? Number(lastReading.v) : null, Math.floor(Date.now() / 1000), STALE_AFTER_S);
+  if (fz.frozen) {
+    console.warn("poll: frozen reading — not stored:", fz.reason);
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_poll_ok',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(ts)),
+      env.DB.prepare("INSERT INTO meta (k,v) VALUES ('frozen_since',?) ON CONFLICT(k) DO UPDATE SET v=v").bind(String(l.updatedAt)), // keep the FIRST frozen timestamp
+      env.DB.prepare("DELETE FROM meta WHERE k='last_poll_error'"),
+    ]);
+    // Alerts still run so the offline rule can fire from the device snapshot.
+    if (alertsConfigured(env)) {
+      const dev = await buildDeviceData(env).catch(() => null);
+      const sm = await getStationMeta(env).catch(() => null);
+      await evaluateAlerts(env, { latest: null, dev, sun: null, capacityW: null, stationName: sm?.name }).catch((e) => console.error("alerts failed", e));
+    }
+    return l;
+  }
   // Day totals unavailable (Deye history call failed): keep the live sample, but
   // do NOT write today's `daily` row (it would be zeros) and carry the last known
   // today-energies forward in the served cache instead of showing 0.
@@ -188,6 +208,9 @@ async function pollAndStore(env: Env) {
     // The poll succeeded, so any recorded cron failure is history (one statement
     // in the same batch — no extra round trip).
     env.DB.prepare("DELETE FROM meta WHERE k='last_poll_error'"),
+    env.DB.prepare("DELETE FROM meta WHERE k='frozen_since'"),
+    env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_poll_ok',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(ts)),
+    env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_reading_ts',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(Number(l.updatedAt) || ts)),
   ];
   if (l.totalsOk) stmts.push(
     env.DB.prepare(
@@ -570,7 +593,13 @@ app.get("/api/_health", async (c) => {
   if (pe && pe.v) { try { lastPollError = JSON.parse(pe.v); } catch {} }
   const lastTs = (s && s.m) || 0;
   const ageMin = lastTs ? Math.round((now - lastTs) / 60) : null;
-  const healthy = lastTs > 0 && now - lastTs <= STALE_AFTER_S;
+  // The collector is healthy if it POLLED recently, even when it (correctly)
+  // refused to store a frozen reading; that case is reported separately.
+  const pok = await first<{ v: string }>("SELECT v FROM meta WHERE k='last_poll_ok'");
+  const lastPollOk = pok ? Number(pok.v) : 0;
+  const fzRow = await first<{ v: string }>("SELECT v FROM meta WHERE k='frozen_since'");
+  const frozenSince = fzRow ? Number(fzRow.v) : null;
+  const healthy = Math.max(lastTs, lastPollOk) > 0 && now - Math.max(lastTs, lastPollOk) <= STALE_AFTER_S;
   const loginBad = !!login && login.fails > 0;
   const payload = {
     // ok mirrors cronHealthy so uptime monitors can key on status code / `ok`.
@@ -578,9 +607,13 @@ app.get("/api/_health", async (c) => {
     serverTime: new Date(now * 1000).toISOString(),
     cronHealthy: healthy,
     staleAfterSeconds: STALE_AFTER_S,
+    lastPollOk: lastPollOk ? new Date(lastPollOk * 1000).toISOString() : null,
+    // logger offline: Deye keeps re-serving one reading; the cron polls but stores nothing
+    inverterFrozenSince: frozenSince ? new Date(frozenSince * 1000).toISOString() : null,
     lastPollError: lastPollError && { ...lastPollError, time: new Date(lastPollError.at * 1000).toISOString() },
     summary: lastTs
       ? `cron เขียนล่าสุด ${ageMin} นาทีที่แล้ว · ${(s?.c || 0).toLocaleString()} แถว · ${healthy ? "ปกติ ✅" : "หยุด ⚠️"}` +
+        (frozenSince ? ` · อินเวอร์เตอร์ไม่ส่งข้อมูลใหม่ตั้งแต่ ${new Date(frozenSince * 1000).toISOString()} (ไม่บันทึกค่าซ้ำ) 📡` : "") +
         (lastPollError ? ` · error ล่าสุด: ${lastPollError.msg}` : "") +
         (loginBad ? ` · ล็อกอิน Deye ล้มเหลว ${login!.fails} ครั้ง (${login!.msg}) ⛔` : "")
       : "ยังไม่มีข้อมูล cron",
@@ -1305,6 +1338,27 @@ app.post("/api/_backfill", async (c) => {
   return c.json(r, r.failed ? 207 : 200);
 });
 // Operator: prove the alert channels work (sends a test message, returns statuses).
+// Operator: remove samples/device_samples in a time window — for readings that
+// were stored while the logger was offline (Deye re-serving one frozen value).
+// Dry-run by default; ?confirm=1 deletes. Window capped at 31 days. `daily` is
+// never touched (Deye's day totals are authoritative; missing days stay missing).
+app.post("/api/_purge", async (c) => {
+  const env = c.env;
+  const from = Number(c.req.query("from")), to = Number(c.req.query("to"));
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return c.json({ ok: false, error: "from/to must be unix seconds, from < to" }, 400);
+  if (to - from > 31 * 86400) return c.json({ ok: false, error: "window > 31 days" }, 400);
+  const confirm = c.req.query("confirm") === "1";
+  const cnt = async (t: string) => Number(((await env.DB.prepare(`SELECT COUNT(*) c FROM ${t} WHERE ts >= ? AND ts <= ?`).bind(from, to).first()) as any)?.c || 0);
+  const before = { samples: await cnt("samples"), device_samples: await cnt("device_samples") };
+  if (!confirm) return c.json({ ok: true, dryRun: true, from, to, wouldDelete: before });
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM samples WHERE ts >= ? AND ts <= ?").bind(from, to),
+    env.DB.prepare("DELETE FROM device_samples WHERE ts >= ? AND ts <= ?").bind(from, to),
+    env.DB.prepare("DELETE FROM meta WHERE k LIKE 'hist_v3_day_%' OR k LIKE 'batt_health_%'"),
+  ]);
+  return c.json({ ok: true, dryRun: false, from, to, deleted: before });
+});
+
 app.post("/api/_alert_test", async (c) => {
   if (!alertsConfigured(c.env)) return c.json({ ok: false, error: "no alert channel configured (ALERT_WEBHOOK_URL / TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID)" }, 400);
   const r = await notify(c.env, "🔔 ทดสอบการแจ้งเตือนจาก Solar Monitor — ถ้าเห็นข้อความนี้แปลว่าช่องทางใช้ได้");
