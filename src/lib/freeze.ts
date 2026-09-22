@@ -16,3 +16,14 @@ export function isFrozenReading(observedAt: number | null, nowS: number, staleS:
   if (age > staleS) return { frozen: true, reason: `reading observed ${Math.round(age / 60)} min ago (${new Date(observedAt * 1000).toISOString()})` };
   return { frozen: false, reason: null };
 }
+
+// Observation time of a record assembled from several sources: the OLDEST
+// contributing source bounds its freshness, and one contributor without a
+// timestamp makes the whole record unprovable (null). Non-contributing sources
+// (a device snapshot that overrode nothing) are ignored.
+export function observedAtOf(contributors: { used: boolean; ts: number | null }[]): number | null {
+  const used = contributors.filter((c) => c.used);
+  if (!used.length) return null;
+  if (used.some((c) => c.ts == null || !Number.isFinite(c.ts) || c.ts <= 0)) return null;
+  return Math.min(...used.map((c) => c.ts as number));
+}

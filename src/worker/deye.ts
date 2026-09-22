@@ -331,6 +331,8 @@ export async function getStationMeta(env: Env): Promise<Station> {
   return picked;
 }
 
+import { observedAtOf } from "../lib/freeze";
+
 // Open API is the only data source.
 export async function getLatest(env: Env, stationId?: string): Promise<Latest> {
   return getLatestOpen(env, stationId);
@@ -407,16 +409,26 @@ async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
   // (verified live): battery −=charge/+=discharge, grid +=import/−=export.
   try {
     const inv = await getInverterFlow(env, id);
+    // Each stored realtime field keeps a provenance flag: overridden by the
+    // inverter or left as the station value. The record's observation time is
+    // the OLDEST source that actually contributed a field (lib/freeze.ts) — a
+    // device snapshot that overrides nothing does not vouch for station values.
+    const realtime: (keyof typeof out)[] = ["genPower", "usePower", "gridPower", "battPower", "soc", "genTotal"];
+    let fromInverter = false;
     if (inv) {
-      // the stored power values now come from the inverter → so must the observation time
-      out.observedAt = inv.observedAt;
       if (inv.genPower != null) out.genPower = inv.genPower;
       if (inv.usePower != null) out.usePower = inv.usePower;
       if (inv.gridPower != null) { out.gridPower = inv.gridPower; out.gridStatus = inv.gridPower >= 0 ? "PURCHASE" : "REVERSE"; }
       if (inv.battPower != null) { out.battPower = inv.battPower; out.battStatus = inv.battPower > 20 ? "DISCHARGE" : inv.battPower < -20 ? "CHARGE" : "STATIC"; }
       if (inv.soc != null) { out.soc = inv.soc; out.socKnown = true; }
       if (inv.genTotal != null) out.genTotal = inv.genTotal; // lifetime kWh (not in station API)
+      fromInverter = realtime.some((k) => (inv as any)[k] != null);
     }
+    const fromStation = !inv || realtime.some((k) => (inv as any)[k] == null); // at least one field still station-sourced
+    out.observedAt = observedAtOf([
+      { used: fromStation, ts: toSec(d.lastUpdateTime) },
+      { used: fromInverter, ts: inv ? inv.observedAt : null },
+    ]);
   } catch {}
   return out;
 }
