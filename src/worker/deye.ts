@@ -267,6 +267,8 @@ export async function getStationId(env: Env): Promise<string> {
 // A measure-point / field value is a reading only if it is a finite number.
 // null, "", "  ", "N/A" are ABSENT — Number("") is 0, which is how a missing SOC
 // used to become a fake 0 % reading.
+// Deye timestamps arrive in seconds or milliseconds depending on endpoint.
+export const toSec = (t: unknown): number | null => { const v = pointValue(t); if (v == null || v <= 0) return null; return v > 1e12 ? Math.floor(v / 1000) : Math.floor(v); };
 export function pointValue(raw: unknown): number | undefined {
   if (raw == null) return undefined;
   if (typeof raw === "string" && raw.trim() === "") return undefined;
@@ -282,6 +284,11 @@ export interface Latest {
   // false when Deye's day-history call failed: the *Today fields are then unknown
   // (0 placeholders) and must not be persisted as the day's totals.
   totalsOk: boolean;
+  // Observation time (unix s) of the SOURCE whose power values this record
+  // carries: the inverter's collectionTime when its live points overrode the
+  // station fields, else the station's lastUpdateTime. null = the source gave no
+  // usable timestamp — the reading's freshness is then unprovable.
+  observedAt: number | null;
   // false when neither the station nor the inverter reported SOC — soc is then a
   // 0 placeholder for the UI and must be persisted as NULL, never as a reading.
   socKnown: boolean;
@@ -387,7 +394,8 @@ async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
     warningStatus: "NORMAL",
     totalsOk,
     selfSufficiency: selfSuff,
-    updatedAt: n(d.lastUpdateTime) || Math.floor(Date.now() / 1000),
+    updatedAt: n(d.lastUpdateTime) || Math.floor(Date.now() / 1000), // display only — never a freshness proof
+    observedAt: toSec(d.lastUpdateTime),
     raw: d,
   };
 
@@ -400,6 +408,8 @@ async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
   try {
     const inv = await getInverterFlow(env, id);
     if (inv) {
+      // the stored power values now come from the inverter → so must the observation time
+      out.observedAt = inv.observedAt;
       if (inv.genPower != null) out.genPower = inv.genPower;
       if (inv.usePower != null) out.usePower = inv.usePower;
       if (inv.gridPower != null) { out.gridPower = inv.gridPower; out.gridStatus = inv.gridPower >= 0 ? "PURCHASE" : "REVERSE"; }
@@ -429,7 +439,7 @@ async function getInverterSn(env: Env, stationId: string): Promise<string> {
 async function getInverterFlow(
   env: Env,
   stationId: string
-): Promise<{ genPower?: number; usePower?: number; gridPower?: number; battPower?: number; soc?: number; genTotal?: number } | null> {
+): Promise<{ genPower?: number; usePower?: number; gridPower?: number; battPower?: number; soc?: number; genTotal?: number; observedAt: number | null } | null> {
   const sn = await getInverterSn(env, stationId);
   if (!sn) return null;
   const res = await deviceLatest(env, [sn]);
@@ -443,6 +453,7 @@ async function getInverterFlow(
     battPower: num("BatteryPower"),
     soc: num("SOC"),
     genTotal: num("TotalActiveProduction"),
+    observedAt: toSec(((res.deviceDataList && res.deviceDataList[0]) || {}).collectionTime),
   };
 }
 

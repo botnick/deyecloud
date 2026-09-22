@@ -1,17 +1,18 @@
-// Frozen-reading detection — pure, unit-tested.
+// Reading-freshness gate — pure, unit-tested.
 //
-// When the site's data logger drops off Deye Cloud, /station/latest keeps
-// answering with the LAST reading it has (same watts, same SOC, same
-// lastUpdateTime) for hours or days. Storing that every 5 minutes fabricates a
-// flat 4-day "production curve" (observed 2026-09-18→22: PV 2,631 W × 96 h).
-// A reading is only new evidence if its device timestamp advanced past the one
-// we last stored; if it hasn't and it is older than the stale window, the poll
-// carries no information about the present and must not be written as a sample.
+// When the site's data logger drops off Deye Cloud, /station/latest and
+// /device/latest keep answering with the LAST reading they have (same watts,
+// same SOC, same timestamp) for hours or days. Storing that every 5 minutes
+// fabricates a flat multi-day "production curve" (observed 2026-09-18→22:
+// PV 2,631 W × 96 h). A reading is evidence about NOW only if the timestamp of
+// the source that produced its values is inside the stale window — freshness is
+// judged on its own, never on whether the timestamp moved since last time (a
+// 4-day-old reading that "advances" by 5 min is still 4 days old), and a missing
+// timestamp cannot prove freshness at all.
 export interface FreezeCheck { frozen: boolean; reason: string | null }
-export function isFrozenReading(readingTs: number, lastStoredReadingTs: number | null, nowS: number, staleS: number): FreezeCheck {
-  if (!Number.isFinite(readingTs) || readingTs <= 0) return { frozen: false, reason: null }; // no device timestamp → cannot judge, keep old behaviour
-  if (lastStoredReadingTs != null && readingTs <= lastStoredReadingTs && nowS - readingTs > staleS) {
-    return { frozen: true, reason: `Deye reading unchanged since ${new Date(readingTs * 1000).toISOString()} (${Math.round((nowS - readingTs) / 60)} min)` };
-  }
+export function isFrozenReading(observedAt: number | null, nowS: number, staleS: number): FreezeCheck {
+  if (observedAt == null || !Number.isFinite(observedAt) || observedAt <= 0) return { frozen: true, reason: "source gave no observation timestamp" };
+  const age = nowS - observedAt;
+  if (age > staleS) return { frozen: true, reason: `reading observed ${Math.round(age / 60)} min ago (${new Date(observedAt * 1000).toISOString()})` };
   return { frozen: false, reason: null };
 }

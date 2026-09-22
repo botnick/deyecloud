@@ -2,15 +2,15 @@ import { describe, it, expect } from "vitest";
 import { isFrozenReading } from "../freeze";
 
 const NOW = 1_790_000_000, STALE = 720;
-describe("isFrozenReading", () => {
-  it("first ever poll: nothing stored → not frozen", () => expect(isFrozenReading(NOW - 60, null, NOW, STALE).frozen).toBe(false));
-  it("reading advanced → not frozen even if old-ish", () => expect(isFrozenReading(NOW - 600, NOW - 900, NOW, STALE).frozen).toBe(false));
-  it("same reading, still within the stale window → not frozen yet (one slow upload is fine)", () => {
-    expect(isFrozenReading(NOW - 600, NOW - 600, NOW, STALE).frozen).toBe(false);
+describe("isFrozenReading — freshness of the value source, independent of monotonicity", () => {
+  it("fresh reading → stored", () => expect(isFrozenReading(NOW - 60, NOW, STALE).frozen).toBe(false));
+  it("exactly at the window edge → still stored", () => expect(isFrozenReading(NOW - STALE, NOW, STALE).frozen).toBe(false));
+  it("4-day-old reading → frozen, even if it 'advanced' by 5 min since last poll", () => {
+    const r = isFrozenReading(NOW - 4 * 86400 + 300, NOW, STALE);
+    expect(r.frozen).toBe(true); expect(r.reason).toContain("min ago");
   });
-  it("same reading and older than the window → FROZEN", () => {
-    const r = isFrozenReading(NOW - 3600, NOW - 3600, NOW, STALE);
-    expect(r.frozen).toBe(true); expect(r.reason).toContain("60 min");
+  it("no observation timestamp → cannot prove freshness → frozen", () => {
+    expect(isFrozenReading(null, NOW, STALE).frozen).toBe(true);
+    expect(isFrozenReading(0, NOW, STALE).frozen).toBe(true);
   });
-  it("no device timestamp → cannot judge → not frozen", () => expect(isFrozenReading(0, NOW - 3600, NOW, STALE).frozen).toBe(false));
 });

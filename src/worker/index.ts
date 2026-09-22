@@ -163,13 +163,12 @@ async function pollAndStore(env: Env) {
   const day = bkkDay();
   // Frozen reading (logger offline, Deye re-serving its last value): record that
   // the poll itself succeeded, but write NO sample/daily — see lib/freeze.ts.
-  const lastReading = (await env.DB.prepare("SELECT v FROM meta WHERE k='last_reading_ts'").first()) as { v: string } | null;
-  const fz = isFrozenReading(Number(l.updatedAt) || 0, lastReading ? Number(lastReading.v) : null, Math.floor(Date.now() / 1000), STALE_AFTER_S);
+  const fz = isFrozenReading(l.observedAt, Math.floor(Date.now() / 1000), STALE_AFTER_S);
   if (fz.frozen) {
-    console.warn("poll: frozen reading — not stored:", fz.reason);
+    console.warn("poll: stale/frozen reading — not stored:", fz.reason);
     await env.DB.batch([
       env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_poll_ok',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(ts)),
-      env.DB.prepare("INSERT INTO meta (k,v) VALUES ('frozen_since',?) ON CONFLICT(k) DO UPDATE SET v=v").bind(String(l.updatedAt)), // keep the FIRST frozen timestamp
+      env.DB.prepare("INSERT INTO meta (k,v) VALUES ('frozen_since',?) ON CONFLICT(k) DO UPDATE SET v=v").bind(String(l.observedAt ?? ts)), // keep the FIRST frozen timestamp
       env.DB.prepare("DELETE FROM meta WHERE k='last_poll_error'"),
     ]);
     // Alerts still run so the offline rule can fire from the device snapshot.
@@ -210,7 +209,6 @@ async function pollAndStore(env: Env) {
     env.DB.prepare("DELETE FROM meta WHERE k='last_poll_error'"),
     env.DB.prepare("DELETE FROM meta WHERE k='frozen_since'"),
     env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_poll_ok',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(ts)),
-    env.DB.prepare("INSERT INTO meta (k,v) VALUES ('last_reading_ts',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(Number(l.updatedAt) || ts)),
   ];
   if (l.totalsOk) stmts.push(
     env.DB.prepare(
