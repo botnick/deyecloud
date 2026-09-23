@@ -62,7 +62,7 @@ export function analyze(l: Latest, capacityKw?: number, settings?: Settings): In
   else if (bs.includes("DIS")) now.push(`แบตจ่าย ${kw(l.battPower)} kW`);
   out.push({
     tone: "info",
-    title: `ตอนนี้ ${String(hour).padStart(2, "0")}:00 น. — บ้านใช้ ${kw(l.usePower)} kW`,
+    title: `ตอนนี้ ${bkkClock(l.updatedAt || Date.now() / 1000)} น. — บ้านใช้ ${kw(l.usePower)} kW`,
     detail: now.join(" · "),
   });
 
