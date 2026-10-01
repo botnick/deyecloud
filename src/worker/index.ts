@@ -2,7 +2,7 @@
 // D1, realtime polling on a cron schedule. The SPA is served via the ASSETS
 // binding (configured by @cloudflare/vite-plugin).
 import { Hono } from "hono";
-import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, isAuthHold, isAuthEnvelope, stationAlerts, type DeyeAlert, bkkDay, type Env } from "./deye";
+import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, isAuthHold, isAuthEnvelope, stationAlerts, type DeyeAlert, bkkDay, DeyeNonJsonError, type Env } from "./deye";
 import { sunInfo } from "./sun";
 import { analyzeDevice } from "../lib/diagnostics";
 import { evaluateAlerts, notify, alertsConfigured, delivered } from "./alerts";
@@ -1375,9 +1375,10 @@ app.get("/api/_dev", async (c) => {
 // detail); everyone else gets a generic 500. Always logged.
 app.onError(async (err, c) => {
   const msg = String(err && (err as any).message ? (err as any).message : err);
-  console.error("unhandled", msg);
+  const detail = err instanceof DeyeNonJsonError ? err.detail : undefined;
+  console.error("unhandled", msg, detail ?? "");
   const op = await isOperator(c.req.raw, c.env).catch(() => false);
-  return c.json({ error: op ? msg : "internal error" }, 500);
+  return c.json(op ? { error: msg, ...(detail ? { detail } : {}) } : { error: "internal error" }, 500);
 });
 
 // SPA fallback (most non-API requests are served by the assets layer first).
