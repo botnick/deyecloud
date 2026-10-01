@@ -135,7 +135,7 @@ async function login(env: Env, now: number): Promise<string> {
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15000), // never hang the cron/request on a slow Deye
   });
-  const data: any = await res.json();
+  const data: any = await readDeyeJson(res, "/account/token");
   const token = data.token || data.accessToken;
   if (!token) {
     const msg = String(data.msg || data.message || data.code || res.status);
@@ -209,6 +209,25 @@ async function apiPost(env: Env, path: string, payload: any): Promise<any> {
   return p;
 }
 
+// Deye's API sits behind Amazon CloudFront. When CloudFront (or an upstream
+// error page) answers instead of the API, the body is HTML and a bare
+// res.json() dies with "Unexpected token '<'", which hides the only useful
+// facts: the HTTP status, which CDN answered, and the page's title. Parse the
+// text ourselves and, on a non-JSON body, throw an error that carries those
+// (no body beyond a short tag-stripped excerpt, never request data).
+export async function readDeyeJson(res: Response, path: string): Promise<any> {
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch { throw new Error(describeNonJson(res.status, res.headers, text, path)); }
+}
+
+export function describeNonJson(status: number, headers: Headers, text: string, path: string): string {
+  const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(text)?.[1];
+  const excerpt = (title ?? text.replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim().slice(0, 120);
+  const via = [headers.get("server"), headers.get("x-cache"), headers.get("x-amz-cf-pop")].filter(Boolean).join(" · ");
+  return `Deye ${path} HTTP ${status} non-JSON${via ? ` (${via})` : ""}: ${excerpt || "(empty body)"}`;
+}
+
 async function apiPostLive(env: Env, path: string, payload: any): Promise<any> {
   let token = await getToken(env);
   const call = (t: string) =>
@@ -217,7 +236,7 @@ async function apiPostLive(env: Env, path: string, payload: any): Promise<any> {
       headers: { "Content-Type": "application/json", Authorization: "bearer " + t },
       body: JSON.stringify(payload || {}),
       signal: AbortSignal.timeout(15000), // never hang the cron/request on a slow Deye
-    }).then((r) => r.json() as Promise<any>);
+    }).then((r) => readDeyeJson(r, path));
 
   let data = await call(token);
   // Refresh + retry once on an auth signal. Deye surfaces a bad token in (at
