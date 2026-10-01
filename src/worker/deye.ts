@@ -211,21 +211,31 @@ async function apiPost(env: Env, path: string, payload: any): Promise<any> {
 
 // Deye's API sits behind Amazon CloudFront. When CloudFront (or an upstream
 // error page) answers instead of the API, the body is HTML and a bare
-// res.json() dies with "Unexpected token '<'", which hides the only useful
-// facts: the HTTP status, which CDN answered, and the page's title. Parse the
-// text ourselves and, on a non-JSON body, throw an error that carries those
-// (no body beyond a short tag-stripped excerpt, never request data).
+// res.json() dies with "Unexpected token '<'", which hides the useful facts.
+// Parse the text ourselves; on a non-JSON body throw an error whose MESSAGE is
+// only path + status + CDN identity (it reaches the public /api/_health via
+// lastPollError, so nothing body-derived may go there — a truncated token reply
+// would otherwise leak). A short tag-stripped excerpt rides on `.detail`,
+// which only the operator-gated error handler ever shows.
+export class DeyeNonJsonError extends Error {
+  constructor(message: string, readonly detail: string) { super(message); this.name = "DeyeNonJsonError"; }
+}
+
 export async function readDeyeJson(res: Response, path: string): Promise<any> {
   const text = await res.text();
   try { return JSON.parse(text); }
-  catch { throw new Error(describeNonJson(res.status, res.headers, text, path)); }
+  catch { throw new DeyeNonJsonError(describeNonJson(res.status, res.headers, path), nonJsonExcerpt(text)); }
 }
 
-export function describeNonJson(status: number, headers: Headers, text: string, path: string): string {
+const headerToken = (v: string | null) => (v ? v.replace(/[^A-Za-z0-9 ._-]/g, "").trim().slice(0, 40) : "");
+export function describeNonJson(status: number, headers: Headers, path: string): string {
+  const via = [headers.get("server"), headers.get("x-cache"), headers.get("x-amz-cf-pop")].map(headerToken).filter(Boolean).join(" · ");
+  return `Deye ${path} HTTP ${status} non-JSON${via ? ` (${via})` : ""}`;
+}
+
+export function nonJsonExcerpt(text: string): string {
   const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(text)?.[1];
-  const excerpt = (title ?? text.replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim().slice(0, 120);
-  const via = [headers.get("server"), headers.get("x-cache"), headers.get("x-amz-cf-pop")].filter(Boolean).join(" · ");
-  return `Deye ${path} HTTP ${status} non-JSON${via ? ` (${via})` : ""}: ${excerpt || "(empty body)"}`;
+  return (title ?? text.replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim().slice(0, 120) || "(empty body)";
 }
 
 async function apiPostLive(env: Env, path: string, payload: any): Promise<any> {
