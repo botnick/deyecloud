@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Weather } from "../lib/api";
 import { bkkClock } from "../lib/format";
-import { condText, feelsLike, skyPhase, skyWx, sunPos, solarInfo, type SkyPhase, type SkyWx } from "../lib/weather";
+import { hm, condText, feelsLike, skyPhase, skyWx, sunPos, solarInfo, type SkyPhase, type SkyWx } from "../lib/weather";
 
 /* Live sky for the weather tab: the real time of day (from the location's sunrise/sunset),
    the sun on its actual arc, the moon + stars at night, and clouds / rain / lightning that
@@ -119,7 +119,7 @@ export function WeatherHero({ weather: w, force }: { weather: Weather; force?: {
         </div>
 
         {night ? (
-          <div className="wh-pv"><span>กลางคืน · แผงพักการผลิต</span><span className="dim">รอแดด {/^\d{1,2}:\d{2}$/.test(w.sun?.rise || "") ? `${w.sun!.rise} น.` : "พรุ่งนี้"}</span></div>
+          <div className="wh-pv"><span>กลางคืน · แผงพักการผลิต</span><span className="dim">รอแดด {hm(w.sun?.rise) != null ? `${w.sun!.rise!.trim()} น.` : "พรุ่งนี้"}</span></div>
         ) : (
           <div className="wh-pv">
             <span>แสงแดดวันนี้ · {solar.label}</span><span>{solar.pct}%</span>

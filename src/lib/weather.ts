@@ -42,7 +42,7 @@ export const siteMinutes = (now: Date) => {
   return ((m % 1440) + 1440) % 1440;
 };
 // strict "HH:MM" → minutes; anything else (e.g. the "—" placeholder) → null, never 00:00
-const hm = (s?: string | null): number | null => {
+export const hm = (s?: string | null): number | null => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(s ?? "").trim());
   if (!m) return null;
   const h = +m[1], mi = +m[2];
