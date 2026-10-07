@@ -302,3 +302,74 @@ textarea {
   .solhero .sh-dot, .solhero .sh-cloud, .solhero .sh-stars i { animation: none !important; }
   .solhero .sh-pick { animation: none !important; }
 }
+
+/* ── weather tab: live sky hero ─────────────────────────────────────────────── */
+.wxhero { position: relative; overflow: hidden; border-radius: 24px; min-height: 400px; color: #fff; isolation: isolate;
+  box-shadow: 0 18px 40px -18px rgba(30, 40, 80, .45); }
+.wxhero > * { pointer-events: none; }
+.wxhero .wh-sky { position: absolute; inset: 0; z-index: 0; transition: background 1.2s ease; }
+.wxhero.p-day    .wh-sky { background: linear-gradient(180deg, #2f7fd6 0%, #5ba7ea 45%, #9fd2f6 78%, #d6ecfb 100%); }
+.wxhero.p-dawn   .wh-sky { background: linear-gradient(180deg, #33437c 0%, #8a6fa8 34%, #f39a7b 66%, #ffd39a 100%); }
+.wxhero.p-golden .wh-sky { background: linear-gradient(180deg, #3f6fb8 0%, #f0a55b 58%, #ffcf7a 100%); }
+.wxhero.p-dusk   .wh-sky { background: linear-gradient(180deg, #1d2457 0%, #5b3f7a 40%, #d9677a 72%, #f6a46b 100%); }
+.wxhero.p-night  .wh-sky { background: linear-gradient(180deg, #050b23 0%, #0d1a45 50%, #1b2b5e 100%); }
+/* weather veil over the time-of-day sky */
+.wxhero .wh-sky::after { content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity 1s ease; }
+.wxhero.x-cloud .wh-sky::after { opacity: .38; background: linear-gradient(180deg, #7d8896, #a9b3bf); }
+.wxhero.x-rain  .wh-sky::after { opacity: .55; background: linear-gradient(180deg, #4d5764, #77818d); }
+.wxhero.x-storm .wh-sky::after { opacity: .74; background: linear-gradient(180deg, #161b25, #353d4b); }
+.wxhero.p-night.x-cloud .wh-sky::after, .wxhero.p-night.x-rain .wh-sky::after { opacity: .3; }
+
+.wxhero .wh-stars { position: absolute; inset: 0; z-index: 1; opacity: 0; transition: opacity 1s ease; }
+.wxhero.p-night .wh-stars { opacity: 1; } .wxhero.p-night.x-cloud .wh-stars { opacity: .45; }
+.wxhero.p-night.x-rain .wh-stars, .wxhero.p-night.x-storm .wh-stars { opacity: 0; }
+.wxhero .wh-stars i { position: absolute; aspect-ratio: 1; border-radius: 50%; background: #fff; box-shadow: 0 0 4px #fff; animation: sh-tw 3.4s ease-in-out infinite; }
+
+.wxhero .wh-sun { position: absolute; z-index: 1; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%;
+  background: radial-gradient(circle, #fffdf0 0 46%, #ffec99 64%, #ffd45c 100%); transition: left 1s ease, top 1s ease; }
+.wxhero .wh-sun::before { content: ""; position: absolute; left: 50%; top: 50%; width: 360px; height: 360px; margin: -180px 0 0 -180px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 240, 180, .75) 0, rgba(255, 226, 140, .38) 14%, rgba(255, 210, 120, .14) 32%, rgba(255, 200, 110, 0) 56%); }
+.wxhero.p-golden .wh-sun, .wxhero.p-dawn .wh-sun, .wxhero.p-dusk .wh-sun { background: radial-gradient(circle, #fff3d6 0 40%, #ffc070 70%, #ff9d4d 100%); }
+.wxhero.p-golden .wh-sun::before, .wxhero.p-dawn .wh-sun::before, .wxhero.p-dusk .wh-sun::before {
+  background: radial-gradient(circle, rgba(255, 190, 110, .8) 0, rgba(255, 160, 90, .4) 15%, rgba(255, 140, 80, .15) 34%, rgba(255, 120, 70, 0) 58%); }
+.wxhero.x-cloud .wh-sun { opacity: .55; } .wxhero.x-rain .wh-sun, .wxhero.x-storm .wh-sun { opacity: 0; }
+
+.wxhero .wh-moon { position: absolute; z-index: 1; right: 13%; top: 11%; width: 44px; height: 44px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 36%, #fffdf4, #e7e3d4 62%, #cfcab7);
+  box-shadow: 0 0 34px 10px rgba(220, 230, 255, .32), inset -6px -5px 0 rgba(0, 0, 0, .06); }
+.wxhero.x-rain .wh-moon, .wxhero.x-storm .wh-moon { opacity: .25; }
+
+.wxhero .wh-clouds { position: absolute; inset: 0; z-index: 2; overflow: hidden; }
+.wxhero .wh-cloud { position: absolute; left: -45%; border-radius: 50%; filter: blur(10px); animation: wh-drift linear infinite;
+  background: radial-gradient(ellipse 60% 70% at 50% 58%, rgba(255, 255, 255, .96), rgba(255, 255, 255, 0) 72%); }
+.wxhero.x-rain .wh-cloud, .wxhero.x-storm .wh-cloud { background: radial-gradient(ellipse 60% 70% at 50% 58%, rgba(96, 105, 118, .97), rgba(96, 105, 118, 0) 72%); }
+.wxhero.p-night .wh-cloud { background: radial-gradient(ellipse 60% 70% at 50% 58%, rgba(118, 128, 150, .7), rgba(118, 128, 150, 0) 72%); }
+.wxhero.p-dawn .wh-cloud, .wxhero.p-golden .wh-cloud, .wxhero.p-dusk .wh-cloud { background: radial-gradient(ellipse 60% 70% at 50% 58%, rgba(255, 214, 196, .9), rgba(255, 214, 196, 0) 72%); }
+@keyframes wh-drift { from { transform: translateX(0); } to { transform: translateX(190vw); } }
+
+.wxhero .wh-bolt { position: absolute; inset: 0; z-index: 3; opacity: 0; background: radial-gradient(ellipse at 60% 10%, rgba(235, 240, 255, .95), rgba(200, 210, 255, .2) 60%, transparent 80%); }
+.wxhero .wh-rain { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; }
+.wxhero .wh-land { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; width: 100%; height: 22%; }
+.wxhero .wh-land .far { fill: rgba(20, 50, 60, .28); } .wxhero .wh-land .near { fill: rgba(12, 32, 40, .42); }
+.wxhero.p-night .wh-land .far { fill: rgba(0, 0, 10, .45); } .wxhero.p-night .wh-land .near { fill: rgba(0, 0, 8, .65); }
+
+.wxhero .wh-body { position: relative; z-index: 5; padding: 18px 18px 16px; display: flex; flex-direction: column; min-height: 400px; text-shadow: 0 1px 12px rgba(0, 0, 0, .28); }
+.wxhero .wh-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 14px; font-weight: 700; }
+.wxhero .wh-place { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wxhero .wh-clock { font-weight: 600; opacity: .9; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.wxhero .wh-temp { font-size: 88px; font-weight: 800; line-height: .95; letter-spacing: -2px; margin-top: 16px; }
+.wxhero .wh-cond { font-size: 21px; font-weight: 800; margin-top: 4px; }
+.wxhero .wh-sub { font-size: 14.5px; font-weight: 600; opacity: .95; margin-top: 3px; }
+.wxhero .wh-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: auto; padding-top: 22px; }
+.wxhero .wh-chip, .wxhero .wh-pv { background: rgba(255, 255, 255, .18); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .26); border-radius: 15px; text-shadow: 0 1px 6px rgba(0, 0, 0, .3); }
+.wxhero .wh-chip { padding: 8px 4px 9px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
+.wxhero .wh-chip span { font-size: 11.5px; font-weight: 600; opacity: .9; }
+.wxhero .wh-chip b { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.wxhero .wh-chip small { font-size: 10.5px; font-weight: 700; opacity: .9; }
+.wxhero .wh-pv { margin-top: 8px; padding: 10px 14px; display: flex; flex-wrap: wrap; justify-content: space-between; font-size: 14px; font-weight: 700; }
+.wxhero .wh-pv .dim { opacity: .85; font-weight: 600; }
+.wxhero .wh-pv .bar { flex-basis: 100%; height: 6px; border-radius: 9px; background: rgba(255, 255, 255, .28); margin-top: 7px; overflow: hidden; }
+.wxhero .wh-pv .bar i { display: block; height: 100%; border-radius: 9px; background: linear-gradient(90deg, #ffe066, #ffa51f); }
+@media (prefers-reduced-motion: reduce) { .wxhero .wh-cloud, .wxhero .wh-stars i { animation: none !important; } }
+.wxhero .wh-chip .uvdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 0 3px 1px 0; vertical-align: middle; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .7); }

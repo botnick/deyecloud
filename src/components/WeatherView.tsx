@@ -1,13 +1,15 @@
 import { useForecastModel } from "../lib/useCapacity";
 import { ForecastAccuracyCard } from "./ForecastAccuracy";
 import { type Weather, type WeatherHour } from "../lib/api";
-import { condText, solarInfo, DAYLBL, shortDate, isNightAt, isNightNow } from "../lib/weather";
+import { condText, solarInfo, DAYLBL, shortDate, isNightAt } from "../lib/weather";
 import { forecast, hourlyKwh } from "../lib/forecast";
 import { WxIcon } from "../lib/wxicon";
-import { card, cardP, plateP, h2First, h2Mid } from "../lib/ui";
+import { card, cardP, h2First, h2Mid } from "../lib/ui";
 import { IconSun } from "../lib/icons";
 import { InfoTip } from "./InfoTip";
 import { SunPath } from "./SunPath";
+import { WeatherHero } from "./WeatherHero";
+import type { SkyPhase, SkyWx } from "../lib/weather";
 // Meteocons sunrise/sunset (same "fill" family as every other weather icon) so the
 // markers match the hourly strip's style exactly.
 import sunriseSvg from "@meteocons/svg/fill/sunrise.svg";
@@ -19,24 +21,14 @@ const SunMarkIcon = ({ up, className }: { up: boolean; className?: string }) => 
   <img src={up ? sunriseSvg : sunsetSvg} alt="" draggable={false} className={className} />
 );
 
-// UV index → Thai level + color (WHO scale).
-function uvInfo(uv: number): { level: string; color: string } {
-  if (uv < 3) return { level: "ต่ำ", color: "#18a673" };
-  if (uv < 6) return { level: "ปานกลาง", color: "#c79100" };
-  if (uv < 8) return { level: "สูง", color: "#ef7d1a" };
-  if (uv < 11) return { level: "สูงมาก", color: "#e8603c" };
-  return { level: "อันตราย", color: "#8b5cf6" };
-}
-
-function Stat({ label, value, color, sub }: { label: string; value: string; color?: string; sub?: string }) {
-  return (
-    <div className={`${card} px-3 py-3 text-center`}>
-      <div className="text-[12px] text-body">{label}</div>
-      <div className="text-[15px] font-bold mt-0.5" style={color ? { color } : undefined}>
-        {value}{sub && <span className="text-[12px] font-bold ml-1">{sub}</span>}
-      </div>
-    </div>
-  );
+// Preview / screenshot override: /weather?sky=day|dawn|golden|dusk|night&skywx=clear|partly|cloud|rain|storm
+function skyForce(): { phase?: SkyPhase; wx?: SkyWx } | undefined {
+  try {
+    const q = new URLSearchParams(location.search), p = q.get("sky"), x = q.get("skywx");
+    const P = ["night", "dawn", "day", "golden", "dusk"], X = ["clear", "partly", "cloud", "rain", "storm"];
+    const f = { phase: P.includes(p || "") ? (p as SkyPhase) : undefined, wx: X.includes(x || "") ? (x as SkyWx) : undefined };
+    return f.phase || f.wx ? f : undefined;
+  } catch { return undefined; }
 }
 
 export function WeatherView({ weather, capacity, isPrimary = true }: { weather: Weather | null; capacity?: number; isPrimary?: boolean }) {
@@ -56,9 +48,6 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
   }
   const w = weather;
   const fc = forecast(w, effCap, model.sky); // expected kWh per available day (today included)
-  const night = isNightNow();
-  const d0 = w.daily?.[0];
-  const s = solarInfo(w.cond, d0?.swdown);
   const sun = w.sun;
 
   // Sun elevation at any clock time, interpolated from the sunrise→sunset arc, so
@@ -96,34 +85,8 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
     <>
       <h2 className={h2First}>พยากรณ์อากาศ</h2>
 
-      {/* hero */}
-      <div className={plateP}>
-        <div className="flex items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="text-[15px] font-bold text-body truncate">{w.place} · {night ? "กลางคืน" : "กลางวัน"}</div>
-            <div className="text-[62px] font-extrabold leading-none mt-1 tabnum">{Math.round(w.temp)}°</div>
-            <div className="text-[17px] font-bold mt-1">{condText(w.cond, night)}</div>
-            {d0 && <div className="text-[14px] text-body mt-0.5">สูง {Math.round(d0.tc_max)}° · ต่ำ {Math.round(d0.tc_min)}°</div>}
-          </div>
-          <WxIcon cond={w.cond} night={night} className="w-[104px] h-[104px] shrink-0 [filter:drop-shadow(0_8px_14px_rgba(0,0,0,.12))]" />
-        </div>
-        {night ? (
-          <div className="mt-4 rounded-2xl px-4 py-3 flex items-center justify-between" style={{ background: "#eef1f7" }}>
-            <span className="text-[14px] font-bold text-[#5b6472]">กลางคืน · แผงหยุดผลิตชั่วคราว</span>
-            <span className="text-[13px] font-semibold text-muted">รอแสงแดดพรุ่งนี้</span>
-          </div>
-        ) : (
-          <div className="mt-4 bg-pv-soft rounded-2xl px-4 py-3">
-            <div className="flex items-center justify-between text-[14px] font-bold text-[#9a6500]">
-              <span>แสงแดดวันนี้ · {s.label}</span>
-              <span>{s.pct}%</span>
-            </div>
-            <div className="h-2 rounded-full bg-white/70 mt-2 overflow-hidden">
-              <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${s.pct}%`, background: amber }} />
-            </div>
-          </div>
-        )}
-      </div>
+      {/* hero — live sky (time of day + sun position + current weather) */}
+      <WeatherHero weather={w} force={skyForce()} />
 
       {/* production forecast — what the panels are likely to make next */}
       {effCap > 0 && fc.length > 1 && (
@@ -225,16 +188,6 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
             </div>
           );
         })}
-      </div>
-
-      {/* stats */}
-      <div className="grid grid-cols-2 gap-2.5 mt-3.5">
-        <Stat label="ความชื้น" value={`${Math.round(w.humidity)}%`} />
-        <Stat label="ลม" value={w.wind != null ? `${w.wind} กม/ชม` : "—"} />
-        <Stat label="ฝน" value={w.rain != null ? `${(+w.rain).toFixed(1)} มม` : "—"} />
-        {w.uv != null
-          ? <Stat label="ดัชนียูวี (UV)" value={String(w.uv)} color={uvInfo(w.uv).color} sub={uvInfo(w.uv).level} />
-          : <Stat label="ดัชนียูวี (UV)" value="—" />}
       </div>
 
       <p className="text-center text-muted text-[13px] mt-4">ข้อมูล: {w.source === "tmd" ? "กรมอุตุนิยมวิทยา (TMD)" : "Open-Meteo (สำรอง)"}</p>
