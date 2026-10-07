@@ -20,3 +20,7 @@ design/shots/
 .mcp.json
 .summary/
 .uploads/
+
+# local analysis reports (contain device serials / private data) and agent inbox
+reports/
+.inbox/

@@ -1,5 +1,5 @@
 // Capture every page + key states, wrap each in a phone mockup, build a hero banner.
-//   node design/mockup.mjs   (needs dev server on 5174)
+//   node design/mockup.mjs   (needs dev server on 5174 — or BASE=https://… PIN=… for a deployed instance)
 import puppeteer from "puppeteer-core";
 import { existsSync, mkdirSync } from "node:fs";
 import sharp from "sharp";
@@ -13,7 +13,7 @@ const CHROME = process.env.CHROME || [
   "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
 ].find(existsSync);
 const BASE = process.env.BASE || "http://localhost:5174";
-const PIN = "2580";
+const PIN = process.env.PIN || "2580"; // local dev PIN; pass PIN=… with BASE=… for a deployed instance
 const OUT = "docs/shots";
 mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -31,6 +31,8 @@ await app.goto(BASE, { waitUntil: "domcontentloaded" });
 await app.evaluate(async (pin) => {
   await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin }) });
 }, PIN);
+// screenshots are of the app, not of the "install as app" nudge: snooze it like a user who dismissed it
+await app.evaluate(() => { try { localStorage.setItem("deye_a2hs_snooze", String(Date.now())); } catch {} });
 
 // privacy: never expose the real station name / serials in public shots
 const MASK = [
@@ -138,6 +140,37 @@ async function captureFlow(key) {
 }
 const flows = ["peak", "charging", "discharge", "offgrid", "buy"];
 for (const k of flows) await captureFlow(k);
+
+// Feature cards (cropped to the card): find the card by its heading text. `prep` runs in the page
+// first (e.g. switch the history range to "ปี"). Cards render nothing until they have data, so a
+// missing card is skipped rather than shot empty.
+async function captureCard(name, path, heading, prep) {
+  await app.setViewport({ width: 393, height: 2400, deviceScaleFactor: 2 });
+  await app.goto(BASE + path, { waitUntil: "networkidle2" });
+  try { await app.waitForFunction(() => document.body && document.body.innerText.replace(/\s+/g, "").length > 180, { timeout: 14000 }); } catch {}
+  if (prep) { await app.evaluate(prep); await sleep(2500); }
+  try { await app.waitForFunction((h) => [...document.querySelectorAll("span")].some((e) => e.textContent.trim() === h), { timeout: 15000 }, heading); }
+  catch { console.log("card missing", name); return; }
+  await sleep(1800);
+  await app.evaluate((pairs) => {
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); const ns = [];
+    while (w.nextNode()) ns.push(w.currentNode);
+    for (const n of ns) for (const [a, b] of pairs) if (n.nodeValue.includes(a)) n.nodeValue = n.nodeValue.split(a).join(b);
+  }, MASK);
+  const box = await app.evaluate((h) => {
+    const t = [...document.querySelectorAll("span")].find((e) => e.textContent.trim() === h);
+    let c = t; while (c && !(c.className && String(c.className).includes("mt-3"))) c = c.parentElement;
+    if (!c) return null; c.scrollIntoView({ block: "center" });
+    const r = c.getBoundingClientRect(); return { x: r.left - 6, y: r.top - 6, width: r.width + 12, height: r.height + 12 };
+  }, heading);
+  if (!box) { console.log("card box missing", name); return; }
+  await sleep(300);
+  await app.screenshot({ path: `${OUT}/card-${name}.png`, clip: { x: Math.max(0, box.x), y: Math.max(0, box.y), width: box.width, height: box.height } });
+  console.log("card", name);
+}
+await captureCard("battery", "/device", "สุขภาพแบตเตอรี่");
+await captureCard("forecast", "/weather", "ความแม่นยำพยากรณ์");
+await captureCard("year", "/history", "ภาพรวมทั้งปี", () => { const b = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === "ปี"); if (b) b.click(); });
 
 await browser.close();
 
