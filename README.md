@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React 19">
   <img src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white" alt="PWA">
-  <img src="https://img.shields.io/badge/ภาษา-ไทย-A20DDD" alt="ภาษาไทย">
+  <img src="https://img.shields.io/badge/lang-Thai%20%F0%9F%87%B9%F0%9F%87%AD-A20DDD" alt="Thai">
 </p>
 
 <p align="center">
