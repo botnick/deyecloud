@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Weather } from "../lib/api";
+import { bkkClock } from "../lib/format";
 import { condText, feelsLike, skyPhase, skyWx, sunPos, solarInfo, type SkyPhase, type SkyWx } from "../lib/weather";
 
 /* Live sky for the weather tab: the real time of day (from the location's sunrise/sunset),
@@ -78,7 +79,7 @@ export function WeatherHero({ weather: w, force }: { weather: Weather; force?: {
 
   // sun on its real arc (east→west mapped onto the right of the card so it never sits under the temperature), height from elevation vs today's noon
   const sunStyle = sun ? { left: `${(36 + sun.x * 58).toFixed(1)}%`, top: `${(70 - Math.min(1, sun.elev / noon) * 56).toFixed(1)}%` } : undefined;
-  const clock = now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const clock = bkkClock(now.getTime() / 1000); // site clock (Bangkok), whatever the viewer's timezone
 
   return (
     <div className={`wxhero p-${phase} x-${wx}`} role="img" aria-label={`${condText(w.cond, night)} ${Math.round(w.temp!)} องศา`}>
@@ -118,7 +119,7 @@ export function WeatherHero({ weather: w, force }: { weather: Weather; force?: {
         </div>
 
         {night ? (
-          <div className="wh-pv"><span>กลางคืน · แผงพักการผลิต</span><span className="dim">รอแดด {w.sun?.rise ? `${w.sun.rise} น.` : "พรุ่งนี้"}</span></div>
+          <div className="wh-pv"><span>กลางคืน · แผงพักการผลิต</span><span className="dim">รอแดด {/^\d{1,2}:\d{2}$/.test(w.sun?.rise || "") ? `${w.sun!.rise} น.` : "พรุ่งนี้"}</span></div>
         ) : (
           <div className="wh-pv">
             <span>แสงแดดวันนี้ · {solar.label}</span><span>{solar.pct}%</span>

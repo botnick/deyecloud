@@ -33,10 +33,25 @@ export function feelsLike(t: number, rh: number): number {
 
 // Sky phase from the location's real sunrise/sunset ("HH:MM", local) — falls back to the clock.
 export type SkyPhase = "night" | "dawn" | "day" | "golden" | "dusk";
-const hm = (s: string) => { const [h, m] = s.split(":").map(Number); return (h || 0) * 60 + (m || 0); };
+// Site-local minutes since midnight. The site is in Thailand (UTC+7, no DST) and rise/set
+// strings are site-local, so "now" is read on the Bangkok clock too — a viewer abroad
+// must still see the site's sky, not their own (same contract as lib/format.ts).
+const SITE_OFFSET_MIN = 7 * 60;
+export const siteMinutes = (now: Date) => {
+  const m = Math.floor(now.getTime() / 60000) + SITE_OFFSET_MIN;
+  return ((m % 1440) + 1440) % 1440;
+};
+// strict "HH:MM" → minutes; anything else (e.g. the "—" placeholder) → null, never 00:00
+const hm = (s?: string | null): number | null => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(s ?? "").trim());
+  if (!m) return null;
+  const h = +m[1], mi = +m[2];
+  return h < 24 && mi < 60 ? h * 60 + mi : null;
+};
 export function skyPhase(now: Date, rise?: string, set?: string): SkyPhase {
-  const t = now.getHours() * 60 + now.getMinutes();
-  const r = rise ? hm(rise) : 6 * 60, s = set ? hm(set) : 18 * 60;
+  const t = siteMinutes(now);
+  let r = hm(rise), s = hm(set);
+  if (r == null || s == null || s <= r) { r = 6 * 60; s = 18 * 60; } // unknown/invalid → plain clock fallback
   if (t < r - 35 || t >= s + 30) return "night";
   if (t < r + 40) return "dawn";
   if (t >= s) return "dusk";
@@ -45,11 +60,10 @@ export function skyPhase(now: Date, rise?: string, set?: string): SkyPhase {
 }
 // Sun position on today's arc: x 0..1 across the sky, elevation in degrees (0 when down).
 export function sunPos(now: Date, sun?: { rise?: string; set?: string; arc?: number[] }): { x: number; elev: number } | null {
-  if (!sun?.rise || !sun?.set) return null;
-  const r = hm(sun.rise), s = hm(sun.set), t = now.getHours() * 60 + now.getMinutes();
-  if (s <= r || t < r || t > s) return null;
+  const r = hm(sun?.rise), s = hm(sun?.set), t = siteMinutes(now);
+  if (r == null || s == null || s <= r || t < r || t > s) return null;
   const x = (t - r) / (s - r);
-  const arc = sun.arc || [];
+  const arc = sun?.arc || [];
   if (arc.length < 2) return { x, elev: Math.sin(Math.PI * x) * 60 };
   const i = x * (arc.length - 1), lo = Math.floor(i), hi = Math.min(arc.length - 1, lo + 1);
   return { x, elev: arc[lo] + (arc[hi] - arc[lo]) * (i - lo) };
