@@ -113,38 +113,31 @@ const pages = [
 const pageMocks = [];
 for (const [name, path] of pages) pageMocks.push(await makeMock(await capture(path), name));
 
-// Energy flow per scenario — now the live house hero (the part that differs by state).
-async function captureFlow(key) {
+// Home hero at three times of day (sky + day/night house render follow the clock; ?sky= previews it)
+async function captureHero(name, query) {
+  await app.bringToFront(); // background tabs throttle rAF and element screenshots hang
   await app.setViewport({ width: 393, height: 900, deviceScaleFactor: 2 });
-  await app.goto(`${BASE}/?sim=${key}`, { waitUntil: "networkidle2" });
-  try {
-    await app.waitForFunction(() => !!document.querySelector(".hscene"), { timeout: 14000 });
-  } catch {}
-  await sleep(1600); // let flow orbs spread along the paths
+  await app.goto(`${BASE}/?${query}`, { waitUntil: "networkidle2" });
+  try { await app.waitForSelector(".hscene", { timeout: 14000 }); } catch {}
+  await app.evaluate(() => window.scrollTo(0, 0));
+  await sleep(1200);
   await app.evaluate((pairs) => {
     const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); const ns = [];
     while (w.nextNode()) ns.push(w.currentNode);
     for (const n of ns) for (const [a, b] of pairs) if (n.nodeValue.includes(a)) n.nodeValue = n.nodeValue.split(a).join(b);
   }, MASK);
-  await sleep(150);
-  const box = await app.evaluate(() => {
-    const c = document.querySelector(".hscene");
-    if (!c) return null;
-    const r = c.getBoundingClientRect();
-    return { x: r.left, y: r.top, width: r.width, height: r.height };
-  });
-  if (box) {
-    await app.screenshot({ path: `${OUT}/flow-${key}.png`, clip: { x: Math.max(0, box.x), y: Math.max(0, box.y), width: box.width, height: box.height } });
-    console.log("flow", key);
-  }
+  const el = await app.$(".hscene");
+  if (el) { await el.screenshot({ path: `${OUT}/hero-${name}.png` }); console.log("hero", name); }
 }
-const flows = ["peak", "charging", "discharge", "offgrid", "buy"];
-for (const k of flows) await captureFlow(k);
+await captureHero("day", "sim=peak&sky=day");
+await captureHero("golden", "sim=charging&sky=golden");
+await captureHero("night", "sim=discharge&sky=night");
 
 // Feature cards (cropped to the card): find the card by its heading text. `prep` runs in the page
 // first (e.g. switch the history range to "ปี"). Cards render nothing until they have data, so a
 // missing card is skipped rather than shot empty.
 async function captureCard(name, path, heading, prep) {
+  await app.bringToFront();
   await app.setViewport({ width: 393, height: 2400, deviceScaleFactor: 2 });
   await app.goto(BASE + path, { waitUntil: "networkidle2" });
   try { await app.waitForFunction(() => document.body && document.body.innerText.replace(/\s+/g, "").length > 180, { timeout: 14000 }); } catch {}
@@ -169,7 +162,6 @@ async function captureCard(name, path, heading, prep) {
   console.log("card", name);
 }
 await captureCard("battery", "/device", "สุขภาพแบตเตอรี่");
-await captureCard("forecast", "/weather", "ความแม่นยำพยากรณ์");
 await captureCard("year", "/history", "ภาพรวมทั้งปี", () => { const b = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === "ปี"); if (b) b.click(); });
 
 await browser.close();

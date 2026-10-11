@@ -40,7 +40,7 @@
 <table>
   <tr>
     <td width="33%" valign="top"><h3>⚡ เห็นสด อัปเดตทุกนาที</h3>ผังการไหลของพลังงาน โซลาร์ ↔ บ้าน ↔ แบต ↔ กริด จาก <b>Deye Cloud Open API</b> จริง รีเฟรชเองทุก 1 นาที</td>
-    <td width="33%" valign="top"><h3>👵 อ่านง่ายทุกวัย</h3>ตัวเลขใหญ่ ปุ่มน้อย ภาษาไทยกระชับ ฟอนต์ Sarabun ออกแบบให้ผู้สูงอายุใช้ได้เอง</td>
+    <td width="33%" valign="top"><h3>📱 เหมือนแอปจริง ใช้ได้ทุกวัย</h3>ดีไซน์แบบ iPhone (หัวข้อใหญ่ แถบเมนูกระจก แป้น PIN) ตัวเลขใหญ่ ทุกสีมีคำกำกับ ปุ่มใหญ่ (Universal Design)</td>
     <td width="33%" valign="top"><h3>💸 ฟรีจริง</h3>Cloudflare Workers + D1 free tier ล้วน ไม่มีค่าเซิร์ฟเวอร์รายเดือน deploy ได้ใน 1 คลิก</td>
   </tr>
   <tr>
@@ -63,18 +63,17 @@
   </tr>
 </table>
 
-**ผังการไหลของพลังงาน — รองรับทุกสถานการณ์จริง**
+**บ้าน 3D บนหน้าหลัก — ท้องฟ้าและแสงเปลี่ยนตามเวลาจริงของบ้าน**
 
 <table>
   <tr>
-    <td align="center"><img src="docs/shots/flow-peak.png" alt="ผลิตเต็ม" width="240"><br><sub>กลางวัน · ผลิตเต็ม + ไฟย้อน</sub></td>
-    <td align="center"><img src="docs/shots/flow-charging.png" alt="ชาร์จแบต" width="240"><br><sub>แดดดี · กำลังชาร์จแบต</sub></td>
-    <td align="center"><img src="docs/shots/flow-discharge.png" alt="แบตจ่ายไฟ" width="240"><br><sub>ไม่มีแดด · แบตจ่ายไฟ</sub></td>
+    <td align="center"><img src="docs/shots/hero-day.png" alt="กลางวัน" width="240"><br><sub>กลางวัน · ผลิตเต็ม + ขายไฟ</sub></td>
+    <td align="center"><img src="docs/shots/hero-golden.png" alt="แดดเย็น" width="240"><br><sub>แดดเย็น · ชาร์จแบต</sub></td>
+    <td align="center"><img src="docs/shots/hero-night.png" alt="กลางคืน" width="240"><br><sub>กลางคืน · ไฟในบ้านเปิด แบตจ่าย</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/shots/flow-offgrid.png" alt="ออฟกริด" width="240"><br><sub>ไฟดับ · แบตจ่ายแทนกริด</sub></td>
-    <td align="center"><img src="docs/shots/flow-buy.png" alt="ซื้อไฟ" width="240"><br><sub>กลางคืน · ซื้อไฟจากกริด</sub></td>
-    <td align="center"><img src="docs/shots/card-year.png" alt="ภาพรวมทั้งปี" width="240"><br><sub>ภาพรวมทั้งปี + คาดผลิตทั้งปี</sub></td>
+    <td align="center" colspan="2"><img src="docs/shots/card-year.png" alt="ภาพรวมทั้งปี" width="300"><br><sub>ภาพรวมทั้งปี + คาดผลิตทั้งปี</sub></td>
+    <td align="center"><img src="docs/shots/card-battery.png" alt="สุขภาพแบตเตอรี่" width="240"><br><sub>สุขภาพแบตเตอรี่ (วัดจริง)</sub></td>
   </tr>
 </table>
 
@@ -192,7 +191,7 @@ npm run dev                       # → http://localhost:5174  (มือถื�
 
 **สีพลังงาน (เหมือนกันทั้งแอป):** โซลาร์ เหลือง `#f5a623` · บ้าน น้ำเงิน `#0d4add` · กริด ม่วง `#8b5cf6` · แบต เขียว `#18a673`
 
-**เพื่อผู้สูงอายุ:** เมนู 4 ปุ่ม · ตัวอักษร ≥14px ตัวเลขใหญ่ · เคารพ `prefers-reduced-motion` · ไอคอนเส้น ไม่ใช้ emoji ในแอป · บ้านในหน้าหลักวาดด้วย SVG เอง
+**เพื่อผู้สูงอายุ:** เมนู 4 ปุ่ม · ตัวอักษร ≥14px ตัวเลขใหญ่ · เคารพ `prefers-reduced-motion` · ไอคอนเส้น ไม่ใช้ emoji ในแอป · บ้าน 3D จาก Kenney City Kit (CC0) เรนเดอร์กลางวัน/กลางคืน
 
 </details>
 
