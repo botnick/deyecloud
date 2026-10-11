@@ -118,7 +118,7 @@ async function captureFlow(key) {
   await app.setViewport({ width: 393, height: 900, deviceScaleFactor: 2 });
   await app.goto(`${BASE}/?sim=${key}`, { waitUntil: "networkidle2" });
   try {
-    await app.waitForFunction(() => !!document.querySelector(".solhero"), { timeout: 14000 });
+    await app.waitForFunction(() => !!document.querySelector(".hscene"), { timeout: 14000 });
   } catch {}
   await sleep(1600); // let flow orbs spread along the paths
   await app.evaluate((pairs) => {
@@ -128,7 +128,7 @@ async function captureFlow(key) {
   }, MASK);
   await sleep(150);
   const box = await app.evaluate(() => {
-    const c = document.querySelector(".solhero");
+    const c = document.querySelector(".hscene");
     if (!c) return null;
     const r = c.getBoundingClientRect();
     return { x: r.left, y: r.top, width: r.width, height: r.height };

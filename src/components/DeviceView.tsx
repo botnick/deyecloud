@@ -86,6 +86,19 @@ function Section({ title, count, open, onToggle, children }: { title: string; co
   );
 }
 
+// iOS push-screen header: "‹ หน้าหลัก" back button + large title.
+function DeviceHeader({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="mb-3.5">
+      <button onClick={onBack} aria-label="กลับหน้าหลัก" className="flex items-center gap-0.5 -ml-2 h-11 pr-3 text-secondary text-[17px] font-semibold active:opacity-50 transition-opacity">
+        <IconChevron className="w-6 h-6 rotate-180" />หน้าหลัก
+      </button>
+      <h1 className="text-[32px] font-extrabold tracking-tight leading-tight text-title">เครื่องแปลงไฟ</h1>
+      <div className="text-[13.5px] font-semibold text-muted">อินเวอร์เตอร์ · แบตเตอรี่ · แจ้งเตือน</div>
+    </div>
+  );
+}
+
 export function DeviceView({ latest, active, stationId, isPrimary = true, onBack }: { latest: Latest | null; active: boolean; stationId?: number | null; isPrimary?: boolean; onBack: () => void }) {
   const [dev, setDev] = useState<Device | null>(null);
   const [err, setErr] = useState(false);
@@ -114,12 +127,7 @@ export function DeviceView({ latest, active, stationId, isPrimary = true, onBack
     const failed = err || !!dev?.error;
     return (
       <>
-        <div className="flex items-center gap-1.5 mt-1 mb-3.5">
-          <button onClick={onBack} aria-label="กลับหน้าหลัก" className="w-10 h-10 -ml-1.5 rounded-full grid place-items-center text-title active:bg-line transition-colors">
-            <IconBack className="w-6 h-6" />
-          </button>
-          <h2 className={h2}>เครื่องแปลงไฟ (Inverter)</h2>
-        </div>
+        <DeviceHeader onBack={onBack} />
         {failed ? (
           <div className={`${cardP} text-center py-8`}>
             <div className="text-[16px] font-bold text-title">ดึงข้อมูลเครื่องไม่ได้</div>
@@ -213,12 +221,7 @@ export function DeviceView({ latest, active, stationId, isPrimary = true, onBack
 
   return (
     <>
-      <div className="flex items-center gap-1.5 mt-1 mb-3.5">
-        <button onClick={onBack} aria-label="กลับหน้าหลัก" className="w-10 h-10 -ml-1.5 rounded-full grid place-items-center text-title active:bg-line transition-colors">
-          <IconBack className="w-6 h-6" />
-        </button>
-        <h2 className={h2}>เครื่องแปลงไฟ (Inverter)</h2>
-      </div>
+      <DeviceHeader onBack={onBack} />
 
       <div className={cardP}>
         <div className="flex items-center gap-2.5">
@@ -236,9 +239,9 @@ export function DeviceView({ latest, active, stationId, isPrimary = true, onBack
       {/* Deye-style summary cards */}
       <div className="mt-3.5 grid grid-cols-2 gap-3">
         {summary.map((s, i) => (
-          <div key={i} className="rounded-2xl p-4 text-white shadow-[0_10px_22px_-10px_rgba(17,17,17,0.45)]" style={{ background: `linear-gradient(135deg, ${s.a}, ${s.b})` }}>
-            <div className="text-[13px] font-semibold text-white/85 leading-snug">{s.label}</div>
-            <div className="text-[23px] font-extrabold leading-none mt-2 tabnum">{s.v}<span className="text-[13px] font-semibold text-white/80 ml-1">{s.u}</span></div>
+          <div key={i} className={`${card} p-4`}>
+            <div className="flex items-center gap-1.5 text-[13.5px] font-semibold text-body leading-snug"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.a }} />{s.label}</div>
+            <div className="text-[24px] font-extrabold leading-none mt-2 tabnum text-title">{s.v}<span className="text-[13px] font-bold text-muted ml-1">{s.u}</span></div>
           </div>
         ))}
       </div>
