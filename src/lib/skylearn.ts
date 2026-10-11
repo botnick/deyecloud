@@ -42,7 +42,10 @@ export interface Accuracy { n: number; score: number | null; bias: number | null
 export function accuracySummary(rows: AccRow[]): Accuracy {
   const r = rows.filter((x) => Number.isFinite(x.predicted) && Number.isFinite(x.actual) && x.actual > 0.5);
   if (!r.length) return { n: 0, score: null, bias: null, mae: null };
-  let ape = 0, err = 0, abs = 0;
-  for (const x of r) { const e = x.predicted - x.actual; ape += Math.abs(e) / x.actual; err += e; abs += Math.abs(e); }
-  return { n: r.length, score: Math.round(Math.max(0, 1 - ape / r.length) * 100), bias: err / r.length, mae: abs / r.length };
+  // Score is 100 − WAPE (Σ|error| ÷ Σactual): errors weighted by the energy at stake. A plain mean
+  // of per-day % errors lets one near-empty day (2 kWh actual vs 25 forecast = 1,100 %) wipe out a
+  // month of good days; WAPE is the standard production-forecast metric and has no such cliff.
+  let err = 0, abs = 0, act = 0;
+  for (const x of r) { const e = x.predicted - x.actual; err += e; abs += Math.abs(e); act += x.actual; }
+  return { n: r.length, score: Math.round(Math.max(0, 1 - abs / act) * 100), bias: err / r.length, mae: abs / r.length };
 }

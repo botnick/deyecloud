@@ -25,9 +25,14 @@ describe("learnSky — site sky factors shrunk toward the regional prior", () =>
 });
 
 describe("accuracySummary", () => {
-  it("score = 100 − mean absolute % error; bias signed", () => {
+  it("score = 100 − WAPE (Σ|err| ÷ Σactual); bias signed", () => {
     const a = accuracySummary([{ day: "a", predicted: 45, actual: 50 }, { day: "b", predicted: 55, actual: 50 }]);
     expect(a.n).toBe(2); expect(a.score).toBe(90); expect(a.bias).toBeCloseTo(0); expect(a.mae).toBeCloseTo(5);
+  });
+  it("one near-empty day can't zero a month of good days (WAPE, not mean APE)", () => {
+    const good = Array.from({ length: 10 }, (_, i) => ({ day: `d${i}`, predicted: 30, actual: 30 }));
+    const a = accuracySummary([...good, { day: "x", predicted: 25, actual: 2.1 }]);
+    expect(a.score).toBeGreaterThan(90); // mean APE would have scored 0
   });
   it("ignores days with no real production; empty → nulls", () => {
     expect(accuracySummary([{ day: "a", predicted: 10, actual: 0 }]).score).toBeNull();

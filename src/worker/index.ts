@@ -703,13 +703,29 @@ app.get("/api/export", async (c) => {
 // One place both the app (/api/totals) and the cron's day-ahead log read from, so
 // what gets evaluated is exactly what was shown. Memoised per isolate 30 min.
 let memModel: { at: number; m: { capKw: number; calibDays: number; sky: Record<number, number>; skyDays: number } } | null = null;
+// 06:00–17:59 = 144 five-minute samples; require 80 % of them
+const DAYLIGHT_COVER_MIN = 115;
 async function evaluatedForecastRows(env: Env, days: number) {
   const today = bkkDayOf(Date.now());
   const cutoff = bkkDayOf(Date.now() - days * 86400000);
+  // A day only counts as "actual" when our own 5-min samples cover most of its daylight: a
+  // logger outage leaves Deye's day total partial (e.g. 2.1 kWh for a ~30 kWh day), and judging
+  // the forecast — or teaching the sky model — on that would be wrong. Such days come back with
+  // actual = null and incomplete = true.
+  const since = Math.floor(Date.parse(cutoff + "T00:00:00+07:00") / 1000);
   const { results } = await env.DB.prepare(
-    `SELECT f.day, f.predicted, f.cond, f.psh, f.cap_kw, d.gen AS actual FROM forecast_log f LEFT JOIN daily d ON d.day = f.day
-     WHERE f.day >= ? AND f.day < ? ORDER BY f.day`).bind(cutoff, today).all();
-  return (results || []) as { day: string; predicted: number; cond: number; psh: number; cap_kw: number; actual: number | null }[];
+    `SELECT f.day, f.predicted, f.cond, f.psh, f.cap_kw, d.gen AS actual, COALESCE(c.n, 0) AS cover
+       FROM forecast_log f
+       LEFT JOIN daily d ON d.day = f.day
+       LEFT JOIN (SELECT date(ts + 25200, 'unixepoch') AS day, COUNT(*) AS n FROM samples
+                   WHERE ts >= ? AND CAST(strftime('%H', ts + 25200, 'unixepoch') AS INTEGER) BETWEEN 6 AND 17
+                   GROUP BY 1) c ON c.day = f.day
+      WHERE f.day >= ? AND f.day < ? ORDER BY f.day`).bind(since, cutoff, today).all();
+  return ((results || []) as any[]).map((r) => {
+    const complete = Number(r.cover) >= DAYLIGHT_COVER_MIN;
+    return { day: String(r.day), predicted: Number(r.predicted), cond: Number(r.cond), psh: Number(r.psh), cap_kw: Number(r.cap_kw),
+      actual: complete && r.actual != null ? Number(r.actual) : null, incomplete: !complete && r.actual != null };
+  });
 }
 async function forecastModel(env: Env) {
   if (memModel && Date.now() - memModel.at < 30 * 60 * 1000) return memModel.m;
@@ -802,7 +818,7 @@ app.get("/api/forecast/accuracy", async (c) => {
   const days = Math.min(365, Math.max(7, Number(c.req.query("days")) || 30));
   const rows = await evaluatedForecastRows(c.env, days);
   const s = accuracySummary(rows.filter((r) => r.actual != null).map((r) => ({ day: r.day, predicted: Number(r.predicted), actual: Number(r.actual) })));
-  return c.json({ days, ...s, rows: rows.map((r) => ({ day: r.day, predicted: Number(r.predicted), actual: r.actual == null ? null : Number(r.actual), cond: Number(r.cond) })) });
+  return c.json({ days, ...s, rows: rows.map((r) => ({ day: r.day, predicted: Number(r.predicted), actual: r.actual == null ? null : Number(r.actual), cond: Number(r.cond), incomplete: r.incomplete })) });
 });
 
 app.get("/api/weather", async (c) => c.json(await getWeather(c.env)));
