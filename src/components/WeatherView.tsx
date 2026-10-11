@@ -41,8 +41,7 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
   if (!weather || weather.temp == null) {
     return (
       <>
-        <h2 className={h2First}>พยากรณ์อากาศ</h2>
-        <div className="skeleton h-48 rounded-[20px]" />
+          <div className="skeleton h-48 rounded-[20px]" />
       </>
     );
   }
@@ -83,7 +82,6 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
 
   return (
     <>
-      <h2 className={h2First}>พยากรณ์อากาศ</h2>
 
       {/* hero — live sky (time of day + sun position + current weather) */}
       <WeatherHero weather={w} force={skyForce()} />

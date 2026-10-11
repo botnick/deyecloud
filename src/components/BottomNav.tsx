@@ -10,22 +10,15 @@ const items: { k: View; label: string; Icon: (p: { className?: string }) => Reac
   { k: "history", label: "ย้อนหลัง", Icon: NavHistory },
 ];
 
+/* Floating liquid-glass tab bar (iOS 26). Labels stay at 12px for older eyes. */
 export function BottomNav({ view, onGo }: { view: View; onGo: (v: View) => void }) {
   return (
-    <nav className="bg-[#ffffffec] border border-white/70 shadow-[0_12px_30px_-8px_rgba(17,17,17,0.3)] fixed left-1/2 -translate-x-1/2 bottom-[calc(14px+env(safe-area-inset-bottom))] w-[calc(100%-28px)] max-w-[452px] rounded-[26px] flex p-2 z-30">
+    <nav className="ios-tabs" aria-label="เมนูหลัก">
       {items.map((it) => {
         const active = view === it.k;
         return (
-          <button
-            key={it.k}
-            onClick={() => { haptic(); onGo(it.k); }}
-            aria-label={it.label}
-            aria-current={active ? "page" : undefined}
-            className={`flex-1 min-h-[62px] rounded-[18px] flex flex-col items-center justify-center gap-1 text-[14px] font-bold transition-all duration-200 ${
-              active ? "text-secondary bg-secondary-soft" : "text-muted active:bg-canvas"
-            }`}
-          >
-            <it.Icon className={`transition-transform duration-200 ${active ? "w-[27px] h-[27px] -translate-y-0.5" : "w-[25px] h-[25px]"}`} />
+          <button key={it.k} className={active ? "on" : ""} onClick={() => { haptic(); onGo(it.k); }} aria-label={it.label} aria-current={active ? "page" : undefined}>
+            <it.Icon className="w-[25px] h-[25px]" />
             {it.label}
           </button>
         );

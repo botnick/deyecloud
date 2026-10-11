@@ -65,6 +65,9 @@ function StaleBanner({ ageMin, health }: { ageMin: number; health: Health | null
   );
 }
 
+// iOS large titles per tab (the page itself no longer repeats them)
+const VIEW_TITLE: Partial<Record<View, string>> = { home: "หน้าหลัก", today: "วันนี้", weather: "อากาศ", history: "ย้อนหลัง" };
+
 const VIEWS: View[] = ["home", "today", "weather", "device", "history"];
 function viewFromPath(): View {
   const p = location.pathname.replace(/^\/+/, "");
@@ -249,8 +252,8 @@ export default function App() {
     <>
       <PullToRefresh onRefresh={pullRefresh}>
       <div className="max-w-[480px] mx-auto min-h-full">
-        {view !== "device" && <Header stationName={active?.name} stations={stations} selectedId={selectedId} onSwitch={switchStation} onRefresh={manualRefresh} spinning={spinning} cooldown={cooldownLeft} />}
-        <div className={`px-[18px] pb-[calc(96px+env(safe-area-inset-bottom))] min-h-[70vh] ${view === "device" ? "pt-[calc(12px+env(safe-area-inset-top))]" : "pt-5"}`}>
+        {view !== "device" && <Header title={VIEW_TITLE[view] ?? ""} stationName={active?.name} stations={stations} selectedId={selectedId} onSwitch={switchStation} onRefresh={manualRefresh} spinning={spinning} cooldown={cooldownLeft} />}
+        <div className={`px-4 pb-[calc(100px+env(safe-area-inset-bottom))] min-h-[70vh] ${view === "device" ? "pt-[calc(12px+env(safe-area-inset-top))]" : "pt-3"}`}>
           {offline && !sim && <OfflineBanner latest={latest} onRetry={() => refresh(true)} />}
           {stale && !sim && <StaleBanner ageMin={staleMin} health={health} />}
           <div key={view} className="view-anim">

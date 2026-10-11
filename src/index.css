@@ -29,7 +29,11 @@
   --color-ok: #18a673;
   --color-warn: #e8603c;
 
-  --font-sans: "Sarabun", system-ui, sans-serif;
+  /* system font first — on iPhone this is SF + the iOS Thai face, on Android Noto Sans Thai:
+     the app reads as native. Sarabun stays as the web fallback. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Noto Sans Thai", "Sarabun", system-ui, sans-serif;
+  --color-ios-bg: #f2f2f7;         /* iOS systemGroupedBackground */
+  --color-ios-sep: rgba(60, 60, 67, .13);
 }
 
 html,
@@ -43,9 +47,8 @@ body {
      calm enough for an elderly user (clarity over spectacle). Fixed so it
      stays put behind scrolling glass. */
   background:
-    radial-gradient(760px 520px at 8% -6%, color-mix(in srgb, var(--color-primary) 18%, transparent), transparent 58%),
-    radial-gradient(720px 560px at 102% 4%, color-mix(in srgb, var(--color-secondary) 12%, transparent), transparent 54%),
-    linear-gradient(180deg, #fffdf2 0%, var(--color-canvas) 42%, #f7f0fb 100%);
+    radial-gradient(900px 420px at 50% -120px, color-mix(in srgb, var(--color-primary) 13%, transparent), transparent 70%),
+    var(--color-ios-bg);
   background-attachment: fixed;
   color: var(--color-title);
   font-family: var(--font-sans);
@@ -121,15 +124,10 @@ textarea {
    readable for the elderly user, a faint dark ring for edge definition on the
    light gradient, and an inset top sheen for the specular highlight. */
 .glass-card {
-  background: rgba(255, 255, 255, 0.82);
-  -webkit-backdrop-filter: blur(14px) saturate(155%);
-  backdrop-filter: blur(14px) saturate(155%);
-  border: 1px solid rgba(255, 255, 255, 0.65);
-  border-radius: 20px;
-  box-shadow:
-    0 10px 30px rgba(17, 17, 17, 0.10),
-    0 0 0 1px rgba(17, 17, 17, 0.04),
-    inset 0 1px 1px rgba(255, 255, 255, 0.95);
+  /* iOS inset-grouped card: solid, crisp, almost no shadow (contrast first). */
+  background: #ffffff;
+  border-radius: 22px;
+  box-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.04), 0 8px 24px -14px rgba(20, 24, 40, 0.18);
 }
 .glass-sm {
   background: rgba(255, 255, 255, 0.72);
@@ -149,12 +147,8 @@ textarea {
    "solid frost" right next to the glass cards, not a flat island. */
 .metric-plate {
   background: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 20px;
-  box-shadow:
-    0 10px 30px rgba(17, 17, 17, 0.10),
-    0 0 0 1px rgba(17, 17, 17, 0.04),
-    inset 0 1px 1px rgba(255, 255, 255, 0.95);
+  border-radius: 22px;
+  box-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.04), 0 8px 24px -14px rgba(20, 24, 40, 0.18);
 }
 /* fallback when the browser/OS can't blur (e.g. iOS Reduce Transparency) —
    go nearly opaque so contrast never drops below the elderly-readable floor. */
@@ -373,3 +367,78 @@ textarea {
 .wxhero .wh-pv .bar i { display: block; height: 100%; border-radius: 9px; background: linear-gradient(90deg, #ffe066, #ffa51f); }
 @media (prefers-reduced-motion: reduce) { .wxhero .wh-cloud, .wxhero .wh-stars i { animation: none !important; } }
 .wxhero .wh-chip .uvdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 0 3px 1px 0; vertical-align: middle; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .7); }
+
+/* ── iOS app chrome ─────────────────────────────────────────────────────────── */
+/* compact nav bar that fades in once the large title scrolls away */
+.ios-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 25; pointer-events: none; }
+.ios-bar .inner { max-width: 480px; margin: 0 auto; height: calc(48px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 12px 0;
+  display: flex; align-items: center; justify-content: center; position: relative; }
+.ios-bar .bg { position: absolute; inset: 0; background: rgba(249, 249, 251, .78); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: 0 .5px 0 var(--color-ios-sep); opacity: 0; transition: opacity .2s ease; }
+.ios-bar .title { position: relative; font-size: 17px; font-weight: 700; color: var(--color-title); opacity: 0; transform: translateY(6px); transition: opacity .2s ease, transform .2s ease;
+  max-width: 64%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ios-bar.on .bg, .ios-bar.on .title { opacity: 1; transform: none; }
+.ios-btn { pointer-events: auto; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; color: var(--color-secondary);
+  background: rgba(255, 255, 255, .72); -webkit-backdrop-filter: blur(18px) saturate(180%); backdrop-filter: blur(18px) saturate(180%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06), inset 0 0 0 .5px rgba(0, 0, 0, .06); transition: transform .15s ease; }
+.ios-btn:active { transform: scale(.9); }
+.ios-btn:disabled { color: var(--color-muted); }
+.ios-large { padding: calc(14px + env(safe-area-inset-top)) 20px 6px; }
+.ios-large .cap { font-size: 13px; font-weight: 600; color: var(--color-muted); letter-spacing: .1px; }
+.ios-large .big { font-size: 34px; font-weight: 800; line-height: 1.12; letter-spacing: -.6px; color: var(--color-title); margin-top: 1px; }
+
+/* floating liquid-glass tab bar (iOS 26) */
+.ios-tabs { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 30;
+  width: calc(100% - 32px); max-width: 448px; display: flex; padding: 5px; border-radius: 999px;
+  background: rgba(255, 255, 255, .72); -webkit-backdrop-filter: blur(22px) saturate(190%); backdrop-filter: blur(22px) saturate(190%);
+  box-shadow: 0 10px 34px -10px rgba(20, 24, 40, .35), 0 1px 2px rgba(0, 0, 0, .06), inset 0 0 0 .5px rgba(255, 255, 255, .7), inset 0 1px 0 rgba(255, 255, 255, .9); }
+.ios-tabs button { flex: 1; min-height: 56px; border-radius: 999px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  font-size: 12px; font-weight: 700; color: #6b6f78; transition: color .2s ease, background .25s ease, transform .15s ease; }
+.ios-tabs button:active { transform: scale(.94); }
+.ios-tabs button.on { color: var(--color-secondary); background: rgba(162, 13, 221, .1); }
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .ios-tabs, .ios-btn { background: rgba(255, 255, 255, .96); } .ios-bar .bg { background: rgba(249, 249, 251, .97); }
+}
+
+/* ── home hero: isometric solar house ───────────────────────────────────────── */
+.hscene { position: relative; overflow: hidden; border-radius: 26px; aspect-ratio: 392 / 380; isolation: isolate;
+  box-shadow: 0 1px 1.5px rgba(0, 0, 0, .05), 0 16px 34px -18px rgba(20, 30, 60, .45); }
+.hscene .hs-svg { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: auto; }
+.hscene .hs-haze { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(150, 160, 175, .45), rgba(200, 205, 215, .1) 70%); }
+.hscene .hs-stars { position: absolute; inset: 0 0 45% 0; opacity: .8;
+  background-image: radial-gradient(1.2px 1.2px at 12% 18%, #fff, transparent), radial-gradient(1px 1px at 28% 8%, #fff, transparent), radial-gradient(1.4px 1.4px at 46% 22%, #fff, transparent),
+    radial-gradient(1px 1px at 63% 12%, #fff, transparent), radial-gradient(1.3px 1.3px at 78% 26%, #fff, transparent), radial-gradient(1px 1px at 90% 10%, #fff, transparent), radial-gradient(1px 1px at 36% 34%, #fff, transparent); }
+@keyframes hs-dash { to { stroke-dashoffset: -26; } }
+.hscene .hs-flow { animation: hs-dash 1s linear infinite; }
+.hscene .hs-flow.rev { animation-direction: reverse; }
+.hscene .hs-top { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 16px 16px 0; }
+.hscene .hs-name { font-size: 19px; font-weight: 800; color: #0f172a; letter-spacing: -.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hscene .hs-wx { font-size: 13px; font-weight: 600; color: #334155; margin-top: 1px; }
+.hscene.dim .hs-name { color: #f8fafc; } .hscene.dim .hs-wx { color: #cbd5e1; }
+.hscene .hs-live { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 800; color: #0f172a; flex-shrink: 0;
+  background: rgba(255, 255, 255, .78); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 2px 10px rgba(0, 0, 0, .08); }
+.hscene .hs-live .d { width: 7px; height: 7px; border-radius: 50%; background: #18a673; animation: sh-pulse 1.6s infinite; }
+.hscene .hs-chip { position: absolute; display: flex; align-items: center; gap: 7px; padding: 7px 11px 7px 9px; border-radius: 16px; min-width: 96px;
+  background: rgba(255, 255, 255, .8); -webkit-backdrop-filter: blur(16px) saturate(170%); backdrop-filter: blur(16px) saturate(170%);
+  box-shadow: 0 6px 18px -8px rgba(15, 23, 42, .35), inset 0 0 0 .5px rgba(255, 255, 255, .8); }
+.hscene .hs-chip .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 3px rgba(255, 255, 255, .7); }
+.hscene .hs-chip .txt { display: flex; flex-direction: column; line-height: 1.1; }
+.hscene .hs-chip .lb { font-size: 11.5px; font-weight: 600; color: #5b6170; }
+.hscene .hs-chip .vl { font-size: 16px; font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; }
+.hscene .hs-chip .soc { position: relative; width: 34px; height: 16px; border-radius: 5px; background: rgba(24, 166, 115, .15); overflow: hidden; margin-left: 2px; }
+.hscene .hs-chip .soc i { position: absolute; inset: 0 auto 0 0; background: #18a673; border-radius: 4px; }
+.hscene .hs-chip .soc b { position: relative; display: block; text-align: center; font-size: 10px; font-weight: 800; color: #063; line-height: 16px; }
+@media (prefers-reduced-motion: reduce) { .hscene .hs-flow { animation: none; } }
+.hscene.dim .hs-svg { filter: brightness(.74) saturate(.85); }
+
+/* iOS segmented control (large, universal-design sizing) */
+.ios-seg { display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: rgba(118, 118, 128, .14); }
+.ios-seg button { flex: 1; min-height: 44px; border-radius: 11px; font-size: 15.5px; font-weight: 700; color: #3c3c43; transition: background .2s ease, box-shadow .2s ease, color .2s ease; }
+.ios-seg button.on { background: #fff; color: #0f172a; box-shadow: 0 3px 8px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .04); }
+.ios-seg button:active { transform: scale(.97); }
+.ios-seg.sticky-seg { position: sticky; top: calc(54px + env(safe-area-inset-top)); z-index: 10;
+  background: rgba(230, 230, 236, .86); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+/* iOS grouped list row */
+.ios-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 16px; text-align: left; transition: background .15s ease; }
+.ios-row:active { background: rgba(0, 0, 0, .05); }
+.ios-row .ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: #fff; flex-shrink: 0; }

@@ -377,11 +377,10 @@ export function HistoryView({ active, stationId, isPrimary = true, capacity }: {
 
   return (
     <>
-      <h2 className={h2First}>ย้อนหลัง</h2>
-      <div className={`flex ${cardSm} p-1.5 gap-1.5 sticky top-2 z-10`}>
+      <div className="ios-seg sticky-seg" role="tablist">
         {TABS.map((t) => (
-          <button key={t.k} onClick={() => changeRange(t.k)}
-            className={`flex-1 min-h-12 rounded-xl text-[16px] font-bold transition-colors ${range === t.k ? "bg-primary text-ink" : "text-body"}`}>
+          <button key={t.k} onClick={() => changeRange(t.k)} role="tab" aria-selected={range === t.k}
+            className={range === t.k ? "on" : ""}>
             {t.label}
           </button>
         ))}
@@ -404,10 +403,10 @@ export function HistoryView({ active, stationId, isPrimary = true, capacity }: {
 
           {/* day-window toggle — same segmented-control language as the range tabs */}
           {range === "day" && (
-            <div className={`flex ${cardSm} p-1.5 gap-1.5 mt-3`}>
+            <div className="ios-seg mt-3" role="tablist">
               {([["mid", "เต็มวัน 00–24 น."], ["noon", "รอบแดด เที่ยง→เที่ยง"]] as const).map(([w, lab]) => (
-                <button key={w} onClick={() => dayWin !== w && changeDayWin(w)}
-                  className={`flex-1 min-h-11 rounded-xl text-[14.5px] font-bold transition-colors ${dayWin === w ? "bg-primary text-ink" : "text-body"}`}>
+                <button key={w} onClick={() => dayWin !== w && changeDayWin(w)} role="tab" aria-selected={dayWin === w}
+                  className={dayWin === w ? "on" : ""}>
                   {lab}
                 </button>
               ))}

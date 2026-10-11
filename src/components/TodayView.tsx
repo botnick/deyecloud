@@ -15,7 +15,6 @@ export function TodayView({ latest, capacity }: { latest: Latest | null; capacit
 
   return (
     <>
-      <h2 className={h2First}>สรุปวันนี้</h2>
       <div className={`${plateP} flex items-center`}>
         <div>
           <div className="text-[46px] font-extrabold leading-none">
