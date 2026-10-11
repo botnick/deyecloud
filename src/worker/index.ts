@@ -713,6 +713,7 @@ async function evaluatedForecastRows(env: Env, days: number) {
   // the forecast — or teaching the sky model — on that would be wrong. Such days come back with
   // actual = null and incomplete = true.
   const since = Math.floor(Date.parse(cutoff + "T00:00:00+07:00") / 1000);
+  const retainedFrom = bkkDayOf(Date.now() - (SAMPLES_RETENTION_DAYS - 1) * 86400000);
   const { results } = await env.DB.prepare(
     `SELECT f.day, f.predicted, f.cond, f.psh, f.cap_kw, d.gen AS actual, COALESCE(c.n, 0) AS cover
        FROM forecast_log f
@@ -722,9 +723,12 @@ async function evaluatedForecastRows(env: Env, days: number) {
                    GROUP BY 1) c ON c.day = f.day
       WHERE f.day >= ? AND f.day < ? ORDER BY f.day`).bind(since, cutoff, today).all();
   return ((results || []) as any[]).map((r) => {
-    const complete = Number(r.cover) >= DAYLIGHT_COVER_MIN;
+    // samples are pruned after SAMPLES_RETENTION_DAYS: older days can't be judged, so they keep
+    // their recorded total (the pre-coverage behaviour) instead of silently dropping out of learning
+    const judgeable = String(r.day) >= retainedFrom;
+    const complete = !judgeable || Number(r.cover) >= DAYLIGHT_COVER_MIN;
     return { day: String(r.day), predicted: Number(r.predicted), cond: Number(r.cond), psh: Number(r.psh), cap_kw: Number(r.cap_kw),
-      actual: complete && r.actual != null ? Number(r.actual) : null, incomplete: !complete && r.actual != null };
+      actual: complete && r.actual != null ? Number(r.actual) : null, incomplete: !complete };
   });
 }
 async function forecastModel(env: Env) {

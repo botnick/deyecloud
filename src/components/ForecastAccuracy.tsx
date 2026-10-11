@@ -17,7 +17,7 @@ export function ForecastAccuracyCard({ skyDays }: { skyDays: number }) {
     <div className={`${cardP} mt-3`}>
       <div className="flex items-center gap-1.5">
         <span className="font-bold text-[16px] text-title">ความแม่นยำพยากรณ์</span>
-        <InfoTip text={`เทียบ "พรุ่งนี้คาดผลิต" ที่ระบบบอกไว้ตอนเย็น กับที่ผลิตได้จริงในวันนั้น ${a.n} วันล่าสุด · คะแนน = 100% − ค่าคลาดเฉลี่ย · ระบบใช้ผลนี้ปรับค่าเมฆของบ้านนี้เอง (${skyDays} วันที่เรียนรู้แล้ว)`} />
+        <InfoTip text={`เทียบ "พรุ่งนี้คาดผลิต" ที่ระบบบอกไว้ตอนเย็น กับที่ผลิตได้จริงในวันนั้น ${a.n} วันล่าสุด · คะแนน = 100% − (หน่วยที่คลาดรวม ÷ หน่วยที่ผลิตจริงรวม) · ไม่นับวันที่ข้อมูลกลางวันขาด (เช่นตัวส่งข้อมูลหลุด) · ระบบใช้ผลนี้ปรับค่าเมฆของบ้านนี้เอง (${skyDays} วันที่เรียนรู้แล้ว)`} />
       </div>
       <div className="flex items-end gap-4 mt-2">
         <div><div className={`text-[34px] font-extrabold tabnum leading-none ${tone}`}>{a.score ?? "—"}<span className="text-[15px] font-bold text-body ml-0.5">%</span></div><div className="text-[12px] text-muted mt-1">แม่นยำ ({a.n} วัน)</div></div>

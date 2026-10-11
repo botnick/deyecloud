@@ -36,7 +36,7 @@ export function learnSky(obs: SkyObs[], prior: Record<number, number> = DEFAULT_
   return { sky, samples, days };
 }
 
-// Headline accuracy over evaluated days: MAPE-style score and signed bias.
+// Headline accuracy over evaluated days: 100 − WAPE score, signed bias and MAE.
 export interface AccRow { day: string; predicted: number; actual: number; }
 export interface Accuracy { n: number; score: number | null; bias: number | null; mae: number | null; }
 export function accuracySummary(rows: AccRow[]): Accuracy {

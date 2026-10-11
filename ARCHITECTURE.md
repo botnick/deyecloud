@@ -83,7 +83,7 @@ PWA ดูข้อมูลระบบโซลาร์เซลล์แบ�
 | `GET /api/device` | ค่าเครื่อง (เฟส/PV/BMS) cache 60s · รับ `?station=` |
 | `GET /api/weather` | TMD/Open-Meteo + UV (cache 30 นาที) |
 | `GET /api/history?range=day\|month\|year` | กราฟย้อนหลัง (D1 ก่อน → Deye) · รับ `?station=` |
-| `GET /api/forecast/accuracy?days=` | คาดพรุ่งนี้ (จาก `forecast_log`) vs `daily.gen` ของวันที่จบแล้ว — คะแนน 100−MAPE, bias, MAE + แถว |
+| `GET /api/forecast/accuracy?days=` | คาดพรุ่งนี้ (จาก `forecast_log`) vs `daily.gen` ของวันที่จบแล้ว — คะแนน 100−WAPE (Σ|คลาด| ÷ Σจริง), bias, MAE + แถว · วันที่ตัวอย่างช่วงกลางวัน (06–18 น.) ไม่ถึง 115/144 ไม่นับและไม่ใช้เรียนรู้ (`incomplete`) |
 | `GET /api/battery/health?days=` | ความจุใช้ได้จริงจากช่วงคายประจุ (samples), SOH = ÷ (Ah × V ที่วัดกลาง SOC), รอบ, DoD · cache 6 ชม. |
 | `GET /api/device/history?sn=&days=&keys=` | แนวโน้มค่าเครื่องจาก `device_samples` (bucket ≤240 จุด/คีย์, memo 10 นาที) |
 | `GET /api/export?range=day\|month\|year\|all&date=` | CSV จาก D1 ของสถานีหลัก (BOM, attachment) — สำหรับสคริปต์ · ปุ่มในแอปสร้าง CSV ฝั่ง client จากข้อมูลที่แสดงอยู่ (ทุกสถานี) |
