@@ -1,7 +1,7 @@
 import type { Latest } from "../lib/api";
 import { fmtKwh } from "../lib/format";
 import { IconSun, IconHouse, IconGrid, IconBattery } from "../lib/icons";
-import { cardP, plateP, h2First, h2Mid } from "../lib/ui";
+import { cardP, plateP, h2Mid } from "../lib/ui";
 import { Tile } from "./Tile";
 import { AnalysisCard } from "./AnalysisCard";
 import { SelfConsumption } from "./SelfConsumption";

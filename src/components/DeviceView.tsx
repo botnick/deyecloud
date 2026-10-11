@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { getDevice, type Device, type DeviceData, type Latest } from "../lib/api";
 import { batteryChannels, groupDevice, INVERTER_TYPE_TH } from "../lib/device";
 import { useSmartPoll } from "../lib/usePoll";
 import { timeStr } from "../lib/format";
-import { IconChevron, IconBack } from "../lib/icons";
-import { card, cardP, h2 } from "../lib/ui";
+import { IconChevron } from "../lib/icons";
+import { card, cardP } from "../lib/ui";
 import { FlowDiagram } from "./FlowDiagram";
 import { InsightList } from "./InsightList";
 import { analyzeDevice } from "../lib/diagnostics";
@@ -73,13 +73,14 @@ function KVList({ items }: { items: DeviceData[] }) {
 }
 
 function Section({ title, count, open, onToggle, children }: { title: string; count?: number; open: boolean; onToggle: () => void; children: ReactNode }) {
+  const id = useId();
   return (
     <div className={`${card} mt-3.5 overflow-hidden`}>
-      <button onClick={onToggle} className="w-full flex items-center justify-between p-5 text-left">
+      <button onClick={onToggle} aria-expanded={open} aria-controls={id} className="w-full flex items-center justify-between p-5 text-left">
         <span className="text-[17px] font-bold">{title}</span>
         <span className="flex items-center gap-2 text-muted text-[13px]">{count != null ? `${count} ค่า` : ""}<IconChevron className={`w-5 h-5 transition-transform duration-300 ${open ? "rotate-90" : ""}`} /></span>
       </button>
-      <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+      <div id={id} className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`} aria-hidden={!open}>
         <div className="overflow-hidden"><div className="px-5 pb-5">{children}</div></div>
       </div>
     </div>

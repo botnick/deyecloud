@@ -160,8 +160,7 @@ textarea {
 }
 /* Respect the OS "reduce motion" switch — kill the ambient/idle animations. */
 @media (prefers-reduced-motion: reduce) {
-  .view-anim, .hero-illus, .hero-rays, .hero-core,
-  .wx-float, .wx-star, .wx-glow, .splash-leave, .skeleton::after {
+  .view-anim, .hero-rays, .wx-glow, .splash-leave, .skeleton::after {
     animation: none !important;
   }
 }
@@ -179,17 +178,10 @@ textarea {
 .splash-leave { animation: splashfade 0.45s ease 0.1s forwards; }
 
 /* ----- drawn solar-house hero (Card_Home) ----- */
-@keyframes herofloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-.hero-illus { animation: herofloat 4.8s ease-in-out infinite; }
 .hero-rays { transform-box: fill-box; transform-origin: center; animation: rayspin 22s linear infinite; }
-.hero-core { transform-box: fill-box; transform-origin: center; animation: sunpulse 2.6s ease-in-out infinite; }
 
 /* ----- weather immersive page (Solurna purple night sky) ----- */
-@keyframes wxfloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
-@keyframes wxtwinkle { 0%, 100% { opacity: var(--s, .5); } 50% { opacity: .15; } }
 @keyframes wxglow { 0%, 100% { opacity: .55; transform: scale(1); } 50% { opacity: .8; transform: scale(1.06); } }
-.wx-float { animation: wxfloat 5.5s ease-in-out infinite; }
-.wx-star { animation: wxtwinkle 3.4s ease-in-out infinite; }
 .wx-glow { animation: wxglow 6s ease-in-out infinite; }
 
 /* shared ambient keyframes (stars twinkle, live dot pulse) */
@@ -300,14 +292,10 @@ textarea {
 /* ── home hero: isometric solar house ───────────────────────────────────────── */
 .hscene { position: relative; overflow: hidden; border-radius: 26px; aspect-ratio: 392 / 380; isolation: isolate;
   box-shadow: 0 1px 1.5px rgba(0, 0, 0, .05), 0 16px 34px -18px rgba(20, 30, 60, .45); }
-.hscene .hs-svg { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: auto; }
 .hscene .hs-haze { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(150, 160, 175, .45), rgba(200, 205, 215, .1) 70%); }
 .hscene .hs-stars { position: absolute; inset: 0 0 45% 0; opacity: .8;
   background-image: radial-gradient(1.2px 1.2px at 12% 18%, #fff, transparent), radial-gradient(1px 1px at 28% 8%, #fff, transparent), radial-gradient(1.4px 1.4px at 46% 22%, #fff, transparent),
     radial-gradient(1px 1px at 63% 12%, #fff, transparent), radial-gradient(1.3px 1.3px at 78% 26%, #fff, transparent), radial-gradient(1px 1px at 90% 10%, #fff, transparent), radial-gradient(1px 1px at 36% 34%, #fff, transparent); }
-@keyframes hs-dash { to { stroke-dashoffset: -26; } }
-.hscene .hs-flow { animation: hs-dash 1s linear infinite; }
-.hscene .hs-flow.rev { animation-direction: reverse; }
 .hscene .hs-top { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 16px 16px 0; }
 .hscene .hs-name { font-size: 19px; font-weight: 800; color: #0f172a; letter-spacing: -.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hscene .hs-wx { font-size: 13px; font-weight: 600; color: #334155; margin-top: 1px; }
@@ -325,8 +313,6 @@ textarea {
 .hscene .hs-chip .soc { position: relative; width: 34px; height: 16px; border-radius: 5px; background: rgba(24, 166, 115, .15); overflow: hidden; margin-left: 2px; }
 .hscene .hs-chip .soc i { position: absolute; inset: 0 auto 0 0; background: #18a673; border-radius: 4px; }
 .hscene .hs-chip .soc b { position: relative; display: block; text-align: center; font-size: 10px; font-weight: 800; color: #063; line-height: 16px; }
-@media (prefers-reduced-motion: reduce) { .hscene .hs-flow { animation: none; } }
-.hscene.dim .hs-svg { filter: brightness(.74) saturate(.85); }
 
 /* iOS segmented control (large, universal-design sizing) */
 .ios-seg { display: flex; gap: 2px; padding: 3px; border-radius: 14px; background: rgba(118, 118, 128, .14); }

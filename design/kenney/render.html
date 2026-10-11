@@ -50,7 +50,7 @@ const half = Math.max(size.x, size.z, size.y) * 0.62 / zoom;
 const cam = new THREE.OrthographicCamera(-half * W / H, half * W / H, half, -half, 0.1, 100);
 const ang = (+(q.get("yaw") || 45)) * Math.PI / 180, el = (+(q.get("pitch") || 32)) * Math.PI / 180;
 cam.position.set(ctr.x + 20 * Math.sin(ang) * Math.cos(el), ctr.y + 20 * Math.sin(el), ctr.z + 20 * Math.cos(ang) * Math.cos(el)); cam.lookAt(ctr);
-cam.position.y += +(q.get("lift") || 0); 
+cam.position.y += +(q.get("lift") || 0);
 renderer.render(scene, cam);
 window.__sizes = group.children.map((c) => { const b = new THREE.Box3().setFromObject(c), z = b.getSize(new THREE.Vector3()); return [c.type, +z.x.toFixed(2), +z.y.toFixed(2), +z.z.toFixed(2)]; });
 window.__done = renderer.domElement.toDataURL("image/png");

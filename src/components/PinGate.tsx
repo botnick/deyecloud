@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { postLogin } from "../lib/api";
 import { IconSun } from "../lib/icons";
 import { APP_NAME } from "../lib/brand";
@@ -13,25 +13,35 @@ export function PinGate({ onOk }: { onOk: () => void }) {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [shake, setShake] = useState(false);
+  // the in-flight guard is a ref, not state: two Enter presses / taps in the same frame both
+  // read the same render's `busy`, a ref flips synchronously
+  const busyRef = useRef(false);
+  const pinRef = useRef("");
+  const firstKey = useRef<HTMLButtonElement>(null);
+  const setPinBoth = (v: string) => { pinRef.current = v; setPin(v); };
 
   const submit = useCallback(async () => {
-    if (busy || !pin) return; // guard against double-submit
-    setErr("");
-    setBusy(true);
-    const r = await postLogin(pin).catch(() => ({ ok: false, error: "เชื่อมต่อไม่ได้" }));
-    setBusy(false);
-    if (r.ok) onOk();
-    else { setErr(r.error || "รหัสไม่ถูกต้อง"); setPin(""); setShake(true); setTimeout(() => setShake(false), 450); }
-  }, [busy, pin, onOk]);
+    const value = pinRef.current;
+    if (busyRef.current || !value) return;
+    busyRef.current = true; setBusy(true); setErr("");
+    const r = await postLogin(value).catch(() => ({ ok: false, error: "เชื่อมต่อไม่ได้" }));
+    busyRef.current = false; setBusy(false);
+    if (r.ok) { onOk(); return; }
+    setErr(r.error || "รหัสไม่ถูกต้อง"); setPinBoth(""); setShake(true); setTimeout(() => setShake(false), 450);
+    firstKey.current?.focus(); // the submit key is now disabled — keep keyboard/AT focus on the pad
+  }, [onOk]);
 
-  const press = useCallback((d: string) => { if (busy) return; haptic(); setErr(""); setPin((p) => (p.length < MAX ? p + d : p)); }, [busy]);
-  const del = useCallback(() => { haptic(); setPin((p) => p.slice(0, -1)); }, []);
+  const press = useCallback((d: string) => {
+    if (busyRef.current || pinRef.current.length >= MAX) return;
+    haptic(); setErr(""); setPinBoth(pinRef.current + d);
+  }, []);
+  const del = useCallback(() => { if (busyRef.current || !pinRef.current) return; haptic(); setPinBoth(pinRef.current.slice(0, -1)); }, []);
 
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
-      if (/^\d$/.test(e.key)) press(e.key);
-      else if (e.key === "Backspace") del();
-      else if (e.key === "Enter") submit();
+      if (/^\d$/.test(e.key)) { e.preventDefault(); press(e.key); }
+      else if (e.key === "Backspace") { e.preventDefault(); del(); }
+      else if (e.key === "Enter") { e.preventDefault(); submit(); }
     };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
@@ -52,8 +62,8 @@ export function PinGate({ onOk }: { onOk: () => void }) {
       <div className="text-warn text-[15px] font-semibold min-h-6 mt-1" role="alert">{err}</div>
 
       <div className="pin-pad">
-        {keys.map((k) => <button key={k} onClick={() => press(k)} aria-label={k}>{k}</button>)}
-        <button className="ghost" onClick={del} aria-label="ลบ" disabled={!pin}>ลบ</button>
+        {keys.map((k, i) => <button key={k} ref={i === 0 ? firstKey : undefined} onClick={() => press(k)} aria-label={k}>{k}</button>)}
+        <button className="ghost" onClick={del} aria-label="ลบ" disabled={busy || !pin}>ลบ</button>
         <button onClick={() => press("0")} aria-label="0">0</button>
         <button className="ok" onClick={submit} disabled={busy || !pin} aria-label="เข้าใช้งาน">
           {busy ? "…" : <svg viewBox="0 0 24 24" className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>}

@@ -3,7 +3,7 @@ import { getHistory, type HistTotals } from "../lib/api";
 import { useSmartPoll } from "../lib/usePoll";
 import { useSettings } from "../lib/settings";
 import { savingsOf, savingsLabel, co2Of } from "../lib/economics";
-import { cardP, cardSm, plate, h2First, h2Mid } from "../lib/ui";
+import { cardP, plate, h2Mid } from "../lib/ui";
 import { IconChevron, IconSun, IconHouse, IconBattery, IconGrid } from "../lib/icons";
 import { BarChart, LineMini, Legend } from "./Chart";
 import { MetricSection } from "./MetricSection";
@@ -377,9 +377,9 @@ export function HistoryView({ active, stationId, isPrimary = true, capacity }: {
 
   return (
     <>
-      <div className="ios-seg sticky-seg" role="tablist">
+      <div className="ios-seg sticky-seg" role="group" aria-label="ช่วงเวลา">
         {TABS.map((t) => (
-          <button key={t.k} onClick={() => changeRange(t.k)} role="tab" aria-selected={range === t.k}
+          <button key={t.k} onClick={() => changeRange(t.k)} aria-pressed={range === t.k}
             className={range === t.k ? "on" : ""}>
             {t.label}
           </button>
@@ -403,9 +403,9 @@ export function HistoryView({ active, stationId, isPrimary = true, capacity }: {
 
           {/* day-window toggle — same segmented-control language as the range tabs */}
           {range === "day" && (
-            <div className="ios-seg mt-3" role="tablist">
+            <div className="ios-seg mt-3" role="group" aria-label="ช่วงของวัน">
               {([["mid", "เต็มวัน 00–24 น."], ["noon", "รอบแดด เที่ยง→เที่ยง"]] as const).map(([w, lab]) => (
-                <button key={w} onClick={() => dayWin !== w && changeDayWin(w)} role="tab" aria-selected={dayWin === w}
+                <button key={w} onClick={() => dayWin !== w && changeDayWin(w)} aria-pressed={dayWin === w}
                   className={dayWin === w ? "on" : ""}>
                   {lab}
                 </button>

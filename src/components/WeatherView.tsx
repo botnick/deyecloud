@@ -4,7 +4,7 @@ import { type Weather, type WeatherHour } from "../lib/api";
 import { condText, solarInfo, DAYLBL, shortDate, isNightAt } from "../lib/weather";
 import { forecast, hourlyKwh } from "../lib/forecast";
 import { WxIcon } from "../lib/wxicon";
-import { card, cardP, h2First, h2Mid } from "../lib/ui";
+import { card, cardP, h2Mid } from "../lib/ui";
 import { IconSun } from "../lib/icons";
 import { InfoTip } from "./InfoTip";
 import { SunPath } from "./SunPath";

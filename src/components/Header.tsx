@@ -26,7 +26,7 @@ export function Header({ title, stationName, stations, selectedId, onSwitch, onR
       <div className={`ios-bar ${compact ? "on" : ""}`}>
         <div className="inner">
           <div className="bg" />
-          <div className="title">{title}</div>
+          <div className="title" aria-hidden="true">{title}</div>
           <button
             onClick={() => { if (cooling) return; haptic(); onRefresh(); }}
             disabled={cooling}
