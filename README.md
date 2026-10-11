@@ -199,7 +199,7 @@ npm run dev                       # → http://localhost:5174  (มือถื�
 ---
 
 <p align="center">
-  สร้างด้วย ❤️ บน <b>Cloudflare Workers</b> ·
+  สร้างด้วย ❤️ บน <b>Cloudflare Workers</b> · ภาพบ้าน 3D: <a href="https://kenney.nl/assets/city-kit-suburban">Kenney City Kit</a> (CC0) ·
   <a href="./ARCHITECTURE.md">ARCHITECTURE.md</a> ·
   <a href="./DEPLOY.md">DEPLOY.md</a>
 </p>

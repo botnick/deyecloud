@@ -442,3 +442,6 @@ textarea {
 .ios-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 16px; text-align: left; transition: background .15s ease; }
 .ios-row:active { background: rgba(0, 0, 0, .05); }
 .ios-row .ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: #fff; flex-shrink: 0; }
+.hscene .hs-house { position: absolute; left: 50%; bottom: 6%; width: 84%; transform: translateX(-50%); pointer-events: none; user-select: none;
+  filter: drop-shadow(0 18px 18px rgba(20, 40, 30, .22)); }
+.hscene.dim .hs-house { filter: drop-shadow(0 18px 18px rgba(0, 0, 0, .35)); }

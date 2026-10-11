@@ -1,0 +1,58 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script></head>
+<body><script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+const q = new URLSearchParams(location.search);
+const W = +(q.get("w") || 512), H = +(q.get("h") || 512);
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W, H);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = +(q.get("exp") || 1.05);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const night = q.get("mode") === "night";
+scene.add(new THREE.HemisphereLight(night ? 0x6677bb : 0xeaf3ff, night ? 0x1a2030 : 0xb5d39a, night ? 1.0 : 1.7));
+const sun = new THREE.DirectionalLight(night ? 0x9fb4ff : 0xfff1d6, night ? 0.6 : 2.4);
+{ const sy = (+(q.get("sunyaw") || 100)) * Math.PI / 180; sun.position.set(12 * Math.sin(sy), 11, 12 * Math.cos(sy)); } sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+const sc = sun.shadow.camera; sc.left = -8; sc.right = 8; sc.top = 8; sc.bottom = -8; sun.shadow.radius = 4; sun.shadow.bias = -0.0005;
+scene.add(sun);
+const loader = new GLTFLoader();
+const base = "../suburban/Models/GLB format/";
+const load = (n) => new Promise((res) => loader.load(base + n + ".glb", (g) => { g.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); res(g.scene); }));
+const layout = JSON.parse(q.get("layout") || "[]"); // [{m, x, z, r, s}]
+const group = new THREE.Group(); scene.add(group);
+if (q.get("ground") !== "0") {
+  const gw = +(q.get("gw") || 4.2), gd = +(q.get("gd") || 4.2);
+  const geo = new THREE.BoxGeometry(gw, 0.25, gd);
+  const mats = [0x7a5a3e, 0x7a5a3e, 0x8fd16f, 0x6a4c33, 0x8e6a49, 0x7a5a3e].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 }));
+  const g = new THREE.Mesh(geo, mats); g.position.y = -0.125; g.receiveShadow = true; group.add(g);
+}
+const texName = q.get("tex");
+const tex = texName ? await new THREE.TextureLoader().loadAsync("../suburban/Models/Textures/" + texName + ".png") : null;
+let emis = null;
+if (tex && night) {
+  const img = tex.image, cv = document.createElement("canvas"); cv.width = img.width; cv.height = img.height;
+  const cx = cv.getContext("2d"); cx.drawImage(img, 0, 0); const d = cx.getImageData(0, 0, cv.width, cv.height);
+  for (let i = 0; i < d.data.length; i += 4) { const r = d.data[i], g = d.data[i + 1], b = d.data[i + 2];
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b); const win = b === mx && mx - mn > 70 && b > 120; d.data[i] = win ? 255 : 0; d.data[i + 1] = win ? 190 : 0; d.data[i + 2] = win ? 90 : 0; }
+  cx.putImageData(d, 0, 0); emis = new THREE.CanvasTexture(cv); emis.flipY = false; emis.colorSpace = THREE.SRGBColorSpace; emis.magFilter = THREE.NearestFilter;
+}
+if (tex) { tex.flipY = false; tex.colorSpace = THREE.SRGBColorSpace; tex.magFilter = THREE.NearestFilter; }
+for (const it of layout) {
+  const m = await load(it.m);
+  if (tex && !it.keepTex) m.traverse((o) => { if (o.isMesh && o.material && o.material.map) { o.material = o.material.clone(); o.material.map = tex; if (emis) { o.material.emissiveMap = emis; o.material.emissive = new THREE.Color(0xffffff); o.material.emissiveIntensity = 2.2; } o.material.needsUpdate = true; } }); m.position.set(it.x || 0, it.y || 0, it.z || 0); m.rotation.y = (it.r || 0) * Math.PI / 180; if (it.s) m.scale.setScalar(it.s); group.add(m);
+}
+if (night) group.traverse((o) => { if (o.isMesh && o.material && o.material.name && /window|glass/i.test(o.material.name)) { o.material = o.material.clone(); o.material.emissive = new THREE.Color(0xffc861); o.material.emissiveIntensity = 1.2; } });
+const box = new THREE.Box3().setFromObject(group); const ctr = box.getCenter(new THREE.Vector3()); const size = box.getSize(new THREE.Vector3());
+const zoom = +(q.get("zoom") || 1);
+const half = Math.max(size.x, size.z, size.y) * 0.62 / zoom;
+const cam = new THREE.OrthographicCamera(-half * W / H, half * W / H, half, -half, 0.1, 100);
+const ang = (+(q.get("yaw") || 45)) * Math.PI / 180, el = (+(q.get("pitch") || 32)) * Math.PI / 180;
+cam.position.set(ctr.x + 20 * Math.sin(ang) * Math.cos(el), ctr.y + 20 * Math.sin(el), ctr.z + 20 * Math.cos(ang) * Math.cos(el)); cam.lookAt(ctr);
+cam.position.y += +(q.get("lift") || 0); 
+renderer.render(scene, cam);
+window.__sizes = group.children.map((c) => { const b = new THREE.Box3().setFromObject(c), z = b.getSize(new THREE.Vector3()); return [c.type, +z.x.toFixed(2), +z.y.toFixed(2), +z.z.toFixed(2)]; });
+window.__done = renderer.domElement.toDataURL("image/png");
+window.__mats = [...new Set((() => { const a = []; group.traverse((o) => { if (o.isMesh) a.push(o.material.name); }); return a; })())];
+</script></body></html>
