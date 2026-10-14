@@ -165,7 +165,7 @@ export function batteryCard(o: { soc: number; socKnown?: boolean; watts: number;
   // a battery is there when it reports a SOC (even a real 0 %) or moves power
   const show = (known && (o.socKnown === true || (o.soc || 0) > 0.5)) || Math.abs(o.watts) > 15;
   const capKwh = o.capKwh && o.capKwh > 0 ? o.capKwh : null;
-  const floor = o.floorSoc ?? null;
+  const floor = soc != null ? o.floorSoc ?? null : null; // a floor means nothing next to an unknown SOC
   const eta = show && soc != null && capKwh != null && floor != null ? batteryEta({ soc, floor, capKwh, watts: o.watts, now: o.now }) : null;
   return { show, soc, floor, capKwh, eta };
 }

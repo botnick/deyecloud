@@ -109,7 +109,7 @@ describe("batteryCard (what the home battery card may claim)", () => {
   const base = { capKwh: 33, floorSoc: 20, now };
   it("unknown SOC (0 placeholder) while power flows: shown, but no %, floor or time", () => {
     const c = batteryCard({ ...base, soc: 0, socKnown: false, watts: 1500 });
-    expect(c.show).toBe(true); expect(c.soc).toBeNull(); expect(c.eta).toBeNull();
+    expect(c.show).toBe(true); expect(c.soc).toBeNull(); expect(c.eta).toBeNull(); expect(c.floor).toBeNull();
   });
   it("unknown SOC and idle: hidden", () => {
     expect(batteryCard({ ...base, soc: 0, socKnown: false, watts: 0 }).show).toBe(false);
