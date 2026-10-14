@@ -36,5 +36,8 @@
     "vite-plugin-pwa": "^0.21.0",
     "vitest": "^4.1.11",
     "wrangler": "^4.150.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

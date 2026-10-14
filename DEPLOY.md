@@ -11,7 +11,7 @@
 
 | สิ่งที่ต้องมี | เอาจากไหน | เช็คว่ามีแล้ว |
 |---|---|---|
-| **Node.js** ≥ 18 (มากับ `npm`) | <https://nodejs.org> (เลือก LTS) | `node -v` |
+| **Node.js** ≥ 22 (มากับ `npm`) | <https://nodejs.org> (เลือก LTS) | `node -v` |
 | **บัญชี Cloudflare** (ฟรี) | <https://dash.cloudflare.com/sign-up> | login ได้ |
 | **บัญชี Deye Cloud** + สิทธิ์ **Open API** | ดูหัวข้อถัดไป | มี App ID/Secret |
 
