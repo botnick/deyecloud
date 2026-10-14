@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dischargeSegments, batteryHealth, sohIdentity } from "../battery";
+import { dischargeSegments, batteryHealth, sohIdentity, batteryEta } from "../battery";
 
 // Synthetic pack: 20 kWh usable. A 6-hour discharge at 2 kW = 12 kWh should cost 60 % SOC.
 const T0 = Math.floor(1_790_000_000 / 86400) * 86400 - 3600; // 23:00Z = 06:00 Bangkok, so a 6 h stretch stays inside one BKK day
@@ -63,4 +63,43 @@ describe("sohIdentity — per-pack SOH only for a positively identified sole SN"
   it("sole known SN that is NOT the rated one → mismatch", () => expect(sohIdentity("A", ["B"])).toEqual({ ok: false, reason: "mismatch" }));
   it("several known SNs (even if old) → multi", () => expect(sohIdentity("A", ["A", "B"])).toEqual({ ok: false, reason: "multi" }));
   it("sole matching SN → ok", () => expect(sohIdentity("A", ["A", "A"])).toEqual({ ok: true }));
+});
+
+describe("floorSoc (learned discharge cut-off)", () => {
+  it("is the low percentile of daily minimums, not a single odd dip", () => {
+    const pts: { ts: number; p: number; soc: number }[] = [];
+    // 10 days, each bottoming out at 20 % except one that dips to 12 % and one stuck at 53 %
+    for (let d = 0; d < 10; d++) {
+      const floor = d === 3 ? 12 : d === 7 ? 53 : 20;
+      for (let i = 0; i < 288; i++) pts.push({ ts: T0 + d * 86400 + i * 300, p: i % 2 ? 500 : -500, soc: floor + Math.abs(144 - i) * 0.3 });
+    }
+    expect(batteryHealth(pts, null, 10)!.floorSoc).toBe(20);
+  });
+});
+
+describe("batteryEta", () => {
+  const now = 1_790_000_000;
+  it("discharging: usable above the floor ÷ current draw", () => {
+    const e = batteryEta({ soc: 60, floor: 20, capKwh: 30, watts: 2000, now });
+    expect(e).toMatchObject({ kind: "empty" });
+    if (e?.kind !== "empty") throw 0;
+    expect(e.kwhLeft).toBeCloseTo(12);
+    expect(e.hours).toBeCloseTo(6);
+    expect(e.at).toBe(now + 6 * 3600);
+  });
+  it("charging: time to 100 %", () => {
+    const e = batteryEta({ soc: 50, floor: 20, capKwh: 30, watts: -3000, now });
+    expect(e).toMatchObject({ kind: "full" });
+    if (e?.kind !== "full") throw 0;
+    expect(e.hours).toBeCloseTo(5);
+  });
+  it("at the floor, idle, already full, or unknown capacity", () => {
+    expect(batteryEta({ soc: 20, floor: 20, capKwh: 30, watts: 900, now })).toEqual({ kind: "floor" });
+    expect(batteryEta({ soc: 60, floor: 20, capKwh: 30, watts: 80, now })).toBeNull();
+    expect(batteryEta({ soc: 100, floor: 20, capKwh: 30, watts: -900, now })).toBeNull();
+    expect(batteryEta({ soc: 60, floor: 20, capKwh: 0, watts: 900, now })).toBeNull();
+  });
+  it("absurdly long horizons are not shown", () => {
+    expect(batteryEta({ soc: 90, floor: 20, capKwh: 30, watts: 160, now })).toBeNull(); // 131 h
+  });
 });

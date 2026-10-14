@@ -9,6 +9,7 @@ import { useForecastModel } from "../lib/useCapacity";
 import { InfoTip } from "./InfoTip";
 import { HouseScene } from "./HouseScene";
 import { ProductionRing } from "./ProductionRing";
+import { BatteryNow } from "./BatteryNow";
 
 function Skeleton() {
   return (
@@ -53,6 +54,9 @@ export function HomeView({ latest, weather, capacity, isPrimary = true, stationN
           </div>
         </button>
       )}
+
+      {/* the battery in words: what it's doing, why, and until when */}
+      {isPrimary && <><h2 className={h2Mid}>แบตเตอรี่ตอนนี้</h2><BatteryNow latest={latest} weather={weather} /></>}
 
       {/* today at a glance — one card, big numbers, every colour also has a word */}
       <h2 className={h2Mid}>วันนี้</h2>

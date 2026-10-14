@@ -20,6 +20,7 @@ export interface BatteryHealth {
   cycles: number | null;             // equivalent full cycles in the window
   dischargeKwh: number;              // total delivered in the window
   dod: { avg: number | null; minSoc: number | null; lowDays: number }; // daily SOC swing / floor / days below 20 %
+  floorSoc: number | null;           // where the inverter normally stops discharging (learned, see below)
   trend: DayEstimate[];              // one point per day with a usable stretch
   firstCapKwh: number | null;        // median of the first RECENT_DAYS estimates (for "since start")
   coverage: { samples: number; withSoc: number; unknownSoc: number }; // how much of the window carried a usable SOC reading
@@ -28,6 +29,9 @@ export const SEG_MIN_W = 100;
 export const SEG_MIN_DSOC = 15;
 export const SEG_MAX_GAP_S = 15 * 60;
 export const RECENT_DAYS = 10;
+export const FLOOR_MIN_SAMPLES = 100; // a day needs most of its 288 readings to say where it bottomed out
+export const FLOOR_MIN_DAYS = 5;
+export const FLOOR_PCTL = 0.1;
 // A BMS cannot move SOC more than this per 5-min sample (a 16 kWh pack at 2 kW is
 // ~1 %/5 min). A bigger step is a data glitch — typically a missing reading that
 // older ingestion stored as 0 — so the sample is treated as UNKNOWN, not as a
@@ -95,13 +99,18 @@ export function batteryHealth(raw: SamplePt[], ratedKwh: number | null, days: nu
   for (const p of withSoc) (socByDay.get(bkkDay(p.ts)) || socByDay.set(bkkDay(p.ts), []).get(bkkDay(p.ts))!).push(p.soc as number);
   const swings: number[] = []; let minSoc: number | null = null, lowDays = 0;
   for (const arr of socByDay.values()) { const mx = Math.max(...arr), mn = Math.min(...arr); swings.push(mx - mn); minSoc = minSoc == null ? mn : Math.min(minSoc, mn); if (mn < 20) lowDays++; }
+  // Learned discharge floor: the inverter's cut-off SOC isn't exposed by the API, but the
+  // pack bottoms out there night after night — so take a low percentile (not the min, one
+  // odd dip shouldn't move it) of the daily minimum over days with enough readings.
+  const mins = [...socByDay.values()].filter((a) => a.length >= FLOOR_MIN_SAMPLES).map((a) => Math.min(...a)).sort((a, b) => a - b);
+  const floorSoc = mins.length >= FLOOR_MIN_DAYS ? mins[Math.floor(mins.length * FLOOR_PCTL)] : null;
   const basis = ratedKwh || capKwh;
   return {
     days, ratedKwh, capKwh, soh: ratedKwh && capKwh ? Math.round((capKwh / ratedKwh) * 100) : null,
     cycles: basis ? Math.round((dischargeKwh / basis) * 10) / 10 : null,
     dischargeKwh: Math.round(dischargeKwh * 10) / 10,
     dod: { avg: swings.length ? Math.round(swings.reduce((a, b) => a + b, 0) / swings.length) : null, minSoc, lowDays },
-    trend, firstCapKwh,
+    floorSoc, trend, firstCapKwh,
     coverage: { samples: pts.length, withSoc: withSoc.length, unknownSoc: pts.length - withSoc.length },
   };
 }
@@ -118,4 +127,29 @@ export function sohIdentity(ratedSn: string | null | undefined, knownSns: string
   if (known.length === 0) return { ok: false, reason: "unknown" };
   if (known.length > 1) return { ok: false, reason: "multi" };
   return known[0] === String(ratedSn) ? { ok: true } : { ok: false, reason: "mismatch" };
+}
+
+// "How long will the battery last / when will it be full" at the current rate.
+// usable = (soc − floor) × kWh-per-100 % — the same measured capacity the health card
+// shows, never a nameplate guess. Below MIN_W the battery is idle and no time is given.
+export const ETA_MIN_W = 150;
+export const ETA_MAX_H = 36;
+export type BatteryEta =
+  | { kind: "empty"; hours: number; at: number; kwhLeft: number }
+  | { kind: "full"; hours: number; at: number }
+  | { kind: "floor" };
+export function batteryEta(o: { soc: number; floor: number; capKwh: number; watts: number; now: number }): BatteryEta | null {
+  const { soc, floor, capKwh, watts, now } = o;
+  if (!(capKwh > 0) || !Number.isFinite(soc) || !Number.isFinite(watts)) return null;
+  if (watts > ETA_MIN_W) {
+    if (soc <= floor) return { kind: "floor" };
+    const kwhLeft = ((soc - floor) / 100) * capKwh;
+    const hours = kwhLeft / (watts / 1000);
+    return hours > ETA_MAX_H ? null : { kind: "empty", hours, at: now + hours * 3600, kwhLeft };
+  }
+  if (watts < -ETA_MIN_W && soc < 99) {
+    const hours = (((100 - soc) / 100) * capKwh) / (-watts / 1000);
+    return hours > ETA_MAX_H ? null : { kind: "full", hours, at: now + hours * 3600 };
+  }
+  return null;
 }
