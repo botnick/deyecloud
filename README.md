@@ -31,7 +31,7 @@
   <a href="./DEPLOY.md">คู่มือ deploy</a>
 </p>
 
-<p align="center"><img src="docs/shots/banner.png" alt="ภาพหน้าจอแอปทุกหน้า" width="880"></p>
+<p align="center"><img src="docs/shots/banner.png?v=20261014" alt="ภาพหน้าจอแอปทุกหน้า" width="880"></p>
 
 ---
 
@@ -56,10 +56,10 @@
 
 <table>
   <tr>
-    <td align="center" width="25%"><img src="docs/shots/home.png" alt="หน้าหลัก" width="200"><br><b>หน้าหลัก</b><br><sub>สถานะ + ผังพลังงานสด</sub></td>
-    <td align="center" width="25%"><img src="docs/shots/today.png" alt="วันนี้" width="200"><br><b>วันนี้</b><br><sub>ผลิต / ใช้ / ซื้อ / ไฟย้อน</sub></td>
-    <td align="center" width="25%"><img src="docs/shots/weather.png" alt="อากาศ" width="200"><br><b>อากาศ</b><br><sub>พยากรณ์ + ช่วงแดดดีสุด</sub></td>
-    <td align="center" width="25%"><img src="docs/shots/history.png" alt="ย้อนหลัง" width="200"><br><b>ย้อนหลัง</b><br><sub>วัน / เดือน / ปี / ตลอด</sub></td>
+    <td align="center" width="25%"><img src="docs/shots/home.png?v=20261014" alt="หน้าหลัก" width="200"><br><b>หน้าหลัก</b><br><sub>สถานะ + ผังพลังงานสด</sub></td>
+    <td align="center" width="25%"><img src="docs/shots/today.png?v=20261014" alt="วันนี้" width="200"><br><b>วันนี้</b><br><sub>ผลิต / ใช้ / ซื้อ / ไฟย้อน</sub></td>
+    <td align="center" width="25%"><img src="docs/shots/weather.png?v=20261014" alt="อากาศ" width="200"><br><b>อากาศ</b><br><sub>พยากรณ์ + ช่วงแดดดีสุด</sub></td>
+    <td align="center" width="25%"><img src="docs/shots/history.png?v=20261014" alt="ย้อนหลัง" width="200"><br><b>ย้อนหลัง</b><br><sub>วัน / เดือน / ปี / ตลอด</sub></td>
   </tr>
 </table>
 
@@ -67,17 +67,17 @@
 
 <table>
   <tr>
-    <td align="center"><img src="docs/shots/hero-day.png" alt="กลางวัน" width="240"><br><sub>กลางวัน · ผลิตเต็ม + ขายไฟ</sub></td>
-    <td align="center"><img src="docs/shots/hero-golden.png" alt="แดดเย็น" width="240"><br><sub>แดดเย็น · ชาร์จแบต</sub></td>
-    <td align="center"><img src="docs/shots/hero-night.png" alt="กลางคืน" width="240"><br><sub>กลางคืน · ไฟในบ้านเปิด แบตจ่าย</sub></td>
+    <td align="center"><img src="docs/shots/hero-day.png?v=20261014" alt="กลางวัน" width="240"><br><sub>กลางวัน · ผลิตเต็ม + ขายไฟ</sub></td>
+    <td align="center"><img src="docs/shots/hero-golden.png?v=20261014" alt="แดดเย็น" width="240"><br><sub>แดดเย็น · ชาร์จแบต</sub></td>
+    <td align="center"><img src="docs/shots/hero-night.png?v=20261014" alt="กลางคืน" width="240"><br><sub>กลางคืน · ไฟในบ้านเปิด แบตจ่าย</sub></td>
   </tr>
   <tr>
-    <td align="center" colspan="2"><img src="docs/shots/card-daynight.png" alt="ใช้ไฟกลางวันกับกลางคืน" width="300"><br><sub>ใช้ไฟกลางวัน กับ กลางคืน (เที่ยงถึงเที่ยง)</sub></td>
-    <td align="center"><img src="docs/shots/card-battery-now.png" alt="แบตเตอรี่ตอนนี้" width="240"><br><sub>แบตเตอรี่ตอนนี้ · ใช้ได้ถึงกี่โมง</sub></td>
+    <td align="center" colspan="2"><img src="docs/shots/card-daynight.png?v=20261014" alt="ใช้ไฟกลางวันกับกลางคืน" width="300"><br><sub>ใช้ไฟกลางวัน กับ กลางคืน (เที่ยงถึงเที่ยง)</sub></td>
+    <td align="center"><img src="docs/shots/card-battery-now.png?v=20261014" alt="แบตเตอรี่ตอนนี้" width="240"><br><sub>แบตเตอรี่ตอนนี้ · ใช้ได้ถึงกี่โมง</sub></td>
   </tr>
   <tr>
-    <td align="center" colspan="2"><img src="docs/shots/card-year.png" alt="ภาพรวมทั้งปี" width="300"><br><sub>ภาพรวมทั้งปี + คาดผลิตทั้งปี</sub></td>
-    <td align="center"><img src="docs/shots/card-battery.png" alt="สุขภาพแบตเตอรี่" width="240"><br><sub>สุขภาพแบตเตอรี่ (วัดจริง)</sub></td>
+    <td align="center" colspan="2"><img src="docs/shots/card-year.png?v=20261014" alt="ภาพรวมทั้งปี" width="300"><br><sub>ภาพรวมทั้งปี + คาดผลิตทั้งปี</sub></td>
+    <td align="center"><img src="docs/shots/card-battery.png?v=20261014" alt="สุขภาพแบตเตอรี่" width="240"><br><sub>สุขภาพแบตเตอรี่ (วัดจริง)</sub></td>
   </tr>
 </table>
 
