@@ -148,12 +148,15 @@ src/
   lib/      api.ts (ApiError + ?station=) format.ts weather.ts analysis.ts device.ts
             diagnostics.ts (สุขภาพเครื่อง — config-or-silent) forecast.ts (PSH จาก sun) useCapacity.ts (kWp หรือ peakPower)
             economics.ts (savings signed + savingsLabel, co2Of(settings)) settings.ts (rate/sellRate/systemCost/co2Factor)
-            calib.ts (kWp จากวันแดดดี) skylearn.ts (ค่าเมฆเรียนรู้ + accuracy) battery.ts (SOH/รอบ/DoD) season.ts (ปี/ฤดู/คาดทั้งปี) peak.ts
+            calib.ts (kWp จากวันแดดดี) skylearn.ts (ค่าเมฆเรียนรู้ + accuracy) battery.ts (SOH/รอบ/DoD + จุดตัดที่เรียนรู้ + batteryCard/ETA) season.ts (ปี/ฤดู/คาดทั้งปี) peak.ts
             config.ts (ค่าเริ่มต้น) ui.ts (glass/plate tokens) icons.tsx wxicon.tsx (Meteocons) haptics.ts scenarios.ts brand.ts
   components/ Splash PinGate Header BottomNav StationSwitcher PullToRefresh DevPanel InstallPrompt
               HomeView TodayView WeatherView HistoryView (compare + CSV) LifetimeView DeviceView (alarm log + DeviceTrends)
+              HouseScene (บ้าน 3D) BatteryNow (แบตตอนนี้ + ใช้ได้ถึงกี่โมง) WeatherHero
               FlowDiagram ProductionRing PowerProfile SunPath SelfConsumption
               AnalysisCard InsightList Tile AnimatedNumber Chart
+  three/    house.ts (โมเดลบ้านจาก primitive + ตำแหน่งอุปกรณ์ + เส้นทางสายไฟ) view.ts (renderer, OrbitControls, จุดไฟวิ่ง, หยุดเมื่อไม่เห็น)
+            — โหลดแบบ lazy chunk แยก (~140 KB gz); ภาพนิ่ง public/hero/house-*.webp จาก design/house/scene.html แสดงระหว่างโหลด/ไม่มี WebGL
   worker/
     index.ts  Hono app + /api/* + cron (poll, self-heal, telemetry, cache warm, alerts) + weather (+UV) + D1 schema/prune + backfill + export
     deye.ts   Deye client (Open API only) + station discovery + token lifecycle/hold + memo + alertList (Env config)
@@ -185,7 +188,7 @@ table สร้างเองตอน request แรก. cron เริ่ม�
 - ตัวเลขใหญ่ ตัวอักษร ≥14px คอนทราสต์สูง ภาษาไทยง่าย ปุ่มหลักแตะง่าย ไม่มี emoji
 - **การ์ดคำแนะนำ** (`AnalysisCard`/`InsightList`) วิเคราะห์จากเลขจริงตามสมการสมดุลพลังงาน (`src/lib/analysis.ts`) — ปรับตามชนิดระบบ on/hybrid/off-grid, ไม่ใช้ AI/สุ่ม
 
-**ภาพ/แอนิเมชัน:** hero "Card_Home" = บ้าน solar **วาดด้วย inline SVG เอง** (ไม่ใช้รูป raster) + แดดหมุน/บ้านลอย; weather = หน้า immersive ม่วง night-sky + ดาว + Meteocons; energy FlowDiagram เส้นวิ่ง. ทุก animation เคารพ `prefers-reduced-motion`.
+**ภาพ/แอนิเมชัน:** hero หน้าหลัก = **บ้าน 3D (three.js) สร้างจาก primitive ในโค้ด** ลากหมุน/ก้มเงยได้ ไม่หมุนเอง, จุดไฟวิ่งตามสายจริงตามทิศพลังงาน, ป้ายค่าเกาะอุปกรณ์, แสงกลางวัน/ค่ำตามเวลาจริงของบ้าน; weather = หน้า immersive ม่วง night-sky + ดาว + Meteocons; energy FlowDiagram เส้นวิ่ง. ทุก animation เคารพ `prefers-reduced-motion`.
 
 ---
 

@@ -309,7 +309,7 @@ textarea {
 .hscene .hs-chip .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 3px rgba(255, 255, 255, .7); }
 .hscene .hs-chip .txt { display: flex; flex-direction: column; line-height: 1.1; }
 .hscene .hs-chip .lb { font-size: 11.5px; font-weight: 600; color: #5b6170; }
-.hscene .hs-chip .vl { font-size: 16px; font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; }
+.hscene .hs-chip .vl { white-space: nowrap; font-size: 16px; font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; }
 .hscene .hs-chip .soc { position: relative; width: 34px; height: 16px; border-radius: 5px; background: rgba(24, 166, 115, .15); overflow: hidden; margin-left: 2px; }
 .hscene .hs-chip .soc i { position: absolute; inset: 0 auto 0 0; background: #18a673; border-radius: 4px; }
 .hscene .hs-chip .soc b { position: relative; display: block; text-align: center; font-size: 10px; font-weight: 800; color: #063; line-height: 16px; }
@@ -335,7 +335,7 @@ textarea {
 .hscene .hs-pin .hs-chip .vl { font-size: 15px; }
 .hscene .hs-pin::after { content: ""; position: absolute; left: 50%; bottom: -14px; width: 1.5px; height: 14px; background: rgba(255, 255, 255, .95); transform: translateX(-50%); }
 .hscene .hs-pin::before { content: ""; position: absolute; left: 50%; bottom: -17px; width: 6px; height: 6px; border-radius: 50%; background: #fff; transform: translateX(-50%); box-shadow: 0 0 0 2px rgba(15, 23, 42, .15); }
-.hscene .hs-hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); font-size: 12px; font-weight: 700; color: #334155; background: rgba(255, 255, 255, .7); padding: 6px 12px; border-radius: 999px; min-height: 32px; }
+.hscene .hs-hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); white-space: nowrap; font-size: 12px; font-weight: 700; color: #334155; background: rgba(255, 255, 255, .7); padding: 6px 12px; border-radius: 999px; min-height: 32px; }
 .hscene.dim .hs-hint { color: #e2e8f0; background: rgba(15, 23, 42, .5); }
 
 /* iPhone-style passcode screen */

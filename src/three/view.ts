@@ -97,6 +97,7 @@ export function createHouseView(host: HTMLElement, opts: { night: boolean; reduc
     renderer.setSize(w, h, false); cam.aspect = w / h;
     // fit the plot: narrower screens pull back a little
     cam.zoom = Math.min(1, w / h) * 0.84; cam.updateProjectionMatrix();
+    renderer.render(scene, cam); // setSize clears the canvas; repaint even while the loop is paused
   };
   const ro = new ResizeObserver(resize); ro.observe(host);
 

@@ -121,7 +121,7 @@ export function HouseScene({ latest, weather, title, force }: { latest: Latest; 
       {chip("home", "บ้านใช้", fmtPower(useW))}
       {hasBatt && chip("batt", discharging ? "แบตจ่าย" : charging ? "แบตชาร์จ" : "แบต", fmtPower(Math.abs(bp)),
         latest.socKnown !== false ? <span className="soc"><i style={{ width: `${soc}%` }} /><b>{soc}%</b></span> : undefined)}
-      {live3d && <button type="button" className="hs-hint" onClick={() => view.current?.reset()}>ลากเพื่อหมุน · แตะเพื่อกลับมุมเดิม</button>}
+      {live3d && <button type="button" className="hs-hint" onClick={() => view.current?.reset()}>กลับมุมเดิม</button>}
     </div>
   );
 }

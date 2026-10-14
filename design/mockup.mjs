@@ -22,7 +22,7 @@ const browser = await puppeteer.launch({
   executablePath: CHROME,
   headless: true,
   protocolTimeout: 120000,
-  args: ["--no-sandbox", "--hide-scrollbars", "--force-color-profile=srgb"],
+  args: ["--no-sandbox", "--hide-scrollbars", "--force-color-profile=srgb", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"], // WebGL for the 3D house
 });
 
 const app = await browser.newPage();
@@ -59,11 +59,13 @@ try {
   console.log("masking", MASK.length, "patterns");
 } catch (e) { console.log("dyn-mask skipped", String(e)); }
 async function capture(path, { hideDev = false } = {}) {
+  await app.bringToFront(); // a background tab is document.hidden → the 3D view pauses
   await app.goto(BASE + path, { waitUntil: "networkidle2" });
   // wait past the 1.7s splash until real content (beyond the header) has rendered
   try {
     await app.waitForFunction(() => document.body && document.body.innerText.replace(/\s+/g, "").length > 180, { timeout: 14000 });
   } catch {}
+  if (path === "/" || path.startsWith("/?")) { try { await app.waitForSelector(".hs-3d canvas", { timeout: 15000 }); } catch {} await sleep(2500); } // 3D house
   await sleep(1800); // count-up numbers + chart/flow animations settle
   if (hideDev) {
     await app.addStyleTag({ content: ".fixed.z-50.rounded-full{display:none!important}" });
@@ -95,6 +97,7 @@ const FRAME_HTML = (b64) => `<!doctype html><html><head><meta charset="utf8"><st
 </div></div></body></html>`;
 
 async function makeMock(buf, name) {
+  await frame.bringToFront();
   await frame.setContent(FRAME_HTML(buf.toString("base64")), { waitUntil: "load" });
   const el = await frame.$(".stage");
   const out = `${OUT}/${name}.png`;
@@ -119,8 +122,9 @@ async function captureHero(name, query) {
   await app.setViewport({ width: 393, height: 900, deviceScaleFactor: 2 });
   await app.goto(`${BASE}/?${query}`, { waitUntil: "networkidle2" });
   try { await app.waitForSelector(".hscene", { timeout: 14000 }); } catch {}
+  try { await app.waitForSelector(".hs-3d canvas", { timeout: 15000 }); } catch {} // the live 3D view (poster otherwise)
   await app.evaluate(() => window.scrollTo(0, 0));
-  await sleep(1200);
+  await sleep(3000);
   await app.evaluate((pairs) => {
     const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); const ns = [];
     while (w.nextNode()) ns.push(w.currentNode);
@@ -136,13 +140,13 @@ await captureHero("night", "sim=discharge&sky=night");
 // Feature cards (cropped to the card): find the card by its heading text. `prep` runs in the page
 // first (e.g. switch the history range to "ปี"). Cards render nothing until they have data, so a
 // missing card is skipped rather than shot empty.
-async function captureCard(name, path, heading, prep) {
+async function captureCard(name, path, heading, prep, tag = "span") {
   await app.bringToFront();
   await app.setViewport({ width: 393, height: 2400, deviceScaleFactor: 2 });
   await app.goto(BASE + path, { waitUntil: "networkidle2" });
   try { await app.waitForFunction(() => document.body && document.body.innerText.replace(/\s+/g, "").length > 180, { timeout: 14000 }); } catch {}
   if (prep) { await app.evaluate(prep); await sleep(2500); }
-  try { await app.waitForFunction((h) => [...document.querySelectorAll("span")].some((e) => e.textContent.trim() === h), { timeout: 15000 }, heading); }
+  try { await app.waitForFunction((h, t) => [...document.querySelectorAll(t)].some((e) => e.textContent.trim() === h), { timeout: 15000 }, heading, tag); }
   catch { console.log("card missing", name); return; }
   await sleep(1800);
   await app.evaluate((pairs) => {
@@ -150,18 +154,21 @@ async function captureCard(name, path, heading, prep) {
     while (w.nextNode()) ns.push(w.currentNode);
     for (const n of ns) for (const [a, b] of pairs) if (n.nodeValue.includes(a)) n.nodeValue = n.nodeValue.split(a).join(b);
   }, MASK);
-  const box = await app.evaluate((h) => {
-    const t = [...document.querySelectorAll("span")].find((e) => e.textContent.trim() === h);
-    let c = t; while (c && !(c.className && String(c.className).includes("mt-3"))) c = c.parentElement;
+  const box = await app.evaluate((h, tag) => {
+    const t = [...document.querySelectorAll(tag)].find((e) => e.textContent.trim() === h);
+    // a section heading (h2) labels the card right after it; a span sits inside its card
+    let c = tag === "h2" ? t?.nextElementSibling : t; while (tag !== "h2" && c && !(c.className && String(c.className).includes("mt-3"))) c = c.parentElement;
     if (!c) return null; c.scrollIntoView({ block: "center" });
     const r = c.getBoundingClientRect(); return { x: r.left - 6, y: r.top - 6, width: r.width + 12, height: r.height + 12 };
-  }, heading);
+  }, heading, tag);
   if (!box) { console.log("card box missing", name); return; }
   await sleep(300);
   await app.screenshot({ path: `${OUT}/card-${name}.png`, clip: { x: Math.max(0, box.x), y: Math.max(0, box.y), width: box.width, height: box.height } });
   console.log("card", name);
 }
 await captureCard("battery", "/device", "สุขภาพแบตเตอรี่");
+await captureCard("battery-now", "/", "แบตเตอรี่ตอนนี้", null, "h2");
+await captureCard("daynight", "/history", "ใช้ไฟกลางวัน กับ กลางคืน", () => { const b = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === "เที่ยงถึงเที่ยง"); if (b) b.click(); });
 await captureCard("year", "/history", "ภาพรวมทั้งปี", () => { const b = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === "ปี"); if (b) b.click(); });
 
 await browser.close();
