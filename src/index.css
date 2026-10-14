@@ -296,14 +296,14 @@ textarea {
 .hscene .hs-stars { position: absolute; inset: 0 0 45% 0; opacity: .8;
   background-image: radial-gradient(1.2px 1.2px at 12% 18%, #fff, transparent), radial-gradient(1px 1px at 28% 8%, #fff, transparent), radial-gradient(1.4px 1.4px at 46% 22%, #fff, transparent),
     radial-gradient(1px 1px at 63% 12%, #fff, transparent), radial-gradient(1.3px 1.3px at 78% 26%, #fff, transparent), radial-gradient(1px 1px at 90% 10%, #fff, transparent), radial-gradient(1px 1px at 36% 34%, #fff, transparent); }
-.hscene .hs-top { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 16px 16px 0; }
+.hscene .hs-top { position: absolute; z-index: 2; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 16px 16px 0; }
 .hscene .hs-name { font-size: 19px; font-weight: 800; color: #0f172a; letter-spacing: -.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hscene .hs-wx { font-size: 13px; font-weight: 600; color: #334155; margin-top: 1px; }
 .hscene.dim .hs-name { color: #f8fafc; } .hscene.dim .hs-wx { color: #cbd5e1; }
 .hscene .hs-live { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 800; color: #0f172a; flex-shrink: 0;
   background: rgba(255, 255, 255, .78); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 2px 10px rgba(0, 0, 0, .08); }
 .hscene .hs-live .d { width: 7px; height: 7px; border-radius: 50%; background: #18a673; animation: sh-pulse 1.6s infinite; }
-.hscene .hs-chip { position: absolute; display: flex; align-items: center; gap: 7px; padding: 7px 11px 7px 9px; border-radius: 16px; min-width: 96px;
+.hscene .hs-chip { position: relative; display: flex; align-items: center; gap: 7px; padding: 7px 11px 7px 9px; border-radius: 16px; min-width: 96px;
   background: rgba(255, 255, 255, .8); -webkit-backdrop-filter: blur(16px) saturate(170%); backdrop-filter: blur(16px) saturate(170%);
   box-shadow: 0 6px 18px -8px rgba(15, 23, 42, .35), inset 0 0 0 .5px rgba(255, 255, 255, .8); }
 .hscene .hs-chip .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 3px rgba(255, 255, 255, .7); }
@@ -325,9 +325,18 @@ textarea {
 .ios-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 16px; text-align: left; transition: background .15s ease; }
 .ios-row:active { background: rgba(0, 0, 0, .05); }
 .ios-row .ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: #fff; flex-shrink: 0; }
-.hscene .hs-house { position: absolute; left: 50%; bottom: 6%; width: 84%; transform: translateX(-50%); pointer-events: none; user-select: none;
-  filter: drop-shadow(0 18px 18px rgba(20, 40, 30, .22)); }
-.hscene.dim .hs-house { filter: drop-shadow(0 18px 18px rgba(0, 0, 0, .35)); }
+.hscene .hs-poster { position: absolute; left: 0; top: 6%; width: 100%; pointer-events: none; user-select: none; }
+.hscene .hs-3d { position: absolute; inset: 0; cursor: grab; }
+.hscene .hs-3d:active { cursor: grabbing; }
+/* a label pinned to its device: the chip floats above a short stem ending on the point */
+.hscene .hs-pin { position: absolute; z-index: 1; transform: translate(-50%, calc(-100% - 14px)); pointer-events: none; transition: opacity .25s ease; will-change: left, top; }
+.hscene .hs-pin .hs-chip { padding: 5px 9px 5px 8px; min-width: 0; border-radius: 13px; gap: 6px; }
+.hscene .hs-pin .hs-chip .lb { font-size: 11px; }
+.hscene .hs-pin .hs-chip .vl { font-size: 15px; }
+.hscene .hs-pin::after { content: ""; position: absolute; left: 50%; bottom: -14px; width: 1.5px; height: 14px; background: rgba(255, 255, 255, .95); transform: translateX(-50%); }
+.hscene .hs-pin::before { content: ""; position: absolute; left: 50%; bottom: -17px; width: 6px; height: 6px; border-radius: 50%; background: #fff; transform: translateX(-50%); box-shadow: 0 0 0 2px rgba(15, 23, 42, .15); }
+.hscene .hs-hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); font-size: 12px; font-weight: 700; color: #334155; background: rgba(255, 255, 255, .7); padding: 4px 10px; border-radius: 999px; pointer-events: none; }
+.hscene.dim .hs-hint { color: #e2e8f0; background: rgba(15, 23, 42, .5); }
 
 /* iPhone-style passcode screen */
 .pin-screen { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center;

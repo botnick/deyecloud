@@ -191,14 +191,14 @@ npm run dev                       # → http://localhost:5174  (มือถื�
 
 **สีพลังงาน (เหมือนกันทั้งแอป):** โซลาร์ เหลือง `#f5a623` · บ้าน น้ำเงิน `#0d4add` · กริด ม่วง `#8b5cf6` · แบต เขียว `#18a673`
 
-**เพื่อผู้สูงอายุ:** เมนู 4 ปุ่ม · ตัวอักษร ≥14px ตัวเลขใหญ่ · เคารพ `prefers-reduced-motion` · ไอคอนเส้น ไม่ใช้ emoji ในแอป · บ้าน 3D จาก Kenney City Kit (CC0) เรนเดอร์กลางวัน/กลางคืน
+**เพื่อผู้สูงอายุ:** เมนู 4 ปุ่ม · ตัวอักษร ≥14px ตัวเลขใหญ่ · เคารพ `prefers-reduced-motion` · ไอคอนเส้น ไม่ใช้ emoji ในแอป · บ้าน 3D หมุนได้ (three.js) เส้นไฟวิ่งตามทิศจริง กลางวัน/กลางคืน
 
 </details>
 
 ---
 
 <p align="center">
-  สร้างด้วย ❤️ บน <b>Cloudflare Workers</b> · ภาพบ้าน 3D: <a href="https://kenney.nl/assets/city-kit-suburban">Kenney City Kit</a> (CC0) ·
+  สร้างด้วย ❤️ บน <b>Cloudflare Workers</b> ·
   <a href="./ARCHITECTURE.md">ARCHITECTURE.md</a> ·
   <a href="./DEPLOY.md">DEPLOY.md</a>
 </p>

@@ -1,0 +1,141 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"../../node_modules/three/build/three.module.js","three/addons/":"../../node_modules/three/examples/jsm/"}}</script></head>
+<body><script type="module">
+// Home hero house — a clean, white, architectural-model style solar home (no external
+// assets): flat-roofed two-volume house, tilted PV array, wall battery + inverter under
+// the carport, meter box, utility pole. Rendered offline to the static posters public/hero/house-{day,night}.webp
+// (shown until the live 3D view in src/three loads — keep the two models in step);
+// the projected screen position of each device is exported so the app's leader lines land on it.
+import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+const q = new URLSearchParams(location.search);
+const W = +(q.get("w") || 1024), H = +(q.get("h") || 1024);
+const night = q.get("mode") === "night";
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W, H);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.VSMShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = night ? 0.9 : 1.0;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+
+// light: soft sky fill + one warm sun, long soft shadows
+scene.add(new THREE.HemisphereLight(night ? 0x5a6a9a : 0xf4f8ff, night ? 0x141a28 : 0xd9dccf, night ? 0.55 : 1.9));
+const sun = new THREE.DirectionalLight(night ? 0x8fa2e0 : 0xfff3e0, night ? 0.35 : 2.6);
+sun.position.set(-7, 12, 6); sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 40 }); sun.shadow.radius = 6; sun.shadow.blurSamples = 16; sun.shadow.bias = -0.0004;
+scene.add(sun);
+
+const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, metalness: 0, ...o });
+const white = M(0xf7f7f5), offwhite = M(0xeceae5), grey = M(0xc9ccd1), dark = M(0x2b2f36, { roughness: 0.5 });
+const wood = M(0xb88a5a, { roughness: 0.7 });
+const glass = night ? M(0xffd28a, { emissive: 0xffb24d, emissiveIntensity: 1.25, roughness: 0.3 }) : M(0x6f8fa8, { roughness: 0.08, metalness: 0.35 });
+const frame = M(0x3a3f47, { roughness: 0.4 });
+const box = (w, h, d, m, x, y, z, r = 0.02) => {
+  const g = r > 0 ? new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w / 2, h / 2, d / 2)) : new THREE.BoxGeometry(w, h, d);
+  const o = new THREE.Mesh(g, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; scene.add(o); return o;
+};
+
+// ground slab + lawn + path
+box(11, 0.3, 9, M(0xe9e7e2), 0, -0.15, 0, 0.12);
+box(10.4, 0.06, 8.4, M(0xa8c98a, { roughness: 1 }), 0, 0.03, 0, 0.03);
+box(2.6, 0.07, 3.4, M(0xd8d6d0), 1.3, 0.04, 2.6, 0.02);            // driveway
+box(0.9, 0.07, 1.6, M(0xd8d6d0), -1.2, 0.04, 3.4, 0.02);           // front path
+
+// main volume (two storeys) + parapet
+const HX = -1.3, HZ = -0.6;
+box(4.6, 3.2, 3.8, white, HX, 1.6, HZ, 0.05);
+box(4.8, 0.18, 4.0, offwhite, HX, 3.29, HZ, 0.04);
+// garage / carport volume (one storey, roof as canopy)
+box(2.9, 0.16, 2.0, offwhite, 2.3, 2.1, HZ - 0.85, 0.04);
+box(0.14, 2.05, 0.14, white, 3.65, 1.02, HZ + 0.05, 0.03);
+box(0.14, 2.05, 0.14, white, 3.65, 1.02, HZ - 1.75, 0.03);
+box(2.9, 2.05, 0.2, white, 2.3, 1.02, HZ - 1.75, 0.03);             // back wall of carport
+
+// windows (front = +z, side = +x of main volume)
+const win = (w, h, x, y, z, side = false) => {
+  if (side) { box(0.06, h + 0.1, w + 0.1, frame, x, y, z, 0.01); box(0.07, h, w, glass, x + 0.01, y, z, 0.005); }
+  else { box(w + 0.1, h + 0.1, 0.06, frame, x, y, z, 0.01); box(w, h, 0.07, glass, x, y, z + 0.01, 0.005); }
+};
+const FZ = HZ + 1.9;
+win(2.2, 1.9, HX - 0.9, 1.05, FZ);        // living room glazing
+win(1.0, 2.1, HX + 1.3, 1.1, FZ);         // entrance (door glass)
+win(2.6, 0.62, HX - 0.4, 2.62, FZ);       // upstairs ribbon window
+win(1.4, 0.9, HX + 2.3, 2.55, HZ + 0.6, true);
+box(1.0, 0.06, 0.6, wood, HX + 1.3, 0.1, FZ + 0.35, 0.01);   // doorstep
+// timber slats beside the door
+for (let i = 0; i < 6; i++) box(0.05, 2.0, 0.06, wood, HX + 0.45 + i * 0.09, 1.1, FZ + 0.02, 0.01);
+
+// solar array on the main roof: 2 × 4 panels, tilted south, on rails
+const pvTex = (() => {
+  const c = document.createElement("canvas"); c.width = 256; c.height = 384; const x = c.getContext("2d");
+  const g = x.createLinearGradient(0, 0, 256, 384); g.addColorStop(0, "#22385f"); g.addColorStop(1, "#142440");
+  x.fillStyle = g; x.fillRect(0, 0, 256, 384);
+  x.strokeStyle = "rgba(190,210,240,.35)"; x.lineWidth = 2;
+  for (let i = 1; i < 6; i++) { x.beginPath(); x.moveTo(i * 256 / 6, 0); x.lineTo(i * 256 / 6, 384); x.stroke(); }
+  for (let j = 1; j < 10; j++) { x.beginPath(); x.moveTo(0, j * 384 / 10); x.lineTo(256, j * 384 / 10); x.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+})();
+const pvMat = new THREE.MeshStandardMaterial({ map: pvTex, roughness: 0.25, metalness: 0.4 });
+const pvGroup = new THREE.Group(); scene.add(pvGroup);
+const tilt = 0.26;
+for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) {
+  const p = new THREE.Group();
+  const fr = new THREE.Mesh(new RoundedBoxGeometry(0.98, 0.05, 1.5, 2, 0.015), M(0xc7ccd3, { metalness: 0.6, roughness: 0.35 }));
+  const cell = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 1.44), pvMat); cell.rotation.x = -Math.PI / 2; cell.position.y = 0.027;
+  fr.castShadow = cell.castShadow = true; p.add(fr, cell);
+  p.position.set(HX - 1.6 + c * 1.04, 3.62 + r * 0.0, HZ - 0.95 + r * 1.75); p.rotation.x = tilt; pvGroup.add(p);
+  for (const dz of [-0.6, 0.6]) box(0.04, 0.25 + (dz < 0 ? 0.15 : -0.02), 0.04, grey, p.position.x, 3.45 + (dz < 0 ? 0.08 : 0), p.position.z + dz * 0.95, 0.005);
+}
+
+// battery stack + inverter on the main volume's side wall, sheltered by the carport (face +x)
+const SX = HX + 2.3 + 0.12;
+const BZ = HZ + 1.05, IZ = HZ + 0.4;
+const batt = box(0.24, 1.2, 0.62, M(0xfafafa, { roughness: 0.5 }), SX, 0.72, BZ, 0.05);
+box(0.01, 0.5, 0.04, M(0x18a673, { emissive: 0x18a673, emissiveIntensity: night ? 2 : 0.6 }), SX + 0.125, 0.95, BZ - 0.22, 0.004);
+for (let i = 0; i < 3; i++) box(0.01, 0.008, 0.56, grey, SX + 0.122, 0.36 + i * 0.36, BZ, 0);
+const inv = box(0.2, 0.7, 0.55, M(0xf2f3f5, { roughness: 0.5 }), SX - 0.02, 1.45, IZ, 0.05);
+box(0.01, 0.12, 0.22, M(0x0f172a, { emissive: night ? 0x4cc3ff : 0x000000, emissiveIntensity: 0.8 }), SX + 0.085, 1.55, IZ, 0.01);
+box(0.04, 0.04, 0.5, grey, SX - 0.04, 1.2, (BZ + IZ) / 2, 0.01);            // cable between inverter and battery
+
+// meter box on the main volume's side wall + utility pole at the plot corner with a drop line
+const meter = box(0.12, 0.42, 0.3, M(0xdfe2e6), HX + 2.36, 1.55, HZ - 0.25, 0.02);
+const PX = 4.1, PZ = -3.3;
+box(0.14, 4.4, 0.14, M(0x9a9da3), PX, 2.2, PZ, 0.03);
+box(1.1, 0.08, 0.08, M(0x9a9da3), PX, 4.15, PZ, 0.02);
+for (const dx of [-0.45, 0, 0.45]) box(0.05, 0.12, 0.05, M(0xffffff), PX + dx, 4.25, PZ, 0.01);
+{
+  const a = new THREE.Vector3(PX, 4.25, PZ), b = meter.position.clone().add(new THREE.Vector3(0.06, 0.2, 0));
+  const mid = a.clone().lerp(b, 0.5); mid.y -= 0.5;
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(a, mid, b), 30, 0.012, 6), dark); scene.add(tube);
+}
+
+// planting: rounded shrubs and two trees (muted, not cartoon)
+const leaf = M(0x6f9a5a, { roughness: 0.9 }), leaf2 = M(0x5d8a4c, { roughness: 0.9 });
+const shrub = (x, z, s) => { for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(s * (0.8 + i * 0.12), 20, 14), i % 2 ? leaf : leaf2); m.position.set(x + (i - 1) * s * 0.7, s * 0.7, z + (i % 2) * s * 0.3); m.scale.y = 0.8; m.castShadow = m.receiveShadow = true; scene.add(m); } };
+shrub(-3.6, 2.2, 0.32); shrub(-0.2, 2.0, 0.24); shrub(-4.4, -2.6, 0.3);
+const tree = (x, z, h) => { box(0.08, h * 0.45, 0.08, M(0x6b5544), x, h * 0.22, z, 0.02); const m = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), leaf2); m.scale.set(h * 0.28, h * 0.5, h * 0.28); m.position.set(x, h * 0.62, z); m.castShadow = true; scene.add(m); };
+tree(-4.2, 0.4, 3.4); tree(-4.6, -1.0, 2.6); tree(4.6, -1.6, 3.0);
+
+// night: warm light spilling from the glazing onto the lawn
+if (night) { const l = new THREE.PointLight(0xffb45a, 6, 6, 1.6); l.position.set(HX - 0.9, 1.2, FZ + 0.8); scene.add(l); const l2 = new THREE.PointLight(0xffb45a, 3, 4, 1.6); l2.position.set(HX, 2.5, FZ + 0.6); scene.add(l2); }
+
+// isometric-ish orthographic camera
+const half = +(q.get("zoom") || 6.3);
+const cam = new THREE.OrthographicCamera(-half * W / H, half * W / H, half, -half, 0.1, 100);
+const yaw = (+(q.get("yaw") || 38)) * Math.PI / 180, pitch = (+(q.get("pitch") || 32)) * Math.PI / 180;
+cam.position.set(30 * Math.sin(yaw) * Math.cos(pitch), 30 * Math.sin(pitch), 30 * Math.cos(yaw) * Math.cos(pitch));
+const look = new THREE.Vector3(+(q.get("lx") || 0.2), +(q.get("ly") || 1.0), 0); cam.position.add(look); cam.lookAt(look);
+renderer.render(scene, cam);
+
+// device anchors in image % (for the app's leader lines)
+const pct = (v) => { const p = v.clone().project(cam); return [+((p.x + 1) * 50).toFixed(1), +((1 - p.y) * 50).toFixed(1)]; };
+window.__anchors = {
+  pv: pct(new THREE.Vector3(HX - 0.6, 3.75, HZ - 0.1)),
+  grid: pct(meter.position),
+  home: pct(new THREE.Vector3(HX - 0.9, 1.0, FZ)),
+  batt: pct(batt.position),
+  inverter: pct(inv.position),
+  pole: pct(new THREE.Vector3(PX, 4.2, PZ)),
+};
+window.__done = renderer.domElement.toDataURL("image/png");
+</script></body></html>
