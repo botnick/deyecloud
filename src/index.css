@@ -335,7 +335,7 @@ textarea {
 .hscene .hs-pin .hs-chip .vl { font-size: 15px; }
 .hscene .hs-pin::after { content: ""; position: absolute; left: 50%; bottom: -14px; width: 1.5px; height: 14px; background: rgba(255, 255, 255, .95); transform: translateX(-50%); }
 .hscene .hs-pin::before { content: ""; position: absolute; left: 50%; bottom: -17px; width: 6px; height: 6px; border-radius: 50%; background: #fff; transform: translateX(-50%); box-shadow: 0 0 0 2px rgba(15, 23, 42, .15); }
-.hscene .hs-hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); font-size: 12px; font-weight: 700; color: #334155; background: rgba(255, 255, 255, .7); padding: 4px 10px; border-radius: 999px; pointer-events: none; }
+.hscene .hs-hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); font-size: 12px; font-weight: 700; color: #334155; background: rgba(255, 255, 255, .7); padding: 6px 12px; border-radius: 999px; min-height: 32px; }
 .hscene.dim .hs-hint { color: #e2e8f0; background: rgba(15, 23, 42, .5); }
 
 /* iPhone-style passcode screen */

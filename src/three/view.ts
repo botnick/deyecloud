@@ -11,6 +11,7 @@ export interface Flow { key: FlowKey; watts: number; toHouse: boolean } // toHou
 export interface HouseView {
   setFlows: (f: Flow[]) => void;
   setNight: (night: boolean) => void;
+  reset: () => void;
   dispose: () => void;
 }
 export const FLOW_COLOR: Record<FlowKey, number> = { pv: 0xf5a623, home: 0x0d6bff, batt: 0x18a673, grid: 0x8b5cf6 };
@@ -36,12 +37,13 @@ export function createHouseView(host: HTMLElement, opts: { night: boolean; reduc
   const controls = new OrbitControls(cam, cv);
   controls.enablePan = false; controls.enableZoom = false; controls.enableDamping = true; controls.dampingFactor = 0.08;
   controls.rotateSpeed = 0.6;
-  // fixed viewing height: horizontal drags orbit, vertical drags stay with the page scroll
+  // drag in any direction: sideways walks around, up/down tilts between a near top-down
+  // view and almost eye level (never under the ground). The card owns its touches, so the
+  // page scrolls from anywhere outside it. No auto-spin — a moving camera nobody asked for
+  // is tiring to watch.
   const POLAR = 1.02;
-  controls.minPolarAngle = controls.maxPolarAngle = POLAR;
-  cv.style.touchAction = "pan-y";
-  controls.autoRotate = !opts.reducedMotion; controls.autoRotateSpeed = 0.35;
-  controls.addEventListener("start", () => { controls.autoRotate = false; });
+  controls.minPolarAngle = 0.35; controls.maxPolarAngle = 1.38;
+  cv.style.touchAction = "none";
 
   let model: HouseModel | null = null;
   const cables = new THREE.Group(); scene.add(cables);
@@ -69,6 +71,13 @@ export function createHouseView(host: HTMLElement, opts: { night: boolean; reduc
     }
   };
 
+  // the classic front-right three-quarter view (first load, and the "back to start" tap)
+  const place = () => {
+    if (!model) return;
+    const r = 30, yaw = 0.66;
+    cam.position.set(model.target.x + r * Math.sin(POLAR) * Math.sin(yaw), model.target.y + r * Math.cos(POLAR), model.target.z + r * Math.sin(POLAR) * Math.cos(yaw));
+    controls.update();
+  };
   const setNight = (night: boolean) => {
     if (model) { scene.remove(model.group); model.dispose(); }
     model = buildHouse(night); scene.add(model.group);
@@ -77,11 +86,7 @@ export function createHouseView(host: HTMLElement, opts: { night: boolean; reduc
     lamps.forEach((l) => (l.visible = night));
     renderer.toneMappingExposure = night ? 0.9 : 1.0;
     controls.target.copy(model.target);
-    if (!placed) { // first placement: the classic front-right three-quarter view
-      const r = 30, yaw = 0.66;
-      cam.position.set(model.target.x + r * Math.sin(POLAR) * Math.sin(yaw), model.target.y + r * Math.cos(POLAR), model.target.z + r * Math.sin(POLAR) * Math.cos(yaw));
-      placed = true;
-    }
+    if (!placed) { place(); placed = true; }
     controls.update();
     buildRuns();
   };
@@ -144,6 +149,7 @@ export function createHouseView(host: HTMLElement, opts: { night: boolean; reduc
       flows = f; buildRuns();
     },
     setNight,
+    reset: place,
     dispose: () => {
       cancelAnimationFrame(raf); ro.disconnect(); io.disconnect(); document.removeEventListener("visibilitychange", onVis);
       clearRuns(); dotGeo.dispose(); model?.dispose(); controls.dispose(); renderer.dispose(); cv.remove();
