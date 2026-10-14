@@ -153,3 +153,19 @@ export function batteryEta(o: { soc: number; floor: number; capKwh: number; watt
   }
   return null;
 }
+
+// Everything the "battery right now" card shows, decided in one pure place.
+// SOC is only a reading when the API says so (socKnown !== false); an unknown SOC
+// still shows the battery's activity but no %, floor or time. Times need the
+// MEASURED capacity and the LEARNED floor — never nameplate or a single odd minimum.
+export interface BatteryCard { show: boolean; soc: number | null; floor: number | null; capKwh: number | null; eta: BatteryEta | null }
+export function batteryCard(o: { soc: number; socKnown?: boolean; watts: number; capKwh: number | null | undefined; floorSoc: number | null | undefined; now: number }): BatteryCard {
+  const known = o.socKnown !== false;
+  const soc = known ? Math.max(0, Math.min(100, Math.round(o.soc || 0))) : null;
+  // a battery is there when it reports a SOC (even a real 0 %) or moves power
+  const show = (known && (o.socKnown === true || (o.soc || 0) > 0.5)) || Math.abs(o.watts) > 15;
+  const capKwh = o.capKwh && o.capKwh > 0 ? o.capKwh : null;
+  const floor = o.floorSoc ?? null;
+  const eta = show && soc != null && capKwh != null && floor != null ? batteryEta({ soc, floor, capKwh, watts: o.watts, now: o.now }) : null;
+  return { show, soc, floor, capKwh, eta };
+}

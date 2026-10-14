@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dischargeSegments, batteryHealth, sohIdentity, batteryEta } from "../battery";
+import { dischargeSegments, batteryHealth, sohIdentity, batteryEta, batteryCard } from "../battery";
 
 // Synthetic pack: 20 kWh usable. A 6-hour discharge at 2 kW = 12 kWh should cost 60 % SOC.
 const T0 = Math.floor(1_790_000_000 / 86400) * 86400 - 3600; // 23:00Z = 06:00 Bangkok, so a 6 h stretch stays inside one BKK day
@@ -101,5 +101,29 @@ describe("batteryEta", () => {
   });
   it("absurdly long horizons are not shown", () => {
     expect(batteryEta({ soc: 90, floor: 20, capKwh: 30, watts: 160, now })).toBeNull(); // 131 h
+  });
+});
+
+describe("batteryCard (what the home battery card may claim)", () => {
+  const now = 1_790_000_000;
+  const base = { capKwh: 33, floorSoc: 20, now };
+  it("unknown SOC (0 placeholder) while power flows: shown, but no %, floor or time", () => {
+    const c = batteryCard({ ...base, soc: 0, socKnown: false, watts: 1500 });
+    expect(c.show).toBe(true); expect(c.soc).toBeNull(); expect(c.eta).toBeNull();
+  });
+  it("unknown SOC and idle: hidden", () => {
+    expect(batteryCard({ ...base, soc: 0, socKnown: false, watts: 0 }).show).toBe(false);
+  });
+  it("a known real 0 % while idle is still a battery", () => {
+    const c = batteryCard({ ...base, soc: 0, socKnown: true, watts: 0 });
+    expect(c.show).toBe(true); expect(c.soc).toBe(0);
+  });
+  it("no measured capacity or no learned floor → no time (never nameplate / single minimum)", () => {
+    expect(batteryCard({ ...base, capKwh: null, soc: 60, socKnown: true, watts: 2000 }).eta).toBeNull();
+    expect(batteryCard({ ...base, floorSoc: null, soc: 60, socKnown: true, watts: 2000 }).eta).toBeNull();
+    expect(batteryCard({ ...base, floorSoc: undefined, soc: 60, socKnown: true, watts: 2000 }).eta).toBeNull();
+  });
+  it("measured capacity + learned floor → time to the floor", () => {
+    expect(batteryCard({ ...base, soc: 60, socKnown: true, watts: 2000 }).eta).toMatchObject({ kind: "empty" });
   });
 });

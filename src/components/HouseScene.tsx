@@ -43,7 +43,7 @@ export function HouseScene({ latest, weather, title, force }: { latest: Latest; 
   let charging = bs.includes("CHARGE") && !bs.includes("DIS"), discharging = bs.includes("DIS");
   if (!charging && !discharging) { if (bp < -20) charging = true; else if (bp > 20) discharging = true; }
   const soc = Math.max(0, Math.min(100, Math.round(latest.soc || 0)));
-  const hasBatt = (latest.soc || 0) > 0.5 || charging || discharging || Math.abs(bp) > 15;
+  const hasBatt = latest.socKnown === true || (latest.socKnown !== false && (latest.soc || 0) > 0.5) || charging || discharging || Math.abs(bp) > 15;
   const gridOff = /OFF|ISLAND|DISCONNECT/i.test(latest.gridStatus || "");
   const gp = latest.gridPower || 0;
   const buying = gp >= 0;
@@ -120,7 +120,7 @@ export function HouseScene({ latest, weather, title, force }: { latest: Latest; 
       {chip("grid", gridOff ? "ไฟดับ" : buying ? "ซื้อไฟ" : "ขายไฟ", fmtPower(Math.abs(gp)))}
       {chip("home", "บ้านใช้", fmtPower(useW))}
       {hasBatt && chip("batt", discharging ? "แบตจ่าย" : charging ? "แบตชาร์จ" : "แบต", fmtPower(Math.abs(bp)),
-        <span className="soc"><i style={{ width: `${soc}%` }} /><b>{soc}%</b></span>)}
+        latest.socKnown !== false ? <span className="soc"><i style={{ width: `${soc}%` }} /><b>{soc}%</b></span> : undefined)}
       {live3d && <div className="hs-hint">ปัดซ้าย–ขวาเพื่อหมุน</div>}
     </div>
   );

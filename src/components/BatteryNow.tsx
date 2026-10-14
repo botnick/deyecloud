@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getBatteryHealth, type BatteryHealth, type Latest, type Weather } from "../lib/api";
-import { batteryEta } from "../lib/battery";
+import { batteryCard } from "../lib/battery";
 import { bkkClock, fmtPower } from "../lib/format";
 import { hm, siteMinutes } from "../lib/weather";
 import { cardP } from "../lib/ui";
@@ -32,16 +32,13 @@ export function BatteryNow({ latest, weather }: { latest: Latest; weather: Weath
   }
   const avgW = buf.current.reduce((a, x) => a + x.w, 0) / buf.current.length;
 
-  const soc = Math.max(0, Math.min(100, Math.round(latest.soc || 0)));
-  const hasBatt = (latest.soc || 0) > 0.5 || Math.abs(bp) > 15;
-  if (!hasBatt) return null;
-  const cap = h?.capKwh ?? h?.ratedKwh ?? null;
-  const floor = h?.floorSoc ?? h?.dod?.minSoc ?? null;
+  const now = Date.now() / 1000;
+  const card = batteryCard({ soc: latest.soc, socKnown: latest.socKnown, watts: avgW, capKwh: h?.capKwh, floorSoc: h?.floorSoc, now });
+  if (!card.show) return null;
+  const { soc, floor, capKwh: cap, eta } = card;
 
   const discharging = avgW > 50, charging = avgW < -50;
   const pv = latest.genPower || 0, use = latest.usePower || 0;
-  const now = Date.now() / 1000;
-  const eta = cap && floor != null ? batteryEta({ soc, floor, capKwh: cap, watts: avgW, now }) : null;
 
   // next sunrise on the site clock (only to say "lasts until morning")
   const rise = hm(weather?.sun?.rise);
@@ -52,14 +49,14 @@ export function BatteryNow({ latest, weather }: { latest: Latest; weather: Weath
   let why: string;
   if (discharging) why = night ? "กลางคืน บ้านใช้ไฟจากแบต" : `แดด ${fmtPower(pv)} ไม่พอบ้านใช้ ${fmtPower(use)}`;
   else if (charging) why = `แดด ${fmtPower(pv)} เกินที่บ้านใช้ ${fmtPower(use)}`;
-  else if (floor != null && soc <= floor + 1) why = `ถึงจุดตัด ${floor}% ใช้ไฟหลวงรอแดด`;
-  else if (soc >= 99) why = "แบตเต็ม";
+  else if (floor != null && soc != null && soc <= floor + 1) why = `ถึงจุดตัด ${floor}% ใช้ไฟหลวงรอแดด`;
+  else if (soc != null && soc >= 99) why = "แบตเต็ม";
   else why = "ไม่ได้ชาร์จหรือจ่าย";
 
-  const state = discharging ? "กำลังจ่าย" : charging ? "กำลังชาร์จ" : soc >= 99 ? "เต็ม" : "พัก";
+  const state = discharging ? "กำลังจ่าย" : charging ? "กำลังชาร์จ" : soc != null && soc >= 99 ? "เต็ม" : "พัก";
   const col = discharging ? "#d97706" : charging ? "#18a673" : "#64748b";
 
-  const low = soc <= (floor ?? 20) + 5;
+  const low = soc != null && floor != null && soc <= floor + 5;
   const headline = eta?.kind === "empty" ? (lastsTillMorning ? "ใช้ได้ถึงเช้า" : `ใช้ได้ถึง ${bkkClock(eta.at)} น.`)
     : eta?.kind === "full" ? `เต็มราว ${bkkClock(eta.at)} น.` : null;
   const sub = eta?.kind === "empty" ? `อีก ${dur(eta.hours)} · เหลือ ${eta.kwhLeft.toFixed(1)} หน่วย` : eta?.kind === "full" ? `อีก ${dur(eta.hours)}` : null;
@@ -67,16 +64,18 @@ export function BatteryNow({ latest, weather }: { latest: Latest; weather: Weath
   return (
     <div className={cardP}>
       <div className="flex items-end justify-between gap-3">
-        <div className="text-[44px] font-extrabold tabnum leading-none tracking-tight">{soc}<span className="text-[22px] font-bold text-muted">%</span></div>
+        {soc != null
+          ? <div className="text-[44px] font-extrabold tabnum leading-none tracking-tight">{soc}<span className="text-[22px] font-bold text-muted">%</span></div>
+          : <div className="text-[18px] font-bold text-muted leading-tight">ยังไม่ทราบ % แบต</div>}
         <div className="text-right">
           <div className="text-[15px] font-bold" style={{ color: col }}>{state}</div>
           {(discharging || charging) && <div className="text-[15px] font-semibold tabnum text-body">{fmtPower(Math.abs(avgW))}</div>}
         </div>
       </div>
-      <div className="relative h-3 rounded-full bg-black/[.06] mt-3 overflow-hidden" role="img" aria-label={`แบตเหลือ ${soc}%`}>
+      {soc != null && <div className="relative h-3 rounded-full bg-black/[.06] mt-3 overflow-hidden" role="img" aria-label={`แบตเหลือ ${soc}%`}>
         <div className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-700" style={{ width: `${soc}%`, background: low ? "#ef4444" : "#18a673" }} />
         {floor != null && <div className="absolute inset-y-0 w-[2px] bg-white" style={{ left: `${floor}%` }} />}
-      </div>
+      </div>}
       {headline && <div className="text-[20px] font-bold mt-4 tabnum">{headline}</div>}
       {sub && <div className="text-[14px] text-body tabnum">{sub}</div>}
       <div className={`text-[14px] text-body ${headline ? "mt-1" : "mt-4"}`}>{why}</div>

@@ -3,6 +3,8 @@ export interface Latest {
   genToday: number; useToday: number; buyToday: number; sellToday: number;
   chargeToday: number; dischargeToday: number; genTotal: number;
   battStatus: string; gridStatus: string;
+  // false = no SOC reported (soc is then a 0 placeholder, not a reading); absent on old payloads
+  socKnown?: boolean;
   // "NORMAL" | "ATTENTION" — ATTENTION = our own health analysis found warn-level
   // findings on the inverter's measure points (listed in warningReasons). It is
   // not a Deye alarm; availability (online/offline) is reported separately.
