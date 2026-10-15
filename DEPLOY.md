@@ -119,6 +119,7 @@ npx wrangler d1 execute deye-monitor --remote --command "SELECT COUNT(*) FROM sa
 | ใส่ PIN แล้วบอก "ลองผิดหลายครั้ง — รออีก N วินาที" | มีการเดา PIN (หรือพิมพ์ผิดเกิน 3 ครั้ง) → รอตามที่บอก (สูงสุด 15 นาที) · ใส่ถูกครั้งเดียวจะรีเซ็ต |
 | `/api/_poll` `/api/_backfill` ตอบ 403 | ต้องตั้ง `APP_PIN` และ login ก่อน — route ผู้ดูแลไม่เปิดสาธารณะแม้ไม่ตั้ง PIN |
 | การ์ด "ตรวจสุขภาพ" บอกช่องแบตไม่จ่ายกระแสหลังย้ายสาย/ถอดแบต | ระบบจำโครงสร้างช่องแบตที่เคยมีกระแส (ถาวรต่อเครื่อง) — เปลี่ยนสายจริงให้รีเซ็ต: `wrangler d1 execute deye-monitor --remote --command "DELETE FROM meta WHERE k LIKE 'batt_chan_seen_%'"` แล้วระบบเรียนรู้ใหม่ใน ~15 นาที |
+| `_health` ขึ้น `HTTP 403 non-JSON (… cloudfront …)` ทั้งที่แอป Deye ปกติ | Deye บล็อกเครือข่าย Cloudflare Workers ทั้งหมด (เจอ 15 ต.ค. 2026) → รัน `node scripts/deye-relay.mjs` บนเครื่องที่เปิดตลอด (ใช้ `.dev.vars` ชุดเดียวกัน) เปิดเป็น HTTPS แล้วใส่ URL ใน `DEYE_RELAY_URL` (`wrangler.jsonc`) · เว็บยังเรียก Deye ตรงก่อน โดนบล็อกค่อยอ้อมผ่าน relay |
 | แจ้งเตือนไม่มา | `POST /api/_alert_test` (login แล้ว) → ต้องได้ `ok:true` · ถ้า `delivered.webhook` ไม่ใช่ 2xx เช็ค URL webhook · กติกาส่วนใหญ่ต้องเกิดติดกัน 3 รอบ (15 นาที) ก่อนเตือน |
 
 ---
@@ -134,7 +135,7 @@ npx wrangler d1 execute deye-monitor --remote --command "SELECT COUNT(*) FROM sa
 
 - Worker `name`: **`deyecloud`** · D1 database: `deye-monitor` · cron: ทุก 5 นาที (`*/5 * * * *`)
 - เสิร์ฟหน้าเว็บผ่าน **Workers Static Assets** → URL: `https://deyecloud.<subdomain>.workers.dev`
-- `vars` ที่ commit มีแค่ `DEYE_BASE_URL` + `TMD_BASE` — ค่าบัญชี/ค่าลับตั้งต่อ Worker (ไม่อยู่ในโค้ด)
+- `vars` ที่ commit มีแค่ `DEYE_BASE_URL` + `TMD_BASE` + `DEYE_RELAY_URL` (ทางอ้อมตอน Deye บล็อก ลบได้) — ค่าบัญชี/ค่าลับตั้งต่อ Worker (ไม่อยู่ในโค้ด)
 
 ## 💸 ทำไม $0 (Cloudflare free plan)
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readDeyeJson, describeNonJson, nonJsonExcerpt, DeyeNonJsonError } from "../../worker/deye";
+import { readDeyeJson, describeNonJson, nonJsonExcerpt, DeyeNonJsonError, isCdnBlock } from "../../worker/deye";
 
 const cfHtml = `\r\n<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <HTML><HEAD><META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
@@ -41,4 +41,10 @@ describe("readDeyeJson — a non-JSON Deye reply explains itself without leaking
     expect(nonJsonExcerpt("")).toBe("(empty body)");
     expect(nonJsonExcerpt("<p>" + "a".repeat(500) + "</p>").length).toBe(120);
   });
+});
+
+describe("isCdnBlock — only CloudFront's HTML refusal sends a call through the relay", () => {
+  it("HTML 403 is a block", () => expect(isCdnBlock(new Response(cfHtml, { status: 403, headers: { "content-type": "text/html" } }))).toBe(true));
+  it("JSON 403 from the API is not", () => expect(isCdnBlock(new Response("{}", { status: 403, headers: { "content-type": "application/json;charset=UTF-8" } }))).toBe(false));
+  it("other statuses are not", () => expect(isCdnBlock(new Response(cfHtml, { status: 502, headers: { "content-type": "text/html" } }))).toBe(false));
 });

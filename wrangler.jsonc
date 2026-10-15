@@ -25,7 +25,11 @@
   "vars": {
     // Region endpoint — switch to us1-developer… etc. if your Deye account is not in the EU region
     "DEYE_BASE_URL": "https://eu1-developer.deyecloud.com/v1.0",
-    "TMD_BASE": "https://data.tmd.go.th/nwpapi/v1/forecast/location"
+    "TMD_BASE": "https://data.tmd.go.th/nwpapi/v1/forecast/location",
+    // Detour for when Deye's CloudFront blocks Cloudflare Workers (403 page, since 2026-10-15):
+    // a blocked call is retried through this forwarder (scripts/deye-relay.mjs on an always-on
+    // machine). Remove the line to call Deye directly only. See DEPLOY.md "Deye blocks Workers".
+    "DEYE_RELAY_URL": "https://deye-relay.nuxe.dev"
     // DEYE_APP_ID, DEYE_EMAIL + the secrets are set per-Worker (dashboard / Deploy-button prompt), never committed.
     // Station id, coordinates, capacity & place auto-discover from Deye and cache in D1.
   }

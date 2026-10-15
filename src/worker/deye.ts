@@ -5,6 +5,7 @@ export interface Env {
   ASSETS: Fetcher;
   DB: any; // D1Database
   DEYE_BASE_URL: string;
+  DEYE_RELAY_URL?: string; // fallback forwarder (scripts/deye-relay.mjs) used only while Deye blocks Workers
   DEYE_APP_ID: string;
   DEYE_APP_SECRET: string;
   DEYE_EMAIL: string;
@@ -122,19 +123,13 @@ async function login(env: Env, now: number): Promise<string> {
     if (left > 0) throw authHoldError(`Deye login on hold ${left}s (${fails} failed attempt(s), last: ${failMsg || "?"}) — check DEYE_* secrets`);
   }
 
-  const url = `${env.DEYE_BASE_URL}/account/token?appId=${env.DEYE_APP_ID}`;
   const body = {
     appSecret: env.DEYE_APP_SECRET,
     email: env.DEYE_EMAIL,
     password: await sha256Hex(env.DEYE_PASSWORD),
     companyId: env.DEYE_COMPANY_ID || "0", // most accounts are "0"; override per account
   };
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15000), // never hang the cron/request on a slow Deye
-  });
+  const res = await deyeFetch(env, `/account/token?appId=${env.DEYE_APP_ID}`, { "Content-Type": "application/json" }, JSON.stringify(body));
   const data: any = await readDeyeJson(res, "/account/token");
   const token = data.token || data.accessToken;
   if (!token) {
@@ -221,6 +216,27 @@ export class DeyeNonJsonError extends Error {
   constructor(message: string, readonly detail: string) { super(message); this.name = "DeyeNonJsonError"; }
 }
 
+// Since 2026-10-15 Deye's CloudFront answers every Cloudflare Workers address with
+// a 403 HTML block page (credentials fine; any other network gets through). When
+// DEYE_RELAY_URL is set, a blocked call is repeated through that forwarder
+// (scripts/deye-relay.mjs) and the isolate keeps using it for a while before
+// trying Deye directly again — so the relay is only a detour, never a dependency.
+const RELAY_STICKY_MS = 15 * 60 * 1000;
+let relayUntil = 0;
+export const isCdnBlock = (r: Response) => r.status === 403 && !/json/i.test(r.headers.get("content-type") || "");
+async function deyeFetch(env: Env, pathQ: string, headers: Record<string, string>, body: string): Promise<Response> {
+  const go = (base: string, h: Record<string, string>) =>
+    fetch(base + pathQ, { method: "POST", headers: h, body, signal: AbortSignal.timeout(15000) }); // never hang the cron/request on a slow Deye
+  const relay = env.DEYE_RELAY_URL?.replace(/\/+$/, "");
+  const viaRelay = async () => go(relay!, { ...headers, "x-relay-key": await sha256Hex("deye-relay:" + env.DEYE_APP_SECRET) });
+  if (relay && Date.now() < relayUntil) return viaRelay();
+  const res = await go(env.DEYE_BASE_URL, headers);
+  if (!relay || !isCdnBlock(res)) return res;
+  await res.body?.cancel();
+  relayUntil = Date.now() + RELAY_STICKY_MS;
+  return viaRelay();
+}
+
 export async function readDeyeJson(res: Response, path: string): Promise<any> {
   const text = await res.text();
   try { return JSON.parse(text); }
@@ -241,12 +257,8 @@ export function nonJsonExcerpt(text: string): string {
 async function apiPostLive(env: Env, path: string, payload: any): Promise<any> {
   let token = await getToken(env);
   const call = (t: string) =>
-    fetch(`${env.DEYE_BASE_URL}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "bearer " + t },
-      body: JSON.stringify(payload || {}),
-      signal: AbortSignal.timeout(15000), // never hang the cron/request on a slow Deye
-    }).then((r) => readDeyeJson(r, path));
+    deyeFetch(env, path, { "Content-Type": "application/json", Authorization: "bearer " + t }, JSON.stringify(payload || {}))
+      .then((r) => readDeyeJson(r, path));
 
   let data = await call(token);
   // Refresh + retry once on an auth signal. Deye surfaces a bad token in (at
