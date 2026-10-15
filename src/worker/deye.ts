@@ -132,6 +132,8 @@ async function login(env: Env, now: number): Promise<string> {
   const res = await deyeFetch(env, `/account/token?appId=${env.DEYE_APP_ID}`, { "Content-Type": "application/json" }, JSON.stringify(body));
   const data: any = await readDeyeJson(res, "/account/token");
   const token = data.token || data.accessToken;
+  // the relay's own refusal/outage says nothing about the credentials — never feed the auth hold
+  if (!token && data?.code === "relay") throw new Error(`Deye relay: ${String(data.msg || "").slice(0, 80)}`);
   if (!token) {
     const msg = String(data.msg || data.message || data.code || res.status);
     await env.DB.batch([

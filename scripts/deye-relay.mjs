@@ -7,7 +7,7 @@
  * Worker still calls Deye directly first and only goes through here when it gets
  * the CloudFront block page.
  *
- *   node scripts/deye-relay.mjs            (reads .dev.vars; PORT env, default 47812)
+ *   node scripts/deye-relay.mjs            (DEYE_* from env or .dev.vars; PORT env, default 47812)
  *
  * Forwards POST /account/token, /station/*, /device/* to DEYE_BASE_URL and
  * nothing else. Callers must send x-relay-key = sha256("deye-relay:" + DEYE_APP_SECRET),
@@ -18,12 +18,13 @@ import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { createHash, timingSafeEqual } from "node:crypto";
 
+const readOpt = (rel) => { try { return readFileSync(new URL(rel, import.meta.url), "utf8"); } catch { return ""; } };
 const vars = Object.fromEntries(
-  readFileSync(new URL("../.dev.vars", import.meta.url), "utf8").split("\n")
+  readOpt("../.dev.vars").split("\n")
     .filter((l) => /^[A-Z_]+=/.test(l))
     .map((l) => { const i = l.indexOf("="); return [l.slice(0, i), l.slice(i + 1).trim().replace(/^"|"$/g, "")]; }),
 );
-const wr = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+const wr = readOpt("../wrangler.jsonc");
 const BASE = process.env.DEYE_BASE_URL || vars.DEYE_BASE_URL || /"DEYE_BASE_URL":\s*"([^"]+)"/.exec(wr)?.[1];
 const SECRET = process.env.DEYE_APP_SECRET || vars.DEYE_APP_SECRET;
 if (!BASE || !SECRET) { console.error("deye-relay: DEYE_BASE_URL / DEYE_APP_SECRET missing"); process.exit(1); }
