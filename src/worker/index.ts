@@ -70,11 +70,12 @@ async function ensureSchema(env: Env) {
 }
 
 // --- Auth (PIN -> signed cookie) ---------------------------------------
-// Cookie = `<issuedAt>.<hex HMAC-SHA256(APP_PIN, "deye-monitor-v2:" + issuedAt)>`.
+// Cookie = `<issuedAt>.<epoch>.<hex HMAC-SHA256(APP_PIN, "deye-monitor-v3:" + issuedAt + "." + epoch)>`.
 // Binding the issue time into the MAC means (a) a token expires on its own even
 // if the cookie lingers, and (b) it is not one constant string per PIN. Changing
-// APP_PIN revokes everything at once. Compared in constant time.
-const AUTH_SCHEME = "deye-monitor-v2:";
+// APP_PIN revokes everything at once; so does bumping the session epoch (meta
+// 'auth_epoch', POST /api/_logout_all) without touching the PIN. Compared in constant time.
+const AUTH_SCHEME = "deye-monitor-v3:";
 async function hmacHex(secret: string, msg: string): Promise<string> {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg));
@@ -86,34 +87,41 @@ function timingSafeEq(a: string, b: string): boolean {
   for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return d === 0;
 }
-async function authToken(env: Env, iat = Math.floor(Date.now() / 1000)): Promise<string> {
-  return `${iat}.${await hmacHex(env.APP_PIN || "", AUTH_SCHEME + iat)}`;
+async function authToken(env: Env, epoch: number, iat = Math.floor(Date.now() / 1000)): Promise<string> {
+  return `${iat}.${epoch}.${await hmacHex(env.APP_PIN || "", AUTH_SCHEME + iat + "." + epoch)}`;
 }
 function getCookie(req: Request, name: string): string | null {
   const m = (req.headers.get("Cookie") || "").match(new RegExp("(?:^|; )" + name + "=([^;]+)"));
   return m ? m[1] : null;
 }
-// "Log everyone out" without changing the PIN: cookies issued before meta
-// 'auth_not_before' (unix s, set by POST /api/_logout_all) are void. Cached per
-// isolate for a minute so the gate doesn't add a D1 read to every request.
-const NOT_BEFORE_TTL_MS = 60_000;
-let notBefore = { v: 0, at: -Infinity };
-async function authNotBefore(env: Env): Promise<number> {
-  if (Date.now() - notBefore.at < NOT_BEFORE_TTL_MS) return notBefore.v;
-  const row = (await env.DB.prepare("SELECT v FROM meta WHERE k='auth_not_before'").first().catch(() => null)) as { v: string } | null;
-  notBefore = { v: Number(row?.v) || 0, at: Date.now() };
-  return notBefore.v;
+// Current session epoch. The gate caches it per isolate for a minute (no D1 read
+// per request), so other isolates notice a "log everyone out" within that minute.
+// A failed read never yields a usable value: it keeps the last good one if there
+// is one, otherwise it fails closed — an outage must not quietly undo a revocation.
+const EPOCH_TTL_MS = 60_000;
+let epochCache: { v: number; at: number } | null = null;
+async function readEpoch(env: Env): Promise<number> {
+  const row = (await env.DB.prepare("SELECT v FROM meta WHERE k='auth_epoch'").first()) as { v: string } | null;
+  const v = Number(row?.v ?? 0);
+  if (!Number.isInteger(v) || v < 0) throw new Error("bad auth_epoch");
+  epochCache = { v, at: Date.now() };
+  return v;
+}
+async function authEpoch(env: Env): Promise<number | null> {
+  if (epochCache && Date.now() - epochCache.at < EPOCH_TTL_MS) return epochCache.v;
+  try { return await readEpoch(env); }
+  catch { return epochCache ? epochCache.v : null; }
 }
 async function isAuthed(req: Request, env: Env): Promise<boolean> {
   if (!env.APP_PIN) return true; // no PIN configured = public read-only dashboard (owner's choice)
-  const tok = getCookie(req, "deye_auth") || "";
-  const dot = tok.indexOf(".");
-  if (dot <= 0) return false;
-  const iat = Number(tok.slice(0, dot));
+  const parts = (getCookie(req, "deye_auth") || "").split(".");
+  if (parts.length !== 3) return false; // older cookie formats are void
+  const iat = Number(parts[0]), ep = Number(parts[1]);
   const now = Math.floor(Date.now() / 1000);
-  if (!Number.isFinite(iat) || iat > now + 60 || now - iat > AUTH_COOKIE_MAX_AGE) return false;
-  if (!timingSafeEq(tok, await authToken(env, iat))) return false;
-  return iat >= (await authNotBefore(env));
+  if (!Number.isInteger(iat) || !Number.isInteger(ep) || iat > now + 60 || now - iat > AUTH_COOKIE_MAX_AGE) return false;
+  if (!timingSafeEq(parts.join("."), await authToken(env, ep, iat))) return false;
+  const cur = await authEpoch(env);
+  return cur != null && ep === cur;
 }
 // Operator routes (/api/_poll, _backfill, _debug, _dev, _hist) write or dump raw
 // upstream payloads. They need a real credential — "no PIN" opens the dashboard,
@@ -577,7 +585,10 @@ app.post("/api/login", async (c) => {
     await env.DB.prepare("DELETE FROM meta WHERE k='pin_guard' AND v=?").bind(g.claimed).run();
   }
   if (!env.APP_PIN) return c.json({ ok: true }); // nothing to sign; the gate is open anyway
-  const tok = await authToken(env);
+  let epoch: number;
+  try { epoch = await readEpoch(env); } // fresh, never the cache: a new login must carry the current epoch
+  catch { return c.json({ ok: false, error: "ระบบไม่พร้อม ลองใหม่อีกครั้ง" }, 503); }
+  const tok = await authToken(env, epoch);
   const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
   c.header("Set-Cookie", `deye_auth=${tok}; Path=/; HttpOnly${secure}; SameSite=Lax; Max-Age=${AUTH_COOKIE_MAX_AGE}`);
   return c.json({ ok: true });
@@ -1390,12 +1401,14 @@ app.post("/api/_purge", async (c) => {
 });
 
 // Revoke every session (the caller's too): each device has to enter the PIN again.
+// Revoke every session (the caller's too): each device has to enter the PIN again.
 app.post("/api/_logout_all", async (c) => {
-  const now = Math.floor(Date.now() / 1000);
-  await c.env.DB.prepare("INSERT INTO meta (k,v) VALUES ('auth_not_before',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(now)).run();
-  notBefore = { v: now, at: Date.now() };
+  const row = (await c.env.DB.prepare(
+    "INSERT INTO meta (k,v) VALUES ('auth_epoch','1') ON CONFLICT(k) DO UPDATE SET v = CAST(CAST(meta.v AS INTEGER) + 1 AS TEXT) RETURNING v",
+  ).first()) as { v: string };
+  epochCache = { v: Number(row.v), at: Date.now() };
   c.header("Set-Cookie", "deye_auth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
-  return c.json({ ok: true, notBefore: now, note: "other isolates pick this up within a minute" });
+  return c.json({ ok: true, epoch: Number(row.v), note: "other isolates pick this up within a minute" });
 });
 
 app.post("/api/_alert_test", async (c) => {
