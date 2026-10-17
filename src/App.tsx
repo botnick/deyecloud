@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getSession, getStation, getStations, getLatest, getWeather, getHealth, type Health, type Latest, type Weather, type Station } from "./lib/api";
+import { SIGNED_OUT, getSession, getStation, getStations, getLatest, getWeather, getHealth, type Health, type Latest, type Weather, type Station } from "./lib/api";
 import { PinGate } from "./components/PinGate";
 import { Splash } from "./components/Splash";
 import { Header } from "./components/Header";
@@ -155,6 +155,9 @@ export default function App() {
 
   useEffect(() => {
     getSession().then((s) => setAuthed(s.authed)).catch(() => setAuthed(false));
+    const out = () => setAuthed(false);
+    window.addEventListener(SIGNED_OUT, out);
+    return () => window.removeEventListener(SIGNED_OUT, out);
   }, []);
 
   useEffect(() => {

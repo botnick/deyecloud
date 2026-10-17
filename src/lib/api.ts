@@ -27,12 +27,15 @@ export interface Station { id: number; name: string; capacity?: number; lat?: nu
 export class ApiError extends Error {
   constructor(public status: number) { super("HTTP " + status); }
 }
+export const SIGNED_OUT = "deye:signed-out";
 async function api<T>(path: string, opts?: RequestInit): Promise<T> {
   // Network failure rejects the fetch itself; a 5xx means our Worker reached
   // the client but Deye was unreachable. Both surface as a thrown error so the
   // UI can show the offline banner. 4xx (e.g. login 401) passes through as JSON.
   const r = await fetch(path, { credentials: "same-origin", ...opts });
   if (r.status >= 500) throw new ApiError(r.status);
+  // signed out (e.g. every session revoked) while the app was open → back to the PIN screen
+  if (r.status === 401 && path !== "/api/login") window.dispatchEvent(new Event(SIGNED_OUT));
   return r.json() as Promise<T>;
 }
 

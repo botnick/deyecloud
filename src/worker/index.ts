@@ -93,6 +93,17 @@ function getCookie(req: Request, name: string): string | null {
   const m = (req.headers.get("Cookie") || "").match(new RegExp("(?:^|; )" + name + "=([^;]+)"));
   return m ? m[1] : null;
 }
+// "Log everyone out" without changing the PIN: cookies issued before meta
+// 'auth_not_before' (unix s, set by POST /api/_logout_all) are void. Cached per
+// isolate for a minute so the gate doesn't add a D1 read to every request.
+const NOT_BEFORE_TTL_MS = 60_000;
+let notBefore = { v: 0, at: -Infinity };
+async function authNotBefore(env: Env): Promise<number> {
+  if (Date.now() - notBefore.at < NOT_BEFORE_TTL_MS) return notBefore.v;
+  const row = (await env.DB.prepare("SELECT v FROM meta WHERE k='auth_not_before'").first().catch(() => null)) as { v: string } | null;
+  notBefore = { v: Number(row?.v) || 0, at: Date.now() };
+  return notBefore.v;
+}
 async function isAuthed(req: Request, env: Env): Promise<boolean> {
   if (!env.APP_PIN) return true; // no PIN configured = public read-only dashboard (owner's choice)
   const tok = getCookie(req, "deye_auth") || "";
@@ -101,7 +112,8 @@ async function isAuthed(req: Request, env: Env): Promise<boolean> {
   const iat = Number(tok.slice(0, dot));
   const now = Math.floor(Date.now() / 1000);
   if (!Number.isFinite(iat) || iat > now + 60 || now - iat > AUTH_COOKIE_MAX_AGE) return false;
-  return timingSafeEq(tok, await authToken(env, iat));
+  if (!timingSafeEq(tok, await authToken(env, iat))) return false;
+  return iat >= (await authNotBefore(env));
 }
 // Operator routes (/api/_poll, _backfill, _debug, _dev, _hist) write or dump raw
 // upstream payloads. They need a real credential — "no PIN" opens the dashboard,
@@ -1375,6 +1387,15 @@ app.post("/api/_purge", async (c) => {
     env.DB.prepare("DELETE FROM meta WHERE k LIKE 'hist_v3_day_%' OR k LIKE 'batt_health_%'"),
   ]);
   return c.json({ ok: true, dryRun: false, from, to, deleted: before });
+});
+
+// Revoke every session (the caller's too): each device has to enter the PIN again.
+app.post("/api/_logout_all", async (c) => {
+  const now = Math.floor(Date.now() / 1000);
+  await c.env.DB.prepare("INSERT INTO meta (k,v) VALUES ('auth_not_before',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(String(now)).run();
+  notBefore = { v: now, at: Date.now() };
+  c.header("Set-Cookie", "deye_auth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
+  return c.json({ ok: true, notBefore: now, note: "other isolates pick this up within a minute" });
 });
 
 app.post("/api/_alert_test", async (c) => {
