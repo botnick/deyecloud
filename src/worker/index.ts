@@ -120,7 +120,10 @@ async function isAuthed(req: Request, env: Env): Promise<boolean> {
   const now = Math.floor(Date.now() / 1000);
   if (!Number.isInteger(iat) || !Number.isInteger(ep) || iat > now + 60 || now - iat > AUTH_COOKIE_MAX_AGE) return false;
   if (!timingSafeEq(parts.join("."), await authToken(env, ep, iat))) return false;
-  const cur = await authEpoch(env);
+  let cur = await authEpoch(env);
+  // epochs only grow: a genuine cookie from a newer epoch means our cached copy is behind
+  // (logout_all ran on another isolate) — re-read now instead of bouncing a fresh login
+  if (cur != null && ep > cur) cur = await readEpoch(env).catch(() => null);
   return cur != null && ep === cur;
 }
 // Operator routes (/api/_poll, _backfill, _debug, _dev, _hist) write or dump raw

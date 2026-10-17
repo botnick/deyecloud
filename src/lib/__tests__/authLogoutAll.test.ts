@@ -104,6 +104,18 @@ describe("log everyone out (POST /api/_logout_all)", () => {
     expect(await a.authed(c)).toBe(false);
   });
 
+  it("a login made after another isolate's logout is accepted right away", async () => {
+    vi.spyOn(Date, "now").mockImplementation(() => clock);
+    const a = await fixture();
+    const b = await fixture(a.db);
+    const old = await a.login();
+    expect(await a.authed(old)).toBe(true); // A caches epoch 0
+    expect((await b.req("/api/_logout_all", await b.login(), "POST")).status).toBe(200);
+    const fresh = await b.login(); // epoch 1
+    expect(await a.authed(fresh)).toBe(true); // within A's cache minute
+    expect(await a.authed(old)).toBe(false);
+  });
+
   it("fails closed when the epoch was never readable", async () => {
     vi.spyOn(Date, "now").mockImplementation(() => clock);
     const f = await fixture();
