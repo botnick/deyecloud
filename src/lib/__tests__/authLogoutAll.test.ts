@@ -3,9 +3,9 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 
 // Real Worker app over an in-memory SQLite stand-in for D1 (auth paths only).
-async function fixture() {
+// Each fixture is a separate Worker isolate (fresh module state); pass `db` to share D1.
+async function fixture(db = new DatabaseSync(":memory:")) {
   vi.resetModules();
-  const db = new DatabaseSync(":memory:");
   let failEpoch = false;
   const DB = {
     prepare(sql: string) {
@@ -34,7 +34,7 @@ async function fixture() {
     return r.headers.get("set-cookie")!.split(";")[0];
   };
   const authed = async (cookie: string) => ((await (await req("/api/session", cookie)).json()) as any).authed as boolean;
-  return { req, login, authed, failEpoch: (v: boolean) => { failEpoch = v; } };
+  return { db, req, login, authed, failEpoch: (v: boolean) => { failEpoch = v; } };
 }
 
 let clock = 1_800_000_000_000;
@@ -82,6 +82,26 @@ describe("log everyone out (POST /api/_logout_all)", () => {
     expect(await f.authed(c)).toBe(false);
     f.failEpoch(false);
     expect(await f.authed(c)).toBe(false);
+  });
+
+  it("a warm isolate whose epoch refresh fails stops trusting its stale copy", async () => {
+    clock = 1_800_000_600_000;
+    vi.spyOn(Date, "now").mockImplementation(() => clock);
+    const a = await fixture();
+    const b = await fixture(a.db); // sibling isolate, same D1
+    const c = await a.login();
+    expect(await a.authed(c)).toBe(true); // A caches epoch 0
+    tick(1_000);
+    await b.req("/api/_logout_all", null, "POST"); // unauthenticated → refused
+    const op = await b.login();
+    expect((await b.req("/api/_logout_all", op, "POST")).status).toBe(200); // B bumps to 1
+    tick(60_001);
+    a.failEpoch(true);
+    expect(await a.authed(c)).toBe(false);
+    tick(86_400_000);
+    expect((await a.req("/api/settings", c)).status).toBe(401);
+    a.failEpoch(false);
+    expect(await a.authed(c)).toBe(false);
   });
 
   it("fails closed when the epoch was never readable", async () => {

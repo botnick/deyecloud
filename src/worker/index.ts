@@ -96,8 +96,8 @@ function getCookie(req: Request, name: string): string | null {
 }
 // Current session epoch. The gate caches it per isolate for a minute (no D1 read
 // per request), so other isolates notice a "log everyone out" within that minute.
-// A failed read never yields a usable value: it keeps the last good one if there
-// is one, otherwise it fails closed — an outage must not quietly undo a revocation.
+// Past that minute a failed read fails closed — another isolate may have bumped
+// the epoch meanwhile, so an outage must not quietly undo a revocation.
 const EPOCH_TTL_MS = 60_000;
 let epochCache: { v: number; at: number } | null = null;
 async function readEpoch(env: Env): Promise<number> {
@@ -110,7 +110,7 @@ async function readEpoch(env: Env): Promise<number> {
 async function authEpoch(env: Env): Promise<number | null> {
   if (epochCache && Date.now() - epochCache.at < EPOCH_TTL_MS) return epochCache.v;
   try { return await readEpoch(env); }
-  catch { return epochCache ? epochCache.v : null; }
+  catch { return null; }
 }
 async function isAuthed(req: Request, env: Env): Promise<boolean> {
   if (!env.APP_PIN) return true; // no PIN configured = public read-only dashboard (owner's choice)
