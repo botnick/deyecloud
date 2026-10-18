@@ -22,11 +22,11 @@ describe("dayItem — Deye day totals for the day asked for", () => {
 });
 
 // POST /api/_purge_day over the real Worker app, with Deye's history call stubbed.
-async function fixture(deyeItems: any[]) {
+async function fixture(deyeItems: any, envelope?: any) {
   vi.resetModules();
   const db = new DatabaseSync(":memory:");
   db.exec(readFileSync(new URL("../../../schema.sql", import.meta.url), "utf8"));
-  vi.doMock("../../worker/deye", async (orig) => ({ ...(await orig<any>()), getHistory: async () => ({ success: true, stationDataItems: deyeItems }) }));
+  vi.doMock("../../worker/deye", async (orig) => ({ ...(await orig<any>()), getHistory: async () => envelope !== undefined ? envelope : { success: true, stationDataItems: deyeItems } }));
   const DB = {
     prepare(sql: string) {
       const bind = (...args: any[]): any => ({
@@ -79,5 +79,14 @@ describe("POST /api/_purge_day", () => {
     expect((await f.post("?day=2999-01-01")).status).toBe(400);
     expect((await f.post("?day=2026-10-03&confirm=1", null)).status).toBe(401);
     expect(f.db.prepare("SELECT COUNT(*) c FROM daily").get().c).toBe(2);
+  });
+
+  it("never deletes on an answer it cannot read", async () => {
+    for (const env of [{}, { success: true }, { success: true, stationDataItems: {} }, { success: true, stationDataItems: [{ year: 2026, generationValue: 17 }] }, { stationDataItems: [] }]) {
+      const f = await fixture(null, env);
+      const r = await f.post("?day=2026-10-03&confirm=1");
+      expect(r.status).toBe(502);
+      expect(f.db.prepare("SELECT COUNT(*) c FROM daily").get().c).toBe(2);
+    }
   });
 });

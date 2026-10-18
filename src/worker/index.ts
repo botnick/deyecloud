@@ -1418,6 +1418,12 @@ app.post("/api/_purge_day", async (c) => {
   const res = await getHistory(env, 2, day, next);
   const err = deyeFailed(res);
   if (err) return c.json({ ok: false, error: `deye: ${err}` }, 502);
+  // Absence has to be PROVEN: an explicit success with a real items array whose
+  // every entry carries a full date. Anything else (no flag, a non-array, an
+  // undated item) is an answer we can't read, never a "no record".
+  const items = res && res.success === true && Array.isArray(res.stationDataItems) ? res.stationDataItems : null;
+  const dated = (x: any) => x && [x.year, x.month, x.day].every((v) => Number.isInteger(v));
+  if (!items || !items.every(dated)) return c.json({ ok: false, error: "deye answer not understood; nothing deleted" }, 502);
   const item = dayItem(res, day);
   if (item) return c.json({ ok: false, error: "deye has totals for this day; use /api/_backfill instead", deye: item }, 409);
   const row = await env.DB.prepare("SELECT * FROM daily WHERE day=?").bind(day).first();
