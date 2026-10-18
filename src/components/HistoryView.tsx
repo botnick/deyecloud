@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getHistory, type HistTotals } from "../lib/api";
 import { useSmartPoll } from "../lib/usePoll";
 import { useSettings } from "../lib/settings";
-import { savingsOf, savingsLabel, co2Of } from "../lib/economics";
+import { savingsOf, savingsLabel, co2Of, baht } from "../lib/economics";
 import { cardP, plate, h2Mid } from "../lib/ui";
 import { IconChevron, IconSun, IconHouse, IconBattery, IconGrid } from "../lib/icons";
 import { BarChart, LineMini, Legend } from "./Chart";
@@ -13,6 +13,7 @@ import { PowerProfile } from "./PowerProfile";
 import { LifetimeView } from "./LifetimeView";
 import { InsightList } from "./InsightList";
 import { analyzeHistory } from "../lib/analysis";
+import { bkkToday } from "../lib/format";
 import { YearInsights } from "./YearInsights";
 
 type Range = "day" | "month" | "year" | "lifetime";
@@ -156,6 +157,19 @@ export function HistoryView({ active, stationId, isPrimary = true, capacity }: {
     : { gen: sum("gen"), use: sum("use"), buy: sum("buy"), sell: sum("sell"), charge: sum("charge"), discharge: sum("discharge") };
   const saved = periodTotals ? savingsOf(periodTotals, settings) : null;
   const co2 = periodTotals ? co2Of(periodTotals.gen || 0, settings) : null;
+  const spanWord = range === "day" ? (isCurrent ? "วันนี้" : "วันนั้น") : range === "month" ? (isCurrent ? "เดือนนี้" : "เดือนนั้น") : (isCurrent ? "ปีนี้" : "ปีนั้น");
+  // in-progress month: the money from whole days so far, averaged and scaled to the
+  // month (today is partial, so it is left out — same rule as the Home card)
+  const projSaved = useMemo(() => {
+    if (range !== "month" || !isCurrent || !points) return null;
+    const today = bkkToday();
+    const past = points.filter((p) => String(p.day) < today);
+    const len = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0).getDate();
+    if (past.length < 3 || Number(today.slice(8, 10)) >= len) return null;
+    const sum = (k: string) => past.reduce((a, p) => a + (Number(p[k]) || 0), 0);
+    const s = savingsOf({ use: sum("use"), buy: sum("buy"), sell: sum("sell") }, settings);
+    return s > 0 ? (s / past.length) * len : null;
+  }, [range, isCurrent, points, settings]);
 
   // ── compare with the previous period, like for like ──
   // A month/year still in progress is compared with the SAME elapsed slice of the
@@ -421,10 +435,11 @@ export function HistoryView({ active, stationId, isPrimary = true, capacity }: {
             <>
               {/* what this period means for you — money + carbon up top */}
               {saved != null && periodTotals && (periodTotals.use || 0) > 0 && (
-                <div className={`${cardP} mt-3 flex items-center gap-4`}>
+                <div className={`${cardP} mt-3`}>
+                <div className="flex items-center gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[12.5px] text-body">{saved != null && saved < -0.5 ? "ช่วงนี้ค่าไฟเพิ่มสุทธิ" : "ช่วงนี้ประหยัดค่าไฟ"}</span>
+                      <span className="text-[12.5px] text-body">{saved != null && saved < -0.5 ? `${spanWord}ค่าไฟเพิ่มสุทธิ` : `${spanWord}ประหยัดค่าไฟ`}</span>
                       <InfoTip text={`คิดจาก (ไฟที่ใช้ − ไฟที่ซื้อ) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายคืน × ${settings.sellRate} บาท/หน่วย` : ""} · ถ้าซื้อมากกว่าใช้ (เช่น ชาร์จแบตจากกริด) จะติดลบ = ค่าไฟเพิ่มสุทธิ · แบตที่ชาร์จวันหนึ่งแล้วใช้อีกวันทำให้ตัวเลขรายวันคลาดเคลื่อนได้เล็กน้อย แต่รายเดือน/ปีถัวเฉลี่ยกันไป · ปรับค่าได้ในแท็บ 'ตลอด'`} />
                     </div>
                     <div className={`text-[26px] font-extrabold tabnum leading-none mt-0.5 ${saved != null && saved < -0.5 ? "text-warn" : "text-secondary"}`}>{savingsLabel(saved || 0).text}</div>
@@ -434,11 +449,27 @@ export function HistoryView({ active, stationId, isPrimary = true, capacity }: {
                     <div className="text-[18px] font-extrabold tabnum leading-none mt-0.5" style={{ color: "#18a673" }}>{Math.round(co2 || 0)}<span className="text-[12px] text-body font-semibold ml-1">กก.</span></div>
                   </div>
                 </div>
+                {projSaved != null && <div className="text-[13px] text-body mt-1.5 tabnum">คาดทั้งเดือน ~{baht(projSaved)}</div>}
+                {range !== "day" && (
+                  <div className="grid grid-cols-4 gap-2 mt-3.5 pt-3 border-t border-black/[.06] text-center">
+                    {([
+                      ["ผลิต", periodTotals.gen], ["ใช้ไฟ", periodTotals.use], ["ซื้อไฟ", periodTotals.buy],
+                      (periodTotals.sell || 0) > 0.5 ? ["ขายคืน", periodTotals.sell] : ["แบตจ่าย", periodTotals.discharge],
+                    ] as [string, number | undefined][]).map(([lab, v]) => (
+                      <div key={lab}>
+                        <div className="text-[11.5px] text-muted">{lab}</div>
+                        <div className="text-[16px] font-extrabold tabnum leading-tight">{Math.round(v || 0).toLocaleString("th-TH")}</div>
+                        <div className="text-[10.5px] text-muted">หน่วย</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                </div>
               )}
               {compare && (compare.gen.prev > 0 || compare.use.prev > 0) && (
                 <div className={`${cardP} mt-3`}>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <span className="text-[12.5px] text-body">เทียบกับ{compare.label}</span>
+                    <span className="text-[12.5px] text-body">เทียบกับ {compare.label}</span>
                     <InfoTip text={`เทียบช่วงเวลาเท่ากัน: ${compare.label} — ผลิต/ใช้/ซื้อจากยอดจริงที่ระบบบันทึก และเงินคิดด้วยค่าไฟเดียวกัน`} />
                   </div>
                   <div className="grid grid-cols-4 gap-2 text-center">

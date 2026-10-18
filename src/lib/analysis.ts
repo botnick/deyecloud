@@ -363,7 +363,6 @@ function analyzeSpan(range: "month" | "year", points: any[], cap: number, st: Se
     (a, p) => ({ gen: a.gen + (p.gen || 0), use: a.use + (p.use || 0), buy: a.buy + (p.buy || 0), sell: a.sell + (p.sell || 0) }),
     { gen: 0, use: 0, buy: 0, sell: 0 }
   );
-  const span = range === "month" ? "เดือนนี้" : "ปีนี้";
   const unit = range === "month" ? "วัน" : "เดือน";
   const n = points.length || 1;
   const selfSuff = s.use > 0 ? clamp100(((s.use - s.buy) / s.use) * 100) : 0;
@@ -388,33 +387,38 @@ function analyzeSpan(range: "month" | "year", points: any[], cap: number, st: Se
   const isCurrent = range === "month"
     ? String(last.day || "").slice(0, 7) === todayBkk.slice(0, 7)
     : String(last.month || "").slice(0, 4) === todayBkk.slice(0, 4);
+  // "เดือนนี้" only while it is this month — a past month reads "ทั้งเดือน".
+  const span = range === "month" ? (isCurrent ? "เดือนนี้" : "ทั้งเดือน") : (isCurrent ? "ปีนี้" : "ทั้งปี");
+  const whole = range === "month" ? "ทั้งเดือน" : "ทั้งปี";
+  // big kWh sums read better without a decimal (1,077 not 1076.6)
+  const kwh = (n: number) => (n >= 100 ? b(n) : u(n));
 
   out.push({
     tone: "tip", title: "สรุปภาพรวม",
-    detail: `${span}ผลิตได้ ${u(s.gen)} หน่วย ใช้ไป ${u(s.use)} หน่วย — พึ่งพาไฟตัวเองได้ ${selfSuff}% (ส่วนที่ไม่ต้องซื้อ)`,
+    detail: `${span}ผลิต ${kwh(s.gen)} หน่วย · ใช้ ${kwh(s.use)} หน่วย · ไม่ต้องซื้อ ${selfSuff}% ของที่ใช้`,
   });
 
-  // คาดการณ์ทั้งช่วง (เฉพาะช่วงปัจจุบันที่ยังไม่จบ)
+  // คาดการณ์ทั้งช่วง (เฉพาะช่วงปัจจุบันที่ยังไม่จบ) — the money projection sits on
+  // the savings card above, so this one is about energy only.
   if (isCurrent && n >= 2) {
     const total = range === "month" ? new Date(Date.UTC(Number(todayBkk.slice(0, 4)), Number(todayBkk.slice(5, 7)), 0)).getUTCDate() : 12;
     if (n < total) {
-      const projGen = (s.gen / n) * total, projSaved = (saved / n) * total;
       out.push({
-        tone: "info", title: `คาดทั้ง${range === "month" ? "เดือน" : "ปี"} ~${u(projGen)} หน่วย`,
-        detail: `ผ่านไป ${n}/${total} ${unit} · ${saved < 0 ? "ค่าไฟเพิ่มสุทธิ" : "ประหยัดได้แล้ว"} ~${b(Math.abs(saved))} บาท → ทั้ง${range === "month" ? "เดือน" : "ปี"}คาด ~${b(Math.abs(projSaved))} บาท`,
-        sub: ["คาดการณ์จากค่าเฉลี่ยที่ผ่านมา — ขึ้นกับสภาพอากาศจริง"],
+        tone: "info", title: `คาดผลิต${whole} ~${kwh((s.gen / n) * total)} หน่วย`,
+        detail: `ผ่านไป ${n} จาก ${total} ${unit} · ขึ้นกับอากาศจริง`,
       });
     }
   }
 
   out.push({
-    tone: saved < 0 ? "info" : "ok", title: saved < 0 ? `${span}ค่าไฟเพิ่มสุทธิ ~${b(-saved)} บาท (ซื้อมากกว่าที่ใช้)` : `${span}ประหยัดค่าไฟ ~${b(saved)} บาท`,
-    detail: `ถ้าไม่มีโซลาร์ต้องจ่าย ~${b(s.use * st.rate)} บาท · จ่ายจริง ~${b(s.buy * st.rate)} บาท`,
+    tone: saved < 0 ? "info" : "ok",
+    title: `ถ้าไม่มีโซลาร์ ต้องจ่าย ~${b(s.use * st.rate)} บาท`,
+    detail: `จ่ายจริง ~${b(s.buy * st.rate)} บาท · ${saved < 0 ? `ค่าไฟเพิ่มสุทธิ ~${b(-saved)} บาท (ซื้อมากกว่าที่ใช้)` : `ประหยัด ~${b(saved)} บาท`}`,
     sub: [`${rateNote(st)} · ลดการปล่อย CO₂ ~${b(co2)} กก.`],
   });
   out.push({
-    tone: "info", title: `เฉลี่ยต่อ${unit} ${u(s.gen / n)} หน่วย`,
-    detail: `ผลิตเฉลี่ย ${u(s.gen / n)} · ใช้เฉลี่ย ${u(s.use / n)} หน่วยต่อ${unit} (จาก ${n} ${unit})`,
+    tone: "info", title: `เฉลี่ย${unit}ละ ผลิต ${u(s.gen / n)} · ใช้ ${u(s.use / n)} หน่วย`,
+    detail: `จาก ${n} ${unit}ที่มีข้อมูล`,
     sub: cap ? [`ผลิตต่อขนาดระบบ ~${(s.gen / n / cap).toFixed(2)} หน่วยต่อกิโลวัตต์ ในแต่ละ${unit}`] : undefined,
   });
   out.push({

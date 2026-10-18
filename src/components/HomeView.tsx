@@ -1,9 +1,10 @@
-import type { Latest, Weather } from "../lib/api";
-import { fmtKwh, timeStr } from "../lib/format";
+import { useEffect, useState } from "react";
+import { getHistory, type Latest, type Weather } from "../lib/api";
+import { bkkToday, fmtKwh, timeStr } from "../lib/format";
 import { IconAlert } from "../lib/icons";
 import { card, cardP, h2Mid } from "../lib/ui";
 import { useSettings } from "../lib/settings";
-import { savingsOf, savingsLabel } from "../lib/economics";
+import { savingsOf, savingsLabel, baht } from "../lib/economics";
 import { forecast, clearSkyPsh, forecastDayKwh } from "../lib/forecast";
 import { useForecastModel } from "../lib/useCapacity";
 import { InfoTip } from "./InfoTip";
@@ -24,6 +25,16 @@ export function HomeView({ latest, weather, capacity, isPrimary = true, stationN
   const { settings } = useSettings();
   const model = useForecastModel(capacity, isPrimary); // calibrated kWp + site-learned sky factors
   const effCap = model.capKw;
+  // this month's daily rows (primary station only — `daily` is the cron's station);
+  // re-read when the Bangkok day rolls over so a new month starts clean
+  const today = bkkToday();
+  const [monthPts, setMonthPts] = useState<any[] | null>(null);
+  useEffect(() => {
+    if (!isPrimary) { setMonthPts(null); return; }
+    let live = true;
+    getHistory("month", today).then((r) => { if (live) setMonthPts(r.points || []); }).catch(() => {});
+    return () => { live = false; };
+  }, [isPrimary, today]);
   if (!latest) return <Skeleton />;
   const ok = (latest.warningStatus || "NORMAL") === "NORMAL";
   // Today's ACHIEVABLE clear-day production — same formula the forecast uses for a
@@ -33,6 +44,21 @@ export function HomeView({ latest, weather, capacity, isPrimary = true, stationN
   const prodPct = potential > 0 ? Math.round(Math.min(100, (latest.genToday / potential) * 100)) : Math.min(100, Math.round(latest.genToday));
   // shared economics formula (self-consumption + export income, user's own rates)
   const sv = savingsLabel(savingsOf({ use: latest.useToday, buy: latest.buyToday, sell: latest.sellToday }, settings), "ประหยัดวันนี้");
+  // month so far = stored days before today + today's live counters (so it moves
+  // with the "today" figure above instead of lagging the cron's daily row)
+  const month = (() => {
+    if (!monthPts) return null;
+    const past = monthPts.filter((p) => String(p.day) < today && String(p.day).slice(0, 7) === today.slice(0, 7));
+    const add = (k: string) => past.reduce((a, p) => a + (Number(p[k]) || 0), 0);
+    const saved = savingsOf({ use: add("use") + latest.useToday, buy: add("buy") + latest.buyToday, sell: add("sell") + (latest.sellToday || 0) }, settings);
+    const days = past.length + 1;
+    const [y, m, d] = today.split("-").map(Number);
+    const len = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    // projection from whole days only (today is partial); needs a few to mean anything
+    const pastSaved = savingsOf({ use: add("use"), buy: add("buy"), sell: add("sell") }, settings);
+    const proj = past.length >= 3 && d < len && pastSaved > 0 ? (pastSaved / past.length) * len : null;
+    return { saved, days, dayOfMonth: d, proj };
+  })();
   // tomorrow's expected production (shown only when capacity is known here)
   const tomorrow = effCap ? forecast(weather, effCap, model.sky)[1] : undefined;
 
@@ -92,6 +118,26 @@ export function HomeView({ latest, weather, capacity, isPrimary = true, stationN
             <div className={`text-[21px] font-extrabold tabnum mt-0.5 ${sv.negative ? "text-warn" : "text-secondary"}`}>{sv.text}</div>
           </div>
         </div>
+        {month && (() => {
+          const ml = savingsLabel(month.saved, "เดือนนี้ประหยัดแล้ว");
+          return (
+            <div className="flex items-end justify-between gap-3 mt-3.5 pt-3 border-t border-black/[.06]">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 text-[13px] font-semibold text-body">
+                  {ml.negative ? "เดือนนี้ค่าไฟเพิ่มสุทธิ" : ml.label}
+                  <InfoTip text={`รวมตั้งแต่วันที่ 1 ถึงตอนนี้ สูตรเดียวกับของวันนี้${month.days < month.dayOfMonth ? ` · มีข้อมูล ${month.days} จาก ${month.dayOfMonth} วัน` : ""}${month.proj != null ? " · ตัวเลขคาดทั้งเดือนคิดจากค่าเฉลี่ยวันที่ผ่านมา" : ""}`} />
+                </div>
+                <div className={`text-[24px] font-extrabold tabnum leading-tight ${ml.negative ? "text-warn" : "text-secondary"}`}>{ml.text}</div>
+              </div>
+              {month.proj != null && (
+                <div className="text-right shrink-0">
+                  <div className="text-[12.5px] text-muted">คาดทั้งเดือน</div>
+                  <div className="text-[16px] font-bold tabnum text-body">~{baht(month.proj)}</div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* system — iOS grouped list */}
