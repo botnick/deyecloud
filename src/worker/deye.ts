@@ -392,7 +392,7 @@ async function getDayTotals(env: Env, stationId: string): Promise<any | null> {
   const tmr = bkkDay(1);
   const res = await apiPost(env, "/station/history", { stationId: Number(stationId), granularity: 2, startAt: today, endAt: tmr });
   if (!res || res.success === false || (typeof res.status === "number" && res.status >= 400)) return null;
-  return (res.stationDataItems && res.stationDataItems[0]) || null;
+  return dayItem(res, today);
 }
 
 async function getLatestOpen(env: Env, stationId?: string): Promise<Latest> {
@@ -504,6 +504,18 @@ async function getInverterFlow(
     genTotal: num("TotalActiveProduction"),
     observedAt: toSec(((res.deviceDataList && res.deviceDataList[0]) || {}).collectionTime),
   };
+}
+
+// The day-granularity call is asked for [day, day+1] (Deye wants endAt > startAt),
+// so when the station recorded nothing on `day` the first item is the NEXT day.
+// Pick the item stamped with the day asked for; items without a date (never seen,
+// but older payloads may lack year/month/day) keep the first-item behaviour.
+export function dayItem(res: any, day: string): any | null {
+  const items: any[] = (res && res.stationDataItems) || [];
+  if (!items.length) return null;
+  if (!items.some((x) => x && x.year != null)) return items[0];
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  return items.find((x) => x && `${x.year}-${p2(x.month)}-${p2(x.day)}` === day) || null;
 }
 
 export async function getHistory(env: Env, granularity: number, startAt: string, endAt: string, stationId?: string): Promise<any> {

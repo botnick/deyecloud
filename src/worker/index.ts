@@ -2,7 +2,7 @@
 // D1, realtime polling on a cron schedule. The SPA is served via the ASSETS
 // binding (configured by @cloudflare/vite-plugin).
 import { Hono } from "hono";
-import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, isAuthHold, isAuthEnvelope, stationAlerts, type DeyeAlert, bkkDay, DeyeNonJsonError, type Env } from "./deye";
+import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, dayItem, isAuthHold, isAuthEnvelope, stationAlerts, type DeyeAlert, bkkDay, DeyeNonJsonError, type Env } from "./deye";
 import { sunInfo } from "./sun";
 import { analyzeDevice } from "../lib/diagnostics";
 import { evaluateAlerts, notify, alertsConfigured, delivered } from "./alerts";
@@ -965,7 +965,7 @@ async function fetchHistFromDeye(env: Env, range: string, dateStr: string, sid?:
       ts: x.timeStamp, gen_power: x.generationPower ?? 0, use_power: x.consumptionPower ?? 0,
       grid_power: x.wirePower ?? x.gridPower ?? 0, batt_power: x.batteryPower ?? 0, soc: x.batterySOC ?? null,
     }));
-    const tot = (tres && tres.stationDataItems && tres.stationDataItems[0]) || null;
+    const tot = dayItem(tres, dateStr);
     const totals = tot ? { gen: tot.generationValue ?? 0, use: tot.consumptionValue ?? 0, buy: tot.purchaseValue ?? 0, sell: tot.gridValue ?? 0, charge: tot.chargeValue ?? 0, discharge: tot.dischargeValue ?? 0 } : null;
     data = { range, date: dateStr, points, totals, source: "deye" };
   } else if (range === "month") {
@@ -1283,7 +1283,7 @@ async function backfillRange(env: Env, from: string, to: string, maxDays = BACKF
           ).bind(JSON.stringify(rows))
         );
       }
-      const t = (!tErr && tres && tres.stationDataItems && tres.stationDataItems[0]) || null;
+      const t = (!tErr && dayItem(tres, day)) || null;
       if (t) {
         stmts.push(
           env.DB.prepare(
@@ -1403,7 +1403,35 @@ app.post("/api/_purge", async (c) => {
   return c.json({ ok: true, dryRun: false, from, to, deleted: before });
 });
 
-// Revoke every session (the caller's too): each device has to enter the PIN again.
+// Drop a `daily` row that Deye itself has no record for — left behind by the old
+// backfill, which took the next day's totals when the asked-for day was empty.
+//   POST /api/_purge_day?day=YYYY-MM-DD[&confirm=1]   (dry run without confirm)
+// Refuses unless Deye answers successfully with no item for that day, so a row
+// Deye still vouches for can never be removed this way.
+app.post("/api/_purge_day", async (c) => {
+  const env = c.env;
+  const day = c.req.query("day") || "";
+  const ms = exactDay(day);
+  if (ms == null) return c.json({ ok: false, error: "day must be YYYY-MM-DD" }, 400);
+  if (day >= bkkDay()) return c.json({ ok: false, error: "only past days" }, 400);
+  const next = new Date(ms + 86400000).toISOString().slice(0, 10);
+  const res = await getHistory(env, 2, day, next);
+  const err = deyeFailed(res);
+  if (err) return c.json({ ok: false, error: `deye: ${err}` }, 502);
+  const item = dayItem(res, day);
+  if (item) return c.json({ ok: false, error: "deye has totals for this day; use /api/_backfill instead", deye: item }, 409);
+  const row = await env.DB.prepare("SELECT * FROM daily WHERE day=?").bind(day).first();
+  if (!row) return c.json({ ok: true, day, deleted: null, note: "no row" });
+  if (c.req.query("confirm") !== "1") return c.json({ ok: true, dryRun: true, day, wouldDelete: row });
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM daily WHERE day=?").bind(day),
+    env.DB.prepare("DELETE FROM meta WHERE k LIKE 'hist_v3_%' AND k LIKE ?").bind(`%${day.slice(0, 7)}%`),
+    env.DB.prepare("DELETE FROM meta WHERE k LIKE 'hist_v3_year_%' AND k LIKE ?").bind(`%${day.slice(0, 4)}%`),
+    env.DB.prepare("DELETE FROM meta WHERE k='totals_cache'"),
+  ]);
+  return c.json({ ok: true, dryRun: false, day, deleted: row });
+});
+
 // Revoke every session (the caller's too): each device has to enter the PIN again.
 app.post("/api/_logout_all", async (c) => {
   const row = (await c.env.DB.prepare(
