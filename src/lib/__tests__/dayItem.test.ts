@@ -82,11 +82,14 @@ describe("POST /api/_purge_day", () => {
   });
 
   it("never deletes on an answer it cannot read", async () => {
-    for (const env of [{}, { success: true }, { success: true, stationDataItems: {} }, { success: true, stationDataItems: [{ year: 2026, generationValue: 17 }] }, { stationDataItems: [] }]) {
+    for (const env of [{}, { success: true }, { success: true, stationDataItems: {} }, { success: true, stationDataItems: [{ year: 2026, generationValue: 17 }] }, { stationDataItems: [] },
+      { success: true, stationDataItems: [{ year: 2026, month: 10, day: 0 }] }, { success: true, stationDataItems: [{ year: 2026, month: 13, day: 3 }] },
+      { success: true, stationDataItems: [{ year: 2026, month: 2, day: 31 }] }, { success: true, stationDataItems: [{ year: 2026, month: 10, day: 4.5 }] }]) {
       const f = await fixture(null, env);
       const r = await f.post("?day=2026-10-03&confirm=1");
       expect(r.status).toBe(502);
       expect(f.db.prepare("SELECT COUNT(*) c FROM daily").get().c).toBe(2);
+      expect(f.db.prepare("SELECT COUNT(*) c FROM meta WHERE k IN ('totals_cache','hist_v3_month_2026-10-01')").get().c).toBe(2);
     }
   });
 });

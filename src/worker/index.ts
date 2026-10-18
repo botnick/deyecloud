@@ -1422,7 +1422,9 @@ app.post("/api/_purge_day", async (c) => {
   // every entry carries a full date. Anything else (no flag, a non-array, an
   // undated item) is an answer we can't read, never a "no record".
   const items = res && res.success === true && Array.isArray(res.stationDataItems) ? res.stationDataItems : null;
-  const dated = (x: any) => x && [x.year, x.month, x.day].every((v) => Number.isInteger(v));
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  const dated = (x: any) => x && [x.year, x.month, x.day].every((v) => Number.isInteger(v) && v > 0)
+    && exactDay(`${String(x.year).padStart(4, "0")}-${p2(x.month)}-${p2(x.day)}`) != null; // a real calendar date, not 2026-13-03 / 02-31 / day 0
   if (!items || !items.every(dated)) return c.json({ ok: false, error: "deye answer not understood; nothing deleted" }, 502);
   const item = dayItem(res, day);
   if (item) return c.json({ ok: false, error: "deye has totals for this day; use /api/_backfill instead", deye: item }, 409);
