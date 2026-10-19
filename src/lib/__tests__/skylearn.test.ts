@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { learnSky, accuracySummary, SKY_PRIOR_WEIGHT } from "../skylearn";
+import { learnSky, accuracySummary, SKY_PRIOR_WEIGHT, SKY_HALF_LIFE_DAYS } from "../skylearn";
 import { DEFAULT_SKY } from "../forecast";
 
 describe("learnSky — site sky factors shrunk toward the regional prior", () => {
@@ -21,6 +21,18 @@ describe("learnSky — site sky factors shrunk toward the regional prior", () =>
   it("unobserved conditions keep the prior; junk rows ignored", () => {
     const l = learnSky([{ cond: 2, ratio: 0.6 }, { cond: NaN, ratio: 0.5 }, { cond: 2, ratio: -1 }]);
     expect(l.sky[7]).toBe(DEFAULT_SKY[7]); expect(l.samples[2]).toBe(1);
+  });
+  it("recent days outweigh old ones: a season's shift moves the factor", () => {
+    // 10 rainy-season days long ago at 0.4, then 6 recent days at 0.8 under the same code
+    const old = Array.from({ length: 10 }, (_, i) => ({ cond: 4, ratio: 0.4, ageDays: 40 + i }));
+    const recent = Array.from({ length: 6 }, (_, i) => ({ cond: 4, ratio: 0.8, ageDays: i }));
+    expect(learnSky([...old, ...recent]).sky[4]).toBeGreaterThan(0.7);
+    // equal weights (no half-life) keep the old majority
+    expect(learnSky([...old, ...recent], DEFAULT_SKY, SKY_PRIOR_WEIGHT, 0).sky[4]).toBeLessThan(0.45);
+  });
+  it("a day one half-life old counts half", () => {
+    const l = learnSky([{ cond: 3, ratio: 0.9, ageDays: SKY_HALF_LIFE_DAYS }]);
+    expect(l.sky[3]).toBeCloseTo((0.5 * 0.9 + SKY_PRIOR_WEIGHT * 0.52) / (0.5 + SKY_PRIOR_WEIGHT));
   });
 });
 

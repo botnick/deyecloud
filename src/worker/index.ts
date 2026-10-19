@@ -774,7 +774,8 @@ async function forecastModel(env: Env) {
     // ratio = actual / (capKw_at_the_time × psh): the sky's share of clear yield
     const rows = await evaluatedForecastRows(env, 120);
     const obs = rows.filter((r) => r.actual != null && r.actual > 0.5 && r.cap_kw > 0 && r.psh > 0)
-      .map((r) => ({ cond: Number(r.cond), ratio: Number(r.actual) / (Number(r.cap_kw) * Number(r.psh)) }));
+      .map((r) => ({ cond: Number(r.cond), ratio: Number(r.actual) / (Number(r.cap_kw) * Number(r.psh)),
+        ageDays: (Date.now() - Date.parse(r.day + "T12:00:00+07:00")) / 86400000 }));
     const l = learnSky(obs);
     sky = l.sky; skyDays = l.days;
   } catch (e) { console.warn("sky learning skipped", (e as Error).message); }
