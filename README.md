@@ -211,7 +211,7 @@ npm run dev                       # เปิด http://localhost:5174  (มื�
 ภาษาไทยทั้งแอป ตัวเลขใหญ่อ่านง่าย มีพยากรณ์ที่เรียนรู้จากบ้านคุณ สุขภาพแบตเตอรี่จากการวัดจริง สรุปเงินที่ประหยัดรายเดือน แจ้งเตือน Discord / Telegram และคนในบ้านดูได้ด้วย PIN โดยไม่ต้องรู้รหัสบัญชี Deye
 
 ### ข้อมูลและรหัสผ่านปลอดภัยไหม
-กุญแจและรหัสบัญชี Deye เก็บเป็นค่าลับฝั่งเซิร์ฟเวอร์ ไม่ส่งไปที่มือถือ เข้าแอปด้วย PIN หน้าแอปตั้งค่าไม่ให้ขึ้นในผลค้นหา และข้อมูลอยู่ในบัญชี Cloudflare ของคุณเอง
+กุญแจและรหัสบัญชี Deye เก็บเป็นค่าลับฝั่งเซิร์ฟเวอร์ ไม่ส่งไปที่มือถือ เข้าแอปด้วย PIN หน้าแอปตั้งค่าไม่ให้ขึ้นในผลค้นหา ประวัติข้อมูลทั้งหมดเก็บในบัญชี Cloudflare ของคุณเอง · ถ้าตั้ง `DEYE_RELAY_URL` ไว้ คำขอที่ส่งไป Deye (รวมคำขอโทเคนที่มีอีเมลและรหัสผ่านแบบแฮช) จะผ่านเครื่อง relay นั้นด้วย จึงควรใช้ relay ของคุณเองหรือของคนที่ไว้ใจเท่านั้น ไม่ใช้ก็ลบบรรทัดนี้ได้
 
 ---
 
@@ -287,7 +287,7 @@ Any system that reports to Deye Cloud — on-grid, hybrid or off-grid. You need 
 The app interface is Thai, built for Thai households with large numbers and labelled colours. The code, API and setup work the same anywhere Deye Cloud is available.
 
 #### Are my Deye credentials safe?
-Deye keys and the account password are server-side secrets only and never reach the phone. People sign in with a PIN, the app is marked noindex, and all data stays in your own Cloudflare account.
+Deye keys and the account password are server-side secrets only and never reach the phone. People sign in with a PIN, the app is marked noindex, and all stored history lives in your own Cloudflare account. If `DEYE_RELAY_URL` is set, outgoing Deye requests (including the token request with the email and password hash) pass through that relay, so only use a relay you run or trust, or remove the setting.
 
 ---
 
