@@ -85,7 +85,7 @@ function mdToHtml(md, { from = "", lang = "th", ids = new Map(), toc = null } = 
     return `<h${depth} id="${id}"><a class="anchor" href="#${id}" aria-hidden="true" tabindex="-1">#</a>${inner}</h${depth}>\n`;
   };
   renderer.table = function (token) { return `<div class="table">${marked.Renderer.prototype.table.call(this, token)}</div>`; };
-  let html = marked.parse(md, { renderer, gfm: true });
+  let html = marked.parse(md, { renderer, gfm: true }).replace(techRe, () => techList("tech"));
   return tidy(rewriteLinks(html, from), lang);
 }
 
@@ -149,8 +149,12 @@ const enFaqPart = enParts.find((p) => /faq/i.test(p.title || ""));
 const enFaqs = enFaqPart ? splitBy(enFaqPart.body, 4).filter((c) => c.title).map((c) => ({ q: c.title, a: c.body })) : [];
 const enChapters = enParts.filter((p) => p.title && p !== enFaqPart);
 
-const stack = [["Cloudflare Workers", null], ["D1", null], ["React", ver("react")], ["Vite", ver("vite")], ["Hono", ver("hono")], ["Tailwind CSS", ver("tailwindcss")], ["TypeScript", ver("typescript")], ["three.js", ver("three") && "0." + (pkg.dependencies.three.match(/0\.(\d+)/) || [])[1]], ["Vitest", ver("vitest")]]
-  .filter(([n, v]) => v !== undefined && (v !== null || /Cloudflare|D1/.test(n)));
+// Tech stack = the README's icon row (<p class="tech">); versions looked up in package.json.
+const techRe = /<p class="tech">([\s\S]*?)<\/p>/;
+const tech = [...((readme.match(techRe) || [])[1] || "").matchAll(/<a href="([^"]+)"><img src="([^"]+)"[^>]*alt="([^"]+)"/g)].map(([, href, icon, name]) => ({ href, icon, name }));
+const depFor = (name) => Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).find((d) => d === name.toLowerCase() || d === name.toLowerCase().replace(/\s+css$/, "css") || d === name.toLowerCase().replace(/\.js$/, ""));
+const techVer = (name) => { const d = depFor(name); if (!d) return ""; const v = ({ ...pkg.dependencies, ...pkg.devDependencies })[d].replace(/^[^\d]*/, "").split("."); return v[0] === "0" ? v.slice(0, 2).join(".") : v[0]; };
+const techList = (cls) => tech.length ? `<ul class="${cls}">${tech.map((t) => `<li><a href="${esc(t.href)}"><img src="${esc(t.icon)}" alt="" width="20" height="20" loading="lazy" decoding="async"><span>${esc(t.name)}</span>${techVer(t.name) ? `<em>${esc(techVer(t.name))}</em>` : ""}</a></li>`).join("")}</ul>` : "";
 
 // ---------- page chrome ----------
 const css = readFileSync(path.join(import.meta.dirname, "style.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\s*\n\s*/g, "\n");
@@ -301,7 +305,7 @@ async function home() {
         ${deployUrl ? `<a class="btn primary" href="${deployUrl}">Deploy to Cloudflare</a>` : ""}
         ${docFiles[0] ? `<a class="btn" href="docs/${docSlug(docFiles.find((f) => /deploy/i.test(f)) || docFiles[0])}/">${esc(docTitle(docFiles.find((f) => /deploy/i.test(f)) || docFiles[0]))}</a>` : ""}
       </div>
-      <ul class="stack" aria-label="stack">${stack.map(([n, v]) => `<li>${esc(n)}${v ? ` <span>${esc(v)}</span>` : ""}</li>`).join("")}</ul>
+      ${techList("stack")}
     </div>
     <div class="hero-shot">${await heroSwitch(heroItems, "")}</div>
   </div>
@@ -383,7 +387,7 @@ async function english() {
         ${deployUrl ? `<a class="btn primary" href="${deployUrl}">Deploy to Cloudflare</a>` : ""}
         <a class="btn" href="${REPO_URL}">${ghIcon} GitHub</a>
       </div>
-      <ul class="stack" aria-label="stack">${stack.map(([n, v]) => `<li>${esc(n)}${v ? ` <span>${esc(v)}</span>` : ""}</li>`).join("")}</ul>
+      ${techList("stack")}
     </div>
     <div class="hero-shot">${await heroSwitch(heroItems, "../")}</div>
   </div>

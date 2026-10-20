@@ -220,18 +220,19 @@ npm run dev                       # → http://localhost:5174  (มือถื�
 
 ทุกอย่างอยู่ใน Worker เดียว · ค่าลับไม่ออกไปฝั่งมือถือ · ถ้า Deye บล็อกเครือข่าย Cloudflare จะอ้อมผ่าน relay ที่ตั้งไว้ (`DEYE_RELAY_URL`) · การรับแดด (ขึ้น-ตก, ช่วงแดดดี, ชั่วโมงแดดเต็ม) คำนวณจริงด้วย NOAA + Haurwitz · โควต้าต่อรอบของ free tier ถูกคิดไว้ในโค้ด (cron วันละ 288 ครั้ง ห่างลิมิต 100,000 req/วันมาก)
 
-**Stack:** Vite 6 · React 19 · TypeScript · Tailwind CSS v4 · three.js · Hono 4 · Cloudflare Workers / D1 / Cron / Static Assets · vite-plugin-pwa · Vitest · Meteocons
-
-<details>
-<summary><b>ดีไซน์</b></summary>
-
-ธีม **Solurna**: เหลือง `#FFCC00` (ปุ่ม) + ม่วง `#A20DDD` (เมนูที่เลือก) บนพื้น gradient แสงเช้า · พื้นผิวกระจกฝ้าแบบ iOS (`.glass-card`) + พื้นทึบสำหรับกราฟ/ตัวเลขใหญ่ (`.metric-plate`) — token รวมที่ `src/lib/ui.ts`
-
-**สีพลังงาน (เหมือนกันทั้งแอป):** โซลาร์ เหลือง `#f5a623` · บ้าน น้ำเงิน `#0d4add` · กริด ม่วง `#8b5cf6` · แบต เขียว `#18a673`
-
-**เพื่อผู้สูงอายุ:** เมนู 4 ปุ่ม · ตัวอักษร ≥14px ตัวเลขใหญ่ · เคารพ `prefers-reduced-motion` · ไอคอนเส้น ไม่ใช้ emoji ในแอป · บ้าน 3D หมุนได้ (three.js) เส้นไฟวิ่งตามทิศจริง กลางวัน/กลางคืน
-
-</details>
+<p class="tech">
+  <a href="https://vite.dev"><img src="https://cdn.simpleicons.org/vite" width="32" height="32" alt="Vite" title="Vite"></a>
+  <a href="https://react.dev"><img src="https://cdn.simpleicons.org/react" width="32" height="32" alt="React" title="React"></a>
+  <a href="https://www.typescriptlang.org"><img src="https://cdn.simpleicons.org/typescript" width="32" height="32" alt="TypeScript" title="TypeScript"></a>
+  <a href="https://tailwindcss.com"><img src="https://cdn.simpleicons.org/tailwindcss" width="32" height="32" alt="Tailwind CSS" title="Tailwind CSS"></a>
+  <a href="https://threejs.org"><img src="https://cdn.simpleicons.org/threedotjs" width="32" height="32" alt="three.js" title="three.js"></a>
+  <a href="https://hono.dev"><img src="https://cdn.simpleicons.org/hono" width="32" height="32" alt="Hono" title="Hono"></a>
+  <a href="https://developers.cloudflare.com/workers/"><img src="https://cdn.simpleicons.org/cloudflareworkers" width="32" height="32" alt="Cloudflare Workers" title="Cloudflare Workers"></a>
+  <a href="https://developers.cloudflare.com/d1/"><img src="https://cdn.simpleicons.org/cloudflare" width="32" height="32" alt="Cloudflare D1 · Cron · Static Assets" title="Cloudflare D1 · Cron · Static Assets"></a>
+  <a href="https://vite-pwa-org.netlify.app"><img src="https://cdn.simpleicons.org/pwa" width="32" height="32" alt="vite-plugin-pwa" title="vite-plugin-pwa"></a>
+  <a href="https://vitest.dev"><img src="https://cdn.simpleicons.org/vitest" width="32" height="32" alt="Vitest" title="Vitest"></a>
+  <a href="https://meteocons.com"><img src="https://cdn.jsdelivr.net/npm/@meteocons/svg/fill/clear-day.svg" width="32" height="32" alt="Meteocons" title="Meteocons"></a>
+</p>
 
 ---
 

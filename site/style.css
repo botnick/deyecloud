@@ -48,8 +48,15 @@ code { overflow-wrap: anywhere; font: 0.86em/1.4 var(--mono); background: #eeece
 .lede { font-size: 19px; color: var(--ink-2); margin: 0 0 28px; max-width: 36em; }
 .lede p { margin: 0; }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; }
-.stack { list-style: none; padding: 0; margin: 32px 0 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font: 13px/1.6 var(--mono); color: var(--ink-3); }
-.stack span { color: var(--ink); }
+.stack, .tech { list-style: none; padding: 0; margin: 32px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.stack a, .tech a { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); text-decoration: none; font-size: 14px; line-height: 1.3; transition: border-color .15s, transform .15s; }
+.stack a:hover, .tech a:hover { border-color: var(--ink-3); transform: translateY(-1px); }
+.stack img, .tech img { width: 20px; height: 20px; flex: none; }
+.stack em, .tech em { font: normal 12px/1 var(--mono); color: var(--ink-3); }
+.tech { margin: 8px 0 24px; }
+.stack { gap: 6px; }
+.stack a { font-size: 13px; padding: 4px 10px 4px 6px; }
+.stack img { width: 16px; height: 16px; }
 @media (max-width: 900px) { .hero { padding-top: 36px; } .hero-in { grid-template-columns: 1fr; gap: 36px; } .hero-shot { width: 100%; max-width: 520px; justify-self: center; } }
 
 /* hero image switcher (CSS only) */
