@@ -28,8 +28,9 @@
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap">
-<link rel="preload" as="image" href="../img/home.webp" fetchpriority="high">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap"></noscript>
+<link rel="preload" as="image" href="../img/home.webp" imagesrcset="../img/home-280.webp 280w, ../img/home.webp 520w" imagesizes="(max-width:900px) 86vw, 420px" fetchpriority="high">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -70,7 +71,125 @@
   ]
 }
 </script>
-<link rel="stylesheet" href="../style.css">
+<style>
+:root{--bg:#faf8ff;--ink:#16141c;--mute:#615d70;--line:#e9e5f2;--card:#fff;--y:#ffcc00;--p:#a20ddd;--sun:#f5a623;--home:#0d4add;--grid:#8b5cf6;--bat:#18a673;--r:22px;
+--font:"Sarabun","Leelawadee UI","Thonburi","Noto Sans Thai",system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{font:17px/1.65 var(--font);color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+img{max-width:100%;height:auto;display:block}
+a{color:inherit}
+.wrap{width:min(1120px,100% - 40px);margin-inline:auto}
+.skip{position:absolute;left:-9999px}.skip:focus{left:16px;top:12px;z-index:9;background:#fff;padding:8px 14px;border-radius:10px}
+:focus-visible{outline:3px solid var(--p);outline-offset:3px;border-radius:8px}
+
+/* nav */
+nav{position:sticky;top:0;z-index:5;backdrop-filter:saturate(1.6) blur(14px);-webkit-backdrop-filter:saturate(1.6) blur(14px);background:color-mix(in srgb,var(--bg) 78%,transparent);border-bottom:1px solid transparent}
+nav .wrap{display:flex;align-items:center;gap:16px;height:64px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;text-decoration:none;font-size:18px}
+.brand img{width:30px;height:30px}
+nav .links{margin-left:auto;display:flex;gap:22px;align-items:center;font-size:15px}
+nav .links a{text-decoration:none;color:var(--mute)}nav .links a:hover{color:var(--ink)}
+@media (max-width:720px){nav .links .hide-sm{display:none}}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;height:50px;padding:0 22px;border-radius:999px;font-weight:600;font-size:16px;text-decoration:none;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s,background .2s;will-change:transform}
+.btn:hover{transform:translateY(-2px)}.btn:active{transform:translateY(0) scale(.98)}
+.btn-y{background:var(--y);color:#1b1500;box-shadow:0 8px 24px -8px #ffcc00aa}
+.btn-y:hover{box-shadow:0 14px 30px -10px #ffcc00cc}
+.btn-g{background:#fff;border:1px solid var(--line);color:var(--ink)}
+.btn-sm{height:38px;padding:0 16px;font-size:14px}
+.btn svg{width:18px;height:18px}
+
+/* hero */
+.hero{position:relative;padding:72px 0 40px;isolation:isolate}
+.hero:before{content:"";position:absolute;z-index:-1;inset:-64px 0 -200px;pointer-events:none;background:radial-gradient(560px 460px at 85% 12%,#ffe27a99,transparent 70%),radial-gradient(520px 460px at 0% 50%,#e7c6ff99,transparent 70%)}
+.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center}
+.hero .wrap.wide{display:block}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 14px 6px 8px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:14px;color:var(--mute)}
+.pill b{background:#f3e6fb;color:var(--p);border-radius:999px;padding:2px 10px;font-size:13px}
+h1{font-size:clamp(34px,5vw,60px);line-height:1.15;letter-spacing:-.02em;margin:20px 0 18px;font-weight:800}
+.nw{white-space:nowrap}
+h1 em{font-style:normal;background:linear-gradient(100deg,var(--sun),#f08a00 40%,var(--p));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{font-size:clamp(17px,2vw,20px);color:var(--mute);max-width:34em}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+.note{margin-top:16px;font-size:14px;color:var(--mute)}
+.stage{position:relative;justify-self:center;width:min(420px,100%)}
+.stage .phone{filter:drop-shadow(0 30px 50px #2b145040);animation:float 7s ease-in-out infinite}
+.chip{position:absolute;text-align:left;display:flex;align-items:center;gap:10px;background:#ffffffe6;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid #fff;border-radius:16px;padding:10px 14px;box-shadow:0 12px 30px -12px #2b145035;font-size:13px;line-height:1.25;color:var(--mute)}
+.chip strong{display:block;font-size:18px;color:var(--ink)}
+.chip i{width:10px;height:10px;border-radius:50%;flex:none}
+.c1{left:-34px;top:22%;animation:float 6s ease-in-out -2s infinite}
+.c2{right:-26px;top:48%;animation:float 6.5s ease-in-out -4s infinite}
+.c3{left:-14px;bottom:12%;animation:float 7.5s ease-in-out -1s infinite}
+@keyframes float{50%{transform:translateY(-10px)}}
+@media (max-width:900px){.hero{padding-top:40px}.hero .wrap{grid-template-columns:1fr;gap:28px;text-align:center}.lead{margin-inline:auto}.cta{justify-content:center}.stage{width:min(340px,86%)}.c1{left:-22px}.c2{right:-18px}.c3{left:-6px}}
+
+/* stats */
+.stats{text-align:left;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:36px auto 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px}
+.stat strong{display:block;font-size:28px;line-height:1.2;font-weight:800}
+.stat span{color:var(--mute);font-size:14px}
+@media (max-width:720px){.stats{grid-template-columns:repeat(2,1fr)}}
+
+/* sections */
+section{padding:88px 0 0}
+.eyebrow{color:var(--p);font-weight:700;font-size:14px;letter-spacing:.06em}
+h2{font-size:clamp(28px,3.6vw,42px);line-height:1.2;letter-spacing:-.015em;margin:8px 0 12px;font-weight:800}
+.sub{color:var(--mute);max-width:40em}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:36px}
+@media (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:600px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:26px;transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s}
+.card:hover{transform:translateY(-4px);box-shadow:0 20px 40px -24px #2b145040}
+.ico{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;margin-bottom:16px}
+.ico svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.card h3{font-size:19px;margin-bottom:6px}
+.card p{color:var(--mute);font-size:15.5px}
+
+/* screens */
+.rail{display:flex;gap:18px;overflow-x:auto;scroll-snap-type:x mandatory;padding:36px 20px 10px;margin:0 -20px;scrollbar-width:none}
+.rail::-webkit-scrollbar{display:none}
+.rail figure{flex:0 0 min(250px,64vw);scroll-snap-align:center;text-align:center}
+.rail figcaption{font-weight:600;margin-top:4px}
+.rail figcaption span{display:block;font-weight:400;color:var(--mute);font-size:14px}
+.duo{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}
+.duo .card{padding:14px}
+.duo img{border-radius:14px}
+.duo p{text-align:center;margin-top:10px;font-size:14px}
+@media (max-width:720px){.duo{grid-template-columns:1fr 1fr}.duo .card:last-child{display:none}}
+
+/* steps */
+.steps{counter-reset:s;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:36px}
+@media (max-width:800px){.steps{grid-template-columns:1fr}}
+.steps .card:before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--ink);color:#fff;font-weight:700;margin-bottom:14px}
+pre{background:#16141c;color:#eae6f5;border-radius:16px;padding:18px 20px;overflow-x:auto;font:14px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin-top:16px}
+pre .c{color:#8f88a6}
+
+/* faq */
+.faq{margin-top:28px;display:grid;gap:10px;max-width:820px}
+details{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:0 22px}
+summary{cursor:pointer;list-style:none;padding:18px 0;font-weight:600;font-size:17.5px;display:flex;justify-content:space-between;gap:16px}
+summary::-webkit-details-marker{display:none}
+summary:after{content:"+";font-size:24px;line-height:1;color:var(--mute);transition:transform .25s}
+details[open] summary:after{transform:rotate(45deg)}
+details p{padding:0 0 20px;color:var(--mute)}
+
+/* final */
+.final{margin:96px auto 0;text-align:center;background:var(--ink);color:#fff;border-radius:32px;padding:64px 24px;position:relative;overflow:hidden;isolation:isolate}
+.final:before{content:"";position:absolute;inset:auto -10% -60% -10%;height:120%;background:radial-gradient(closest-side,#a20ddd88,transparent),radial-gradient(closest-side at 70% 40%,#ffcc0066,transparent);z-index:-1}
+.final h2{color:#fff}.final p{color:#cfc8e3;margin:0 auto 26px;max-width:32em}
+footer{padding:40px 0 60px;color:var(--mute);font-size:14px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:space-between}
+footer a{text-decoration:none}footer a:hover{color:var(--ink)}
+
+/* reveal on scroll (CSS-only, progressive) */
+@supports (animation-timeline:view()){
+  .rv{animation:rv linear both;animation-timeline:view();animation-range:entry 0% entry 40%}
+  @keyframes rv{from{opacity:0;transform:translateY(28px)}}
+}
+@media (prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -102,7 +221,7 @@
       <p class="note">For Deye inverters on Deye Cloud · on-grid / hybrid / off-grid · app interface in Thai</p>
     </div>
     <div class="stage">
-      <img class="phone" src="../img/home.webp" width="520" height="986" alt="Home screen: a 3D house with live solar, load, grid and battery figures" fetchpriority="high">
+      <img class="phone" src="../img/home.webp" srcset="../img/home-280.webp 280w, ../img/home.webp 520w" sizes="(max-width:900px) 86vw, 420px" width="520" height="986" alt="Home screen: a 3D house with live solar, load, grid and battery figures" fetchpriority="high">
       <div class="chip c1" aria-hidden="true"><i style="background:var(--sun)"></i><div>Produced today<strong>32.0 kWh</strong></div></div>
       <div class="chip c2" aria-hidden="true"><i style="background:var(--bat)"></i><div>Self-sufficiency<strong>83%</strong></div></div>
       <div class="chip c3" aria-hidden="true"><i style="background:var(--p)"></i><div>Saved today<strong>฿195</strong></div></div>
@@ -139,15 +258,15 @@
     <p class="eyebrow">SCREENS</p>
     <h2 class="rv">Designed to read like a native iPhone app</h2>
     <div class="rail" tabindex="0" aria-label="Screenshots, scrollable">
-      <figure><img src="../img/home.webp" width="520" height="986" loading="lazy" alt="Home: system status and live energy flow"><figcaption>Home<span>status + live flow</span></figcaption></figure>
-      <figure><img src="../img/today.webp" width="520" height="986" loading="lazy" alt="Today: produced, used, bought, exported and self-sufficiency"><figcaption>Today<span>produced · used · bought</span></figcaption></figure>
-      <figure><img src="../img/weather.webp" width="520" height="986" loading="lazy" alt="Weather: forecast, expected production and forecast accuracy"><figcaption>Weather<span>forecast + expected kWh</span></figcaption></figure>
-      <figure><img src="../img/history.webp" width="520" height="986" loading="lazy" alt="History: savings and energy chart"><figcaption>History<span>day · month · year · all</span></figcaption></figure>
+      <figure><img src="../img/home.webp" srcset="../img/home-280.webp 280w, ../img/home.webp 520w" sizes="(max-width:600px) 64vw, 250px" width="520" height="986" loading="lazy" alt="Home: system status and live energy flow"><figcaption>Home<span>status + live flow</span></figcaption></figure>
+      <figure><img src="../img/today.webp" srcset="../img/today-280.webp 280w, ../img/today.webp 520w" sizes="(max-width:600px) 64vw, 250px" width="520" height="986" loading="lazy" alt="Today: produced, used, bought, exported and self-sufficiency"><figcaption>Today<span>produced · used · bought</span></figcaption></figure>
+      <figure><img src="../img/weather.webp" srcset="../img/weather-280.webp 280w, ../img/weather.webp 520w" sizes="(max-width:600px) 64vw, 250px" width="520" height="986" loading="lazy" alt="Weather: forecast, expected production and forecast accuracy"><figcaption>Weather<span>forecast + expected kWh</span></figcaption></figure>
+      <figure><img src="../img/history.webp" srcset="../img/history-280.webp 280w, ../img/history.webp 520w" sizes="(max-width:600px) 64vw, 250px" width="520" height="986" loading="lazy" alt="History: savings and energy chart"><figcaption>History<span>day · month · year · all</span></figcaption></figure>
     </div>
     <div class="duo">
-      <div class="card rv"><img src="../img/hero-day.webp" width="640" height="620" loading="lazy" alt="3D house by day, full production and export"><p>Daytime · full sun</p></div>
-      <div class="card rv"><img src="../img/hero-night.webp" width="640" height="620" loading="lazy" alt="3D house at night, lights on and battery supplying"><p>Night · on battery</p></div>
-      <div class="card rv"><img src="../img/card-battery.webp" width="640" height="616" loading="lazy" alt="Battery health card with measured capacity and cycles"><p>Battery health · measured</p></div>
+      <div class="card rv"><img src="../img/hero-day.webp" srcset="../img/hero-day-340.webp 340w, ../img/hero-day.webp 640w" sizes="(max-width:720px) 45vw, 340px" width="640" height="620" loading="lazy" alt="3D house by day, full production and export"><p>Daytime · full sun</p></div>
+      <div class="card rv"><img src="../img/hero-night.webp" srcset="../img/hero-night-340.webp 340w, ../img/hero-night.webp 640w" sizes="(max-width:720px) 45vw, 340px" width="640" height="620" loading="lazy" alt="3D house at night, lights on and battery supplying"><p>Night · on battery</p></div>
+      <div class="card rv"><img src="../img/card-battery.webp" srcset="../img/card-battery-340.webp 340w, ../img/card-battery.webp 640w" sizes="(max-width:720px) 45vw, 340px" width="640" height="616" loading="lazy" alt="Battery health card with measured capacity and cycles"><p>Battery health · measured</p></div>
     </div>
   </div>
 </section>
