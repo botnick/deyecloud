@@ -94,7 +94,7 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
               <IconSun className="w-5 h-5" />
             </span>
             <div className="font-bold text-[16px] text-title">คาดการณ์การผลิตไฟ</div>
-            <InfoTip className="ml-1" text={`ค่าประมาณการผลิตไฟแต่ละวัน คิดจากกำลังผลิตอ้างอิง ${effCap.toFixed(1)} kW — สอบเทียบจากวันแดดดีจริงของระบบนี้เมื่อมีประวัติพอ (ไม่งั้นใช้ขนาดระบบตามป้าย) × ปริมาณแสงแดดที่คาดไว้ ค่าจริงขึ้นกับเมฆ ฝน และการใช้งานจริงครับ`} />
+            <InfoTip className="ml-1" text={`ค่าประมาณการผลิตไฟแต่ละวัน คิดจากกำลังผลิตอ้างอิง ${effCap.toFixed(1)} kW — สอบเทียบจากวันแดดดีจริงของระบบนี้เมื่อมีประวัติพอ (ถ้าข้อมูลยังไม่พอจะใช้ขนาดระบบตามป้าย) คูณด้วยปริมาณแสงแดดที่คาดไว้ ค่าจริงขึ้นกับเมฆ ฝน และการใช้งานจริงครับ`} />
           </div>
           <div className="grid grid-cols-3 gap-2.5 mt-3">
             {fc.slice(0, 3).map((f, i) => (
@@ -135,8 +135,8 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
 
       {/* hourly */}
       <div className={`${h2Mid} flex items-center gap-2`}>
-        <span>ราย 1 ชั่วโมง</span>
-        {effCap > 0 && <InfoTip text="ตัวเลขสีส้ม (~หน่วย) ใต้แต่ละชั่วโมง คือไฟที่คาดว่าจะผลิตได้ในชั่วโมงนั้น คิดจากมุมแสงแดด × สภาพอากาศครับ" />}
+        <span>รายชั่วโมง</span>
+        {effCap > 0 && <InfoTip text="ตัวเลขสีส้ม (~หน่วย) ใต้แต่ละชั่วโมง คือไฟที่คาดว่าจะผลิตได้ในชั่วโมงนั้น คิดจากมุมแสงแดดร่วมกับสภาพอากาศครับ" />}
       </div>
       <div className="flex gap-2.5 overflow-x-auto hscroll snap-x pb-2.5 -mx-[18px] px-[18px]">
         {hourlyItems.map((it, i) =>
@@ -148,7 +148,7 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
               {effCap > 0 && (() => { const kwh = hourlyKwh(elevAt(it.d), it.h.cond, effCap, model.sky); return (
                 <div className="text-[10px] font-bold text-pv-high leading-none mt-1 min-h-[12px] whitespace-nowrap">{kwh > 0.05 ? `~${kwh.toFixed(1)} หน่วย` : ""}</div>
               ); })()}
-              <div className="text-[11px] font-bold text-grid min-h-[14px] leading-none mt-1">{it.h.rain > 0 ? `${(+it.h.rain).toFixed(1)}มม` : ""}</div>
+              <div className="text-[11px] font-bold text-grid min-h-[14px] leading-none mt-1">{it.h.rain > 0 ? `${(+it.h.rain).toFixed(1)} มม.` : ""}</div>
             </div>
           ) : (
             <div key={i} className="shrink-0 snap-start w-[70px] py-3 px-2 text-center rounded-[18px] bg-[#fff6e0]/85 border border-[#f3d68c]/70">
@@ -163,7 +163,7 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
       {/* 7 days */}
       <div className={`${h2Mid} flex items-center gap-2`}>
         <span>7 วันข้างหน้า</span>
-        {effCap > 0 && <InfoTip text="ตัวเลขสีส้ม (~หน่วย) คือไฟที่คาดว่าจะผลิตได้ในแต่ละวัน · แถบสีส้มคือปริมาณแสงแดด · ไอคอนบอกสภาพอากาศครับ" />}
+        {effCap > 0 && <InfoTip text="ตัวเลขสีส้ม (~หน่วย) คือไฟที่คาดว่าจะผลิตได้ในแต่ละวัน · แถบสีส้มคือปริมาณแสงแดด · สัญลักษณ์บอกสภาพอากาศครับ" />}
       </div>
       <div className={`${card} px-5`}>
         {(w.daily || []).map((d, i) => {

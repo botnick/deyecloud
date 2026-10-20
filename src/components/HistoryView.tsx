@@ -314,19 +314,19 @@ export function HistoryView({ active, stationId, isPrimary = true, capacity }: {
           </MetricSection>
 
           <MetricSection icon={<IconGrid className="w-5 h-5" />} title="การไฟฟ้า" accent="var(--color-grid)" soft="var(--color-grid-soft)"
-            value={totals ? fmt(totals.buy) : undefined} unit="ซื้อ"
+            value={totals ? fmt(totals.buy) : undefined} unit="ซื้อไฟ"
             sub={totals ? `ไฟย้อน ${fmt(totals.sell)} หน่วย` : undefined}
             caption={pBuy && pBuy.v > 20
               ? <>ซื้อไฟมากสุด <b>{fmt(pBuy.v / 1000)} kW</b> ตอน {hhmm(pBuy.ts)} น.{totals && totals.sell > 0.05 ? ` · ไฟย้อน ${fmt(totals.sell)} หน่วย` : ""}</>
-              : "ไม่ได้ซื้อไฟจากการไฟฟ้าเลย — ใช้พลังงานตัวเองล้วน 🎉"}>
+              : "ไม่ได้ซื้อไฟจากการไฟฟ้าเลย — พึ่งพาตัวเองล้วน"}>
             <LineMini values={kw("grid_power")} color="var(--color-grid)" xLabels={dayXLabels} unit="kW" />
           </MetricSection>
 
           {battActive && (
             <MetricSection icon={<IconBattery className="w-5 h-5" />} title="แบตเตอรี่" accent="var(--color-batt)" soft="var(--color-batt-soft)"
               value={String(lastSoc)} unit="%"
-              caption={<>แบตสูงสุด <b>{maxSoc}%</b>{totals ? ` · ชาร์จ ${fmt(totals.charge)} / จ่าย ${fmt(totals.discharge)} หน่วย` : ""}</>}
-              legend={[["กำลังแบต (kW)", "var(--color-batt)"], ["แบต % (SOC)", "#0b6b48"]]}>
+              caption={<>แบตเตอรี่สูงสุด <b>{maxSoc}%</b>{totals ? ` · ชาร์จ ${fmt(totals.charge)} / จ่าย ${fmt(totals.discharge)} หน่วย` : ""}</>}
+              legend={[["กำลังแบตเตอรี่ (kW)", "var(--color-batt)"], ["ระดับแบตเตอรี่ (%)", "#0b6b48"]]}>
               <LineMini values={kw("batt_power")} color="var(--color-batt)" xLabels={dayXLabels} unit="kW"
                 secondary={{ values: points!.map((p) => Number(p.soc) || 0), color: "#0b6b48", max: 100 }} />
             </MetricSection>
@@ -357,7 +357,7 @@ export function HistoryView({ active, stationId, isPrimary = true, capacity }: {
         </MetricSection>
 
         <MetricSection icon={<IconGrid className="w-5 h-5" />} title="การไฟฟ้า" accent="var(--color-grid)" soft="var(--color-grid-soft)"
-          value={fmt(sum("buy"))} unit="ซื้อ" sub={`ไฟย้อน ${fmt(sum("sell"))} หน่วย`}
+          value={fmt(sum("buy"))} unit="ซื้อไฟ" sub={`ไฟย้อน ${fmt(sum("sell"))} หน่วย`}
           caption={<>ซื้อรวม <b>{fmt(sum("buy"))}</b> · ไฟย้อนรวม <b>{fmt(sum("sell"))}</b> หน่วย</>}
           legend={[["ซื้อ", "var(--color-grid)"], ["ไฟย้อน", "var(--color-warn)"]]}>
           <BarChart labels={labels} series={[{ color: "var(--color-grid)", data: col("buy") }, { color: "var(--color-warn)", data: col("sell") }]} />
@@ -440,7 +440,7 @@ export function HistoryView({ active, stationId, isPrimary = true, capacity }: {
                   <div className="flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[12.5px] text-body">{saved != null && saved < -0.5 ? `${spanWord}ค่าไฟเพิ่มสุทธิ` : `${spanWord}ประหยัดค่าไฟ`}</span>
-                      <InfoTip text={`คิดจาก (ไฟที่ใช้ − ไฟที่ซื้อ) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายไฟ × ${settings.sellRate} บาท/หน่วย` : ""} · ถ้าซื้อมากกว่าใช้ (เช่น ชาร์จแบตจากการไฟฟ้า) จะติดลบ = ค่าไฟเพิ่มสุทธิ · แบตที่ชาร์จวันหนึ่งแล้วใช้อีกวันทำให้ตัวเลขรายวันคลาดเคลื่อนได้เล็กน้อย แต่รายเดือน/ปีถัวเฉลี่ยกันไป · ปรับค่าได้ในแท็บ 'ตลอด'`} />
+                      <InfoTip text={`คิดจาก (ไฟที่ใช้ − ไฟที่ซื้อ) คูณด้วยค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายไฟ × ${settings.sellRate} บาท/หน่วย` : ""} · ถ้าซื้อมากกว่าใช้ (เช่น ชาร์จแบตจากการไฟฟ้า) จะติดลบ = ค่าไฟเพิ่มสุทธิ · แบตที่ชาร์จวันหนึ่งแล้วใช้อีกวันทำให้ตัวเลขรายวันคลาดเคลื่อนได้เล็กน้อย แต่รายเดือน/ปีถัวเฉลี่ยกันไป · ปรับค่าได้ในแท็บ 'ตลอด'`} />
                     </div>
                     <div className={`text-[26px] font-extrabold tabnum leading-none mt-0.5 ${saved != null && saved < -0.5 ? "text-warn" : "text-secondary"}`}>{savingsLabel(saved || 0).text}</div>
                   </div>
@@ -508,7 +508,7 @@ export function HistoryView({ active, stationId, isPrimary = true, capacity }: {
                       <div className="flex-1 min-w-0">
                         <div className="text-[16px] font-bold text-title leading-tight">{day ? "กลางวัน" : "กลางคืน"} <span className="text-[13px] font-medium text-muted">{day ? "06:00–18:00" : "18:00–06:00"}</span></div>
                         <div className="text-[13px] text-body mt-0.5 tabnum">
-                          {day ? <>แดดผลิต {noonSummary.gen.toFixed(1)} · ซื้อไฟ {noonSummary.dayBuy.toFixed(1)} หน่วย</>
+                          {day ? <>ผลิตไฟ {noonSummary.gen.toFixed(1)} · ซื้อไฟ {noonSummary.dayBuy.toFixed(1)} หน่วย</>
                             : nightPending ? "ยังไม่ถึงช่วงกลางคืน" : <>จากแบต {noonSummary.nightBatt.toFixed(1)} · ซื้อไฟ {noonSummary.nightBuy.toFixed(1)} หน่วย</>}
                         </div>
                       </div>
@@ -524,7 +524,7 @@ export function HistoryView({ active, stationId, isPrimary = true, capacity }: {
                 return (
                   <div className={`${cardP} mt-3`}>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-[17px] text-title">ใช้ไฟกลางวัน กับ กลางคืน</span>
+                      <span className="font-bold text-[17px] text-title">การใช้ไฟกลางวันและกลางคืน</span>
                       <InfoTip text="คำนวณจากเส้นกำลังไฟทุก 5 นาทีในหน้าต่างนี้ · กลางวัน = 06:00–18:00 กลางคืน = 18:00–06:00 · เป็นค่าประมาณจากการรวมพื้นที่ใต้กราฟ ไม่ใช่มิเตอร์รายวันของ Deye" />
                     </div>
                     {!nightPending && (

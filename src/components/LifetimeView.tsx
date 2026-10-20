@@ -94,7 +94,7 @@ export function LifetimeView({ active }: { active: boolean }) {
           </div>
           <div className="text-[13px] text-body mt-2.5 leading-snug">
             {saved >= cost!
-              ? <>คืนทุนครบแล้ว 🎉 — ตอนนี้ประหยัดเกินทุน {baht(saved - cost!)} แล้ว</>
+              ? <>คืนทุนครบแล้ว — ตอนนี้ประหยัดเกินทุน {baht(saved - cost!)} แล้ว</>
               : yearsLeft == null
                 ? <>ยังไม่มีเงินประหยัดสุทธิ (ช่วงที่บันทึกซื้อไฟมากกว่าที่ใช้ เช่น ชาร์จแบตจากการไฟฟ้า) — ยังประเมินปีคืนทุนไม่ได้</>
                 : <>คืนทุนแล้ว {baht(saved)} จาก {baht(cost!)} · คาดคืนทุนครบในอีก ~{yearsLeft.toFixed(1)} ปี (ประหยัดเฉลี่ย {baht(annual)}/ปี)</>}

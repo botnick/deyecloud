@@ -84,8 +84,8 @@ export function SelfConsumption({ latest }: { latest: Latest }) {
 
   // GROUP 2 — การผลิต: where the produced energy went (destination entity colors).
   const genSegs: Seg[] = [
-    { label: "ใช้เอง", color: "#0d4add", value: clamp0(genToday - chargeToday - sellToday) },
-    { label: "ชาร์จแบต", color: "#18a673", value: clamp0(chargeToday) },
+    { label: "ใช้ไฟในบ้าน", color: "#0d4add", value: clamp0(genToday - chargeToday - sellToday) },
+    { label: "ชาร์จแบตเตอรี่", color: "#18a673", value: clamp0(chargeToday) },
     { label: "ไฟย้อน", color: "#8b5cf6", value: clamp0(sellToday) },
   ];
 

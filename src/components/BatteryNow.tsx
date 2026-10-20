@@ -47,10 +47,10 @@ export function BatteryNow({ latest, weather }: { latest: Latest; weather: Weath
   const lastsTillMorning = eta?.kind === "empty" && night && toRiseH != null && toRiseH < 14 && eta.hours >= toRiseH;
 
   let why: string;
-  if (discharging) why = night ? "กลางคืน ใช้ไฟจากแบต" : `แดด ${fmtPower(pv)} ไม่พอใช้ไฟ ${fmtPower(use)}`;
+  if (discharging) why = night ? "ช่วงกลางคืน ใช้ไฟจากแบตเตอรี่" : `แดด ${fmtPower(pv)} ไม่พอใช้ไฟ ${fmtPower(use)}`;
   else if (charging) why = `แดด ${fmtPower(pv)} เกินที่ใช้ไฟ ${fmtPower(use)}`;
-  else if (floor != null && soc != null && soc <= floor + 1) why = `ถึงจุดตัด ${floor}% ใช้ไฟการไฟฟ้ารอแดด`;
-  else if (soc != null && soc >= 99) why = "แบตเต็ม";
+  else if (floor != null && soc != null && soc <= floor + 1) why = `ถึงจุดตัด ${floor}% ใช้ไฟจากการไฟฟ้ารอแดด`;
+  else if (soc != null && soc >= 99) why = "แบตเตอรี่เต็ม";
   else why = "ไม่ได้ชาร์จหรือจ่าย";
 
   const state = discharging ? "กำลังจ่าย" : charging ? "กำลังชาร์จ" : soc != null && soc >= 99 ? "เต็ม" : "พัก";
@@ -66,13 +66,13 @@ export function BatteryNow({ latest, weather }: { latest: Latest; weather: Weath
       <div className="flex items-end justify-between gap-3">
         {soc != null
           ? <div className="text-[44px] font-extrabold tabnum leading-none tracking-tight">{soc}<span className="text-[22px] font-bold text-muted">%</span></div>
-          : <div className="text-[18px] font-bold text-muted leading-tight">ยังไม่ทราบ % แบต</div>}
+          : <div className="text-[18px] font-bold text-muted leading-tight">ยังไม่ทราบระดับแบตเตอรี่</div>}
         <div className="text-right">
           <div className="text-[15px] font-bold" style={{ color: col }}>{state}</div>
           {(discharging || charging) && <div className="text-[15px] font-semibold tabnum text-body">{fmtPower(Math.abs(avgW))}</div>}
         </div>
       </div>
-      {soc != null && <div className="relative h-3 rounded-full bg-black/[.06] mt-3 overflow-hidden" role="img" aria-label={`แบตเหลือ ${soc}%`}>
+      {soc != null && <div className="relative h-3 rounded-full bg-black/[.06] mt-3 overflow-hidden" role="img" aria-label={`แบตเตอรี่เหลือ ${soc}%`}>
         <div className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-700" style={{ width: `${soc}%`, background: low ? "#ef4444" : "#18a673" }} />
         {floor != null && <div className="absolute inset-y-0 w-[2px] bg-white" style={{ left: `${floor}%` }} />}
       </div>}

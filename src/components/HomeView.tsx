@@ -73,7 +73,7 @@ export function HomeView({ latest, weather, capacity, isPrimary = true, stationN
         <button onClick={onDevice} className={`${cardP} w-full text-left mb-7 flex items-center gap-3 border border-warn/25 active:scale-[.99] transition-transform`}>
           <span className="grid place-items-center w-11 h-11 rounded-full shrink-0 text-white bg-warn"><IconAlert className="w-6 h-6" /></span>
           <div className="min-w-0">
-            <div className="text-[17px] font-bold leading-tight">พบจุดที่ควรดู {latest.warningReasons?.length ? `(${latest.warningReasons.length})` : ""}</div>
+            <div className="text-[17px] font-bold leading-tight">พบจุดที่ควรตรวจสอบ {latest.warningReasons?.length ? `(${latest.warningReasons.length})` : ""}</div>
             <div className="text-[14px] text-body mt-0.5 line-clamp-2">
               {latest.warningReasons?.length ? latest.warningReasons.slice(0, 2).join(" · ") : "ระบบมีสถานะผิดปกติ"} · แตะดูรายละเอียด
             </div>
@@ -113,7 +113,7 @@ export function HomeView({ latest, weather, capacity, isPrimary = true, stationN
           <div className="bg-canvas rounded-2xl px-3.5 py-3">
             <div className="flex items-center gap-1.5 text-[13px] font-semibold text-body">
               {sv.label}
-              <InfoTip text={`(ไฟที่ใช้วันนี้ − ไฟที่ซื้อวันนี้) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายไฟ × ${settings.sellRate} บาท/หน่วย` : ""} · ซื้อมากกว่าใช้ (เช่น ชาร์จแบตจากการไฟฟ้ากลางคืน) = ค่าไฟเพิ่มสุทธิ · ปรับค่าได้ในแท็บ 'ตลอด'`} />
+              <InfoTip text={`(ไฟที่ใช้วันนี้ − ไฟที่ซื้อวันนี้) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายไฟ × ${settings.sellRate} บาท/หน่วย` : ""} · ซื้อมากกว่าใช้ (เช่น ชาร์จแบตเตอรี่จากการไฟฟ้าช่วงกลางคืน) = ค่าไฟเพิ่มสุทธิ · ปรับค่าได้ในแท็บ 'ตลอด'`} />
             </div>
             <div className={`text-[21px] font-extrabold tabnum mt-0.5 ${sv.negative ? "text-warn" : "text-secondary"}`}>{sv.text}</div>
           </div>
@@ -149,7 +149,7 @@ export function HomeView({ latest, weather, capacity, isPrimary = true, stationN
           </span>
           <span className="flex-1 min-w-0">
             <span className="block text-[16.5px] font-bold text-title">รายละเอียดเครื่อง</span>
-            <span className="block text-[13px] text-body truncate">อินเวอร์เตอร์ แบตเตอรี่ แจ้งเตือน{capacity ? ` · ระบบ ${capacity} kW` : ""}</span>
+            <span className="block text-[13px] text-body truncate">อินเวอร์เตอร์ แบตเตอรี่ การแจ้งเตือน{capacity ? ` · ระบบ ${capacity} kW` : ""}</span>
           </span>
           <svg viewBox="0 0 24 24" className="w-5 h-5 text-muted shrink-0" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
         </button>

@@ -41,7 +41,7 @@ export function TodayView({ latest, capacity }: { latest: Latest | null; capacit
             strokeDasharray={C} strokeDashoffset={C * (1 - self / 100)} transform="rotate(-90 65 65)"
             style={{ transition: "stroke-dashoffset .7s ease" }} />
           <text x="65" y="60" textAnchor="middle" fontSize="30" fontWeight="800" fill="var(--color-title)">{self}%</text>
-          <text x="65" y="82" textAnchor="middle" fontSize="13" fill="var(--color-body)">พึ่งตัวเอง</text>
+          <text x="65" y="82" textAnchor="middle" fontSize="13" fill="var(--color-body)">พึ่งพาตัวเอง</text>
         </svg>
         <div className="grid gap-3">
           <div className="flex items-center gap-2.5 text-[15px]"><span className="w-3.5 h-3.5 rounded-[5px] bg-pv" /><div>ใช้ไฟที่ผลิตเอง<br /><b className="text-lg">{self}%</b></div></div>
