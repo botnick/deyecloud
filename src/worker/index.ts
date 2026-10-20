@@ -367,7 +367,7 @@ async function buildDeviceData(env: Env, sid?: string) {
   const availability =
     st === 3 || inv.connectStatus === 0 ? { status: "offline", reason: "Deye รายงานว่าอินเวอร์เตอร์ออฟไลน์" }
     : ageS != null && ageS > STALE_AFTER_S ? { status: "offline", reason: `ข้อมูลล่าสุดจากเครื่องเมื่อ ${Math.round(ageS / 60)} นาทีที่แล้ว` }
-    : st === 1 || st === 2 || inv.connectStatus === 1 ? { status: "online", reason: st === 2 ? "Deye รายงานสถานะ alarm ที่ตัวเครื่อง" : "" }
+    : st === 1 || st === 2 || inv.connectStatus === 1 ? { status: "online", reason: st === 2 ? "Deye รายงานสถานะแจ้งเตือนที่ตัวเครื่อง" : "" }
     : { status: "unknown", reason: "" };
   // Battery channels ever observed carrying current (learned by captureTelemetry,
   // never aged out — see battChannels.ts). undefined until history exists →
@@ -388,7 +388,7 @@ async function buildDeviceData(env: Env, sid?: string) {
     // active = still ongoing anywhere in the 180-day window; recent = last 7 days for the UI log
     alarms = { active: mine.filter((a) => a.end == null), recent: mine.filter((a) => a.start >= nowS - 7 * 86400).slice(0, 20) };
   } catch (e) { console.warn("alertList unavailable", (e as Error).message); }
-  if (st === 2 && !(alarms && alarms.active.length)) attention.unshift("Deye รายงานสถานะ alarm ที่ตัวเครื่อง (ดูรายละเอียดในแอป Deye)");
+  if (st === 2 && !(alarms && alarms.active.length)) attention.unshift("Deye รายงานสถานะแจ้งเตือนที่ตัวเครื่อง (ดูรายละเอียดในแอป Deye)");
   return {
     sn, type: inv.deviceType, state: dd.deviceState,
     online: availability.status === "online",

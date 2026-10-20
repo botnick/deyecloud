@@ -68,7 +68,7 @@ export function DeviceTrends({ dev }: { dev: Device }) {
         notes.push(`สัดส่วนพลังงานต่อสตริง ${share.map((p, i) => `PV${i + 1} ${p}%`).join(" · ")}` + (active >= 2 && Math.max(...share) - Math.min(...share.filter((x) => x > 0)) >= 25 ? " — ต่างกันมาก ลองดูเงาบัง/สายต่อ" : ""));
       }
     }
-    const gv = want.grid.map((k) => vals(k, "min")).flat(); if (gv.length) notes.push(`แรงดันกริดต่ำสุด ${Math.round(Math.min(...gv))} V`);
+    const gv = want.grid.map((k) => vals(k, "min")).flat(); if (gv.length) notes.push(`แรงดันการไฟฟ้าต่ำสุด ${Math.round(Math.min(...gv))} V`);
   }
 
   return (
@@ -87,7 +87,7 @@ export function DeviceTrends({ dev }: { dev: Device }) {
         </div>
       )}
       {h && enough(want.soc) && (
-        <div className={`${cardP} mb-2.5`}><div className="font-bold text-[15px] mb-1.5">ระดับแบต (SOC)</div>
+        <div className={`${cardP} mb-2.5`}><div className="font-bold text-[15px] mb-1.5">ระดับแบตเตอรี่ (SOC)</div>
           <LineMini values={vals(want.soc)} color="#7b5cf0" unit="%" xLabels={xl(want.soc)} /></div>
       )}
       {h && (enough(want.tBatt) || enough(want.tInv)) && (
@@ -96,7 +96,7 @@ export function DeviceTrends({ dev }: { dev: Device }) {
             secondary={enough(want.tBatt) && enough(want.tInv) ? { values: vals(want.tInv), color: "#ef4444", max: Math.max(1, ...vals(want.tInv, "max")) } : undefined} /></div>
       )}
       {h && enough(want.battV) && (
-        <div className={`${cardP} mb-2.5`}><div className="font-bold text-[15px] mb-1.5">แรงดันแบต</div>
+        <div className={`${cardP} mb-2.5`}><div className="font-bold text-[15px] mb-1.5">แรงดันแบตเตอรี่</div>
           <LineMini values={vals(want.battV)} color="#0ea5a4" unit="V" area={false} xLabels={xl(want.battV)} /></div>
       )}
       {h && want.pv.length > 0 && enough(want.pv[0]) && (
@@ -105,7 +105,7 @@ export function DeviceTrends({ dev }: { dev: Device }) {
             secondary={want.pv[1] && enough(want.pv[1]) ? { values: vals(want.pv[1]), color: "#b45309", max: Math.max(1, ...vals(want.pv[0], "max"), ...vals(want.pv[1], "max")) } : undefined} /></div>
       )}
       {h && want.grid.length > 0 && enough(want.grid[0]) && (
-        <div className={`${cardP} mb-2.5`}><div className="font-bold text-[15px] mb-1.5">แรงดันกริด {want.grid.length > 1 ? "L1" : ""}</div>
+        <div className={`${cardP} mb-2.5`}><div className="font-bold text-[15px] mb-1.5">แรงดันการไฟฟ้า {want.grid.length > 1 ? "L1" : ""}</div>
           <LineMini values={vals(want.grid[0])} color="#0d4add" unit="V" area={false} xLabels={xl(want.grid[0])} /></div>
       )}
     </Collapsible>

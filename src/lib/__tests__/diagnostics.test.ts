@@ -63,6 +63,6 @@ describe("battery channel sharing — only channels known (from history) to carr
   });
   it("a channel that DID carry current and now sits idle while the other works → warn", () => {
     const w = warns(mk({ BatteryCurrent1: 40, BatteryCurrent2: 0.3, BatteryPower: 2000, SOC: 60 }), {}, { activeBatteryChannels: [1, 2] });
-    expect(w.some((x) => x.title.includes("แชร์โหลด"))).toBe(true);
+    expect(w.some((x) => x.title.includes("ช่วยกันจ่ายไฟ"))).toBe(true);
   });
 });

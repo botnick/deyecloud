@@ -20,7 +20,7 @@ function BarGroup({ title, total, segs }: { title: string; total: number; segs: 
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-[15px] font-semibold text-title">{title}</span>
         <span className="text-[16px] font-extrabold tabnum text-title">
-          {total.toFixed(1)} <span className="text-[12px] font-semibold text-body">kWh</span>
+          {total.toFixed(1)} <span className="text-[12px] font-semibold text-body">หน่วย</span>
         </span>
       </div>
 
@@ -60,7 +60,7 @@ function BarGroup({ title, total, segs }: { title: string; total: number; segs: 
               />
               <span>{s.label}</span>
               <span className="tabnum text-title">
-                {pctOf(s.value, total).toFixed(0)}% · {s.value.toFixed(1)} kWh
+                {pctOf(s.value, total).toFixed(0)}% · {s.value.toFixed(1)} หน่วย
               </span>
             </span>
           ))}

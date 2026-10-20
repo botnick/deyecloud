@@ -113,12 +113,12 @@ export function HouseScene({ latest, weather, title, force }: { latest: Latest; 
           <div className="hs-name">{title || "บ้านของฉัน"}</div>
           <div className="hs-wx">{condText(weather?.cond ?? 1, night)}{weather?.temp != null ? ` · ${Math.round(weather.temp)}°` : ""}</div>
         </div>
-        <div className="hs-live"><span className="d" />สด</div>
+        <div className="hs-live"><span className="d" />เรียลไทม์</div>
       </div>
 
       {chip("pv", "โซลาร์", fmtPower(pvW))}
-      {chip("grid", gridOff ? "ไฟดับ" : buying ? "ซื้อไฟ" : "ขายไฟ", fmtPower(Math.abs(gp)))}
-      {chip("home", "บ้านใช้", fmtPower(useW))}
+      {chip("grid", gridOff ? "ไฟดับ" : buying ? "ซื้อไฟ" : "ไฟย้อน", fmtPower(Math.abs(gp)))}
+      {chip("home", "ใช้ไฟ", fmtPower(useW))}
       {hasBatt && chip("batt", discharging ? "แบตจ่าย" : charging ? "แบตชาร์จ" : "แบต", fmtPower(Math.abs(bp)),
         latest.socKnown !== false ? <span className="soc"><i style={{ width: `${soc}%` }} /><b>{soc}%</b></span> : undefined)}
       {live3d && <button type="button" className="hs-hint" onClick={() => view.current?.reset()}>กลับมุมเดิม</button>}

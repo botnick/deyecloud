@@ -101,7 +101,7 @@ export function HomeView({ latest, weather, capacity, isPrimary = true, stationN
         </div>
         <div className="grid grid-cols-2 gap-2.5 mt-4">
           {[
-            { lb: "บ้านใช้", v: fmtKwh(latest.useToday), u: "หน่วย", c: "#0d6bff" },
+            { lb: "ใช้ไฟ", v: fmtKwh(latest.useToday), u: "หน่วย", c: "#0d6bff" },
             { lb: "ซื้อไฟ", v: fmtKwh(latest.buyToday), u: "หน่วย", c: "#8b5cf6" },
             { lb: "แบตจ่าย", v: fmtKwh(latest.dischargeToday ?? 0), u: "หน่วย", c: "#18a673" },
           ].map((x) => (
@@ -113,7 +113,7 @@ export function HomeView({ latest, weather, capacity, isPrimary = true, stationN
           <div className="bg-canvas rounded-2xl px-3.5 py-3">
             <div className="flex items-center gap-1.5 text-[13px] font-semibold text-body">
               {sv.label}
-              <InfoTip text={`(ไฟที่ใช้วันนี้ − ไฟที่ซื้อวันนี้) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายคืน × ${settings.sellRate} บาท/หน่วย` : ""} · ซื้อมากกว่าใช้ (เช่น ชาร์จแบตจากกริดกลางคืน) = ค่าไฟเพิ่มสุทธิ · ปรับค่าได้ในแท็บ 'ตลอด'`} />
+              <InfoTip text={`(ไฟที่ใช้วันนี้ − ไฟที่ซื้อวันนี้) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายไฟ × ${settings.sellRate} บาท/หน่วย` : ""} · ซื้อมากกว่าใช้ (เช่น ชาร์จแบตจากการไฟฟ้ากลางคืน) = ค่าไฟเพิ่มสุทธิ · ปรับค่าได้ในแท็บ 'ตลอด'`} />
             </div>
             <div className={`text-[21px] font-extrabold tabnum mt-0.5 ${sv.negative ? "text-warn" : "text-secondary"}`}>{sv.text}</div>
           </div>

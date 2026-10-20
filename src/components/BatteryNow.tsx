@@ -47,9 +47,9 @@ export function BatteryNow({ latest, weather }: { latest: Latest; weather: Weath
   const lastsTillMorning = eta?.kind === "empty" && night && toRiseH != null && toRiseH < 14 && eta.hours >= toRiseH;
 
   let why: string;
-  if (discharging) why = night ? "กลางคืน บ้านใช้ไฟจากแบต" : `แดด ${fmtPower(pv)} ไม่พอบ้านใช้ ${fmtPower(use)}`;
-  else if (charging) why = `แดด ${fmtPower(pv)} เกินที่บ้านใช้ ${fmtPower(use)}`;
-  else if (floor != null && soc != null && soc <= floor + 1) why = `ถึงจุดตัด ${floor}% ใช้ไฟหลวงรอแดด`;
+  if (discharging) why = night ? "กลางคืน ใช้ไฟจากแบต" : `แดด ${fmtPower(pv)} ไม่พอใช้ไฟ ${fmtPower(use)}`;
+  else if (charging) why = `แดด ${fmtPower(pv)} เกินที่ใช้ไฟ ${fmtPower(use)}`;
+  else if (floor != null && soc != null && soc <= floor + 1) why = `ถึงจุดตัด ${floor}% ใช้ไฟการไฟฟ้ารอแดด`;
   else if (soc != null && soc >= 99) why = "แบตเต็ม";
   else why = "ไม่ได้ชาร์จหรือจ่าย";
 

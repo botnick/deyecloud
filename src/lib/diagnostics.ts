@@ -82,13 +82,13 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {},
       const heavy = phases[load.map(Math.abs).indexOf(s.max)];
       out.push({
         tone: s.pct >= 65 && stress >= PHASE_LOAD_WARN ? "warn" : "info",
-        title: `โหลด 3 เฟสไม่สมดุล (${Math.round(s.pct)}%)`,
+        title: `ใช้ไฟ 3 เฟสไม่สมดุล (${Math.round(s.pct)}%)`,
         detail:
-          `เฟส ${heavy} รับหนักสุด ${w(s.max)} W คิดเป็น ${Math.round((s.max / s.sum) * 100)}% ของโหลดทั้งบ้าน` +
+          `เฟส ${heavy} รับหนักสุด ${w(s.max)} W คิดเป็น ${Math.round((s.max / s.sum) * 100)}% ของการใช้ไฟทั้งบ้าน` +
           ` — เฟสที่เบาสุดใช้แค่ ${w(s.min)} W`,
         sub: [
           phases.map((p, i) => `เฟส ${p} ${w(Math.abs(load[i]))} W`).join(" · "),
-          "โหลดเทไปเฟสเดียวทำให้สายและเบรกเกอร์เฟสนั้นร้อนกว่าปกติ ลองย้ายวงจรใหญ่ (แอร์/เครื่องทำน้ำอุ่น) ไปเฟสที่เบากว่า",
+          "การใช้ไฟเทไปเฟสเดียวทำให้สายและเบรกเกอร์เฟสนั้นร้อนกว่าปกติ ลองย้ายวงจรใหญ่ (แอร์/เครื่องทำน้ำอุ่น) ไปเฟสที่เบากว่า",
         ],
       });
     }
@@ -109,7 +109,7 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {},
     if (s.max >= 2 && idle.length) {
       out.push({
         tone: "warn",
-        title: `ช่องแบตไม่แชร์โหลด — ช่อง ${idle.join(", ")} แทบไม่จ่ายกระแส`,
+        title: `ช่องแบตเตอรี่ไม่ช่วยกันจ่ายไฟ — ช่อง ${idle.join(", ")} แทบไม่จ่ายกระแส`,
         detail: `${detail} (ช่องที่ทำงานหนักสุด ${f1(s.max)} A)`,
         sub: [
           "ช่องที่นิ่งอาจเบรกเกอร์ปิด สายหลวม BMS ตัด หรือแรงดันต่างจากอีกฝั่งมาก",
@@ -128,7 +128,7 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {},
       out.push({
         tone: pct >= 95 ? "warn" : "info",
         title: `อินเวอร์เตอร์ทำงานหนัก ${Math.round(pct)}% ของพิกัด`,
-        detail: `จ่ายอยู่ ${w(outPow)} W จากพิกัด ${w(rated)} W — ใกล้เต็มกำลัง ระวังโหลดเกิน`,
+        detail: `จ่ายอยู่ ${w(outPow)} W จากพิกัด ${w(rated)} W — ใกล้เต็มกำลัง ระวังใช้ไฟเกิน`,
       });
     }
   }
@@ -162,7 +162,7 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {},
         tone: "warn",
         title: `แรงดันสามเฟสต่างกันมาก (${Math.round(s.pct)}%)`,
         detail: gv.map((x) => `${x.ph} ${f1(x.v)} V`).join(" · "),
-        sub: ["ปกติสามเฟสควรใกล้เคียงกัน — ต่างกันมากมักมาจากโหลดเอียงหนัก สายนิวทรัลหลวม หรือหม้อแปลงมีปัญหา"],
+        sub: ["ปกติสามเฟสควรใกล้เคียงกัน — ต่างกันมากมักมาจากการใช้ไฟเทไปเฟสเดียว สายนิวทรัลหลวม หรือหม้อแปลงมีปัญหา"],
       });
     }
   }
@@ -175,7 +175,7 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {},
       out.push({
         tone: "warn",
         title: `ความถี่ไฟผิดปกติ ${hz.toFixed(2)} Hz`,
-        detail: `ปกติควรอยู่ราว ${nominal.hz.toFixed(2)} Hz (±${tol.toFixed(2)}) — ถ้าค้างนอกเกณฑ์ อินเวอร์เตอร์อาจตัดตัวเองออกจากกริด`,
+        detail: `ปกติควรอยู่ราว ${nominal.hz.toFixed(2)} Hz (±${tol.toFixed(2)}) — ถ้าค้างนอกเกณฑ์ อินเวอร์เตอร์อาจตัดตัวเองออกจากการไฟฟ้า`,
       });
     }
   }
@@ -193,7 +193,7 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {},
   if (tBat != null && (tBat >= 45 || tBat <= 5)) {
     out.push({
       tone: "warn",
-      title: `อุณหภูมิแบตผิดปกติ ${f1(tBat)}°C`,
+      title: `อุณหภูมิแบตเตอรี่ผิดปกติ ${f1(tBat)}°C`,
       detail: tBat >= 45 ? "แบตร้อนเกินไป — BMS อาจจำกัดการชาร์จ/จ่าย และอายุแบตสั้นลง" : "แบตเย็นเกินไป — ลิเธียมชาร์จตอนอุณหภูมิต่ำจะเสื่อมเร็ว",
     });
   }
@@ -209,7 +209,7 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {},
     if (ratio < 85) {
       out.push({
         tone: "info",
-        title: `แบตจ่ายออก/ชาร์จเข้า ~${Math.round(ratio)}%`,
+        title: `แบตเตอรี่จ่ายออก/ชาร์จเข้า ~${Math.round(ratio)}%`,
         detail: `ตลอดอายุการใช้งาน ชาร์จเข้า ${w(chg)} หน่วย · จ่ายออก ${w(dis)} หน่วย`,
         sub: ["เป็นอัตราส่วนมิเตอร์สะสม ไม่ใช่ประสิทธิภาพ round-trip จริง (ยังมีพลังงานค้างในแบตปนอยู่) — ใช้ดูแนวโน้มระยะยาว"],
       });
@@ -227,9 +227,9 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {},
       const weak = strings.filter((x) => x.p < s.max * 0.6).map((x) => `PV${x.i}`);
       out.push({
         tone: "info",
-        title: `สตริงแผงผลิตไม่เท่ากัน (${Math.round(s.pct)}%)`,
+        title: `สตริงแผงโซลาร์ผลิตไม่เท่ากัน (${Math.round(s.pct)}%)`,
         detail: strings.map((x) => `PV${x.i} ${w(x.p)} W`).join(" · ") + ` — ${weak.join(", ")} ผลิตต่ำกว่าเพื่อน`,
-        sub: ["สาเหตุที่พบบ่อย: เงาบัง (ต้นไม้/เสา) แผงสกปรก หรือจำนวนแผงต่อสตริงไม่เท่ากัน"],
+        sub: ["สาเหตุที่พบบ่อย: เงาบัง (ต้นไม้/เสา) แผงโซลาร์สกปรก หรือจำนวนแผงต่อสตริงไม่เท่ากัน"],
       });
     }
   }

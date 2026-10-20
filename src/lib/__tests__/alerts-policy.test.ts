@@ -7,7 +7,7 @@ describe("ALERT_MUTE parsing/matching", () => {
     expect(m).toEqual(["offline", "deye:", "attention"]);
     expect(isMuted("offline", m)).toBe(true);
     expect(isMuted("deye:17813893661175966428136", m)).toBe(true);
-    expect(isMuted("attention:โหลดเฟสไม่สมดุล", m)).toBe(true);
+    expect(isMuted("attention:ใช้ไฟเฟสไม่สมดุล", m)).toBe(true);
     expect(isMuted("no_production", m)).toBe(false);
     expect(isMuted("grid_out", m)).toBe(false);
   });

@@ -254,7 +254,7 @@ function Legend({ p }: { p: PowerPoint }) {
   const rows = [
     { c: C_GEN, label: "ผลิต", value: `${(p.gen_power / 1000).toFixed(2)} kW` },
     { c: C_USE, label: "ใช้", value: `${(p.use_power / 1000).toFixed(2)} kW` },
-    { c: C_GRID, label: "กริด", value: `${(p.grid_power / 1000).toFixed(2)} kW` },
+    { c: C_GRID, label: "การไฟฟ้า", value: `${(p.grid_power / 1000).toFixed(2)} kW` },
     { c: C_BATT, label: "แบต", value: `${(p.batt_power / 1000).toFixed(2)} kW` },
     { c: C_SOC, label: "แบต %", value: `${Math.round(p.soc)}%` },
   ];

@@ -94,7 +94,7 @@ function DeviceHeader({ onBack }: { onBack: () => void }) {
       <button onClick={onBack} aria-label="กลับหน้าหลัก" className="flex items-center gap-0.5 -ml-2 h-11 pr-3 text-secondary text-[17px] font-semibold active:opacity-50 transition-opacity">
         <IconChevron className="w-6 h-6 rotate-180" />หน้าหลัก
       </button>
-      <h1 className="text-[32px] font-extrabold tracking-tight leading-tight text-title">เครื่องแปลงไฟ</h1>
+      <h1 className="text-[32px] font-extrabold tracking-tight leading-tight text-title">รายละเอียดเครื่อง</h1>
       <div className="text-[13.5px] font-semibold text-muted">อินเวอร์เตอร์ · แบตเตอรี่ · แจ้งเตือน</div>
     </div>
   );
@@ -163,8 +163,8 @@ export function DeviceView({ latest, active, stationId, isPrimary = true, onBack
 
   // Deye-dashboard summary tiles (real values; "—" when unavailable)
   const summary = [
-    { label: "ผลิตวันนี้", v: latest ? latest.genToday.toFixed(2) : "—", u: "kWh", a: "#3aa0e6", b: "#2d79cf" },
-    { label: "ผลิตสะสม", v: genTotalKwh != null ? Math.round(genTotalKwh).toLocaleString("th-TH") : "—", u: "kWh", a: "#2bb6a8", b: "#1d9486" },
+    { label: "ผลิตวันนี้", v: latest ? latest.genToday.toFixed(2) : "—", u: "หน่วย", a: "#3aa0e6", b: "#2d79cf" },
+    { label: "ผลิตสะสม", v: genTotalKwh != null ? Math.round(genTotalKwh).toLocaleString("th-TH") : "—", u: "หน่วย", a: "#2bb6a8", b: "#1d9486" },
     { label: "ความถี่ไฟ", v: freq != null ? freq.toFixed(2) : "—", u: "Hz", a: "#7b86e8", b: "#5860d4" },
     { label: "กำลังผลิตตอนนี้", v: latest ? String(Math.round(latest.genPower)) : "—", u: "W", a: "#f3a64c", b: "#ed8a36" },
   ];
@@ -214,8 +214,8 @@ export function DeviceView({ latest, active, stationId, isPrimary = true, onBack
     { id: "pv", title: "แผงโซลาร์ (PV)", tag: "DC", tagColor: "#f5a623", cols: ["แรงดัน", "กระแส", "กำลัง"], rows: pvRows },
     { id: "ac", title: "ไฟขาออก (AC)", tag: "AC", tagColor: "#0ea5a4", cols: ["แรงดัน", "กระแส", "กำลัง"], rows: acRows },
     { id: "grid", title: "การไฟฟ้า (Grid)", tag: "Grid", tagColor: "#0d4add", cols: ["แรงดัน", "กระแส", "กำลัง"], rows: gridRows },
-    { id: "load", title: "โหลดบ้าน (Load)", tag: "Load", tagColor: "#18a673", cols: ["แรงดัน", "กำลัง"], rows: loadRows },
-    { id: "batt", title: "แบตเตอรี่ + BMS", tag: "Batt", tagColor: "#7b5cf0", cols: ["กระแส", "กำลัง"], rows: battRows, note: battNote },
+    { id: "load", title: "ใช้ไฟในบ้าน (Load)", tag: "Load", tagColor: "#18a673", cols: ["แรงดัน", "กำลัง"], rows: loadRows },
+    { id: "batt", title: "แบตเตอรี่ + BMS", tag: "แบต", tagColor: "#7b5cf0", cols: ["กระแส", "กำลัง"], rows: battRows, note: battNote },
     { id: "gen", title: "เครื่องปั่นไฟ (Generator)", tag: "Gen", tagColor: "#94a3b8", cols: ["แรงดัน", "กำลัง"], rows: genRows },
     { id: "other", title: "อื่นๆ" },
   ];
@@ -259,13 +259,13 @@ export function DeviceView({ latest, active, stationId, isPrimary = true, onBack
                   <div className="text-[14px] font-semibold leading-tight">{a.name} <span className="text-[12px] font-normal text-muted">· {a.level >= 2 ? "Fault" : "Warning"}</span></div>
                   <div className="text-[12.5px] text-muted mt-0.5">
                     {a.end == null ? "กำลังเกิดอยู่ · เริ่ม " : ""}{new Date(a.start * 1000).toLocaleString("th-TH-u-ca-gregory", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })}
-                    {a.end != null && ` → หายเมื่อ ${new Date(a.end * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })} (${Math.max(1, Math.round((a.end - a.start) / 60))} นาที)`}
+                    {a.end != null && ` · หายเมื่อ ${new Date(a.end * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })} (${Math.max(1, Math.round((a.end - a.start) / 60))} นาที)`}
                   </div>
                 </div>
               </div>
             ))}
           </div>
-          <div className="text-[12px] text-muted mt-1.5 px-1">รหัส F = fault, W = warning ตามคู่มือ Deye · แสดงย้อนหลัง 7 วัน</div>
+          <div className="text-[12px] text-muted mt-1.5 px-1">รหัส F = ข้อผิดพลาด, W = คำเตือน ตามคู่มือ Deye · แสดงย้อนหลัง 7 วัน</div>
         </div>
       )}
 

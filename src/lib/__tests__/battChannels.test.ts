@@ -42,7 +42,7 @@ describe("activeChannels — a known channel never expires", () => {
     // regression: ch2 known from long ago, STILL zero today while ch1 works → warning persists
     const snap = [{ key: "BatteryCurrent1", value: "40", unit: "A" }, { key: "BatteryCurrent2", value: "0", unit: "A" }, { key: "BatteryPower", value: "2000", unit: "W" }, { key: "SOC", value: "60", unit: "%" }];
     const w = analyzeDevice(snap, {}, { activeBatteryChannels: activeChannels(seen) }).filter((i) => i.tone === "warn");
-    expect(w.some((x) => x.title.includes("แชร์โหลด"))).toBe(true);
+    expect(w.some((x) => x.title.includes("ช่วยกันจ่ายไฟ"))).toBe(true);
   });
   it("empty/undefined history → no known channels (diagnostics stay silent)", () => {
     expect(activeChannels(undefined)).toEqual([]);

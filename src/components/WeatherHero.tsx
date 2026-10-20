@@ -119,7 +119,7 @@ export function WeatherHero({ weather: w, force }: { weather: Weather; force?: {
         </div>
 
         {night ? (
-          <div className="wh-pv"><span>กลางคืน · แผงพักการผลิต</span><span className="dim">รอแดด {hm(w.sun?.rise) != null ? `${w.sun!.rise!.trim()} น.` : "พรุ่งนี้"}</span></div>
+          <div className="wh-pv"><span>กลางคืน · พักการผลิต</span><span className="dim">รอแดด {hm(w.sun?.rise) != null ? `${w.sun!.rise!.trim()} น.` : "พรุ่งนี้"}</span></div>
         ) : (
           <div className="wh-pv">
             <span>แสงแดดวันนี้ · {solar.label}</span><span>{solar.pct}%</span>

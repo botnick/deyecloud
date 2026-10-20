@@ -171,7 +171,7 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
     const gv = ["GridVoltageL1", "GridVoltageL2", "GridVoltageL3"].map(num).filter((v): v is number => v != null);
     const load = num("TotalConsumptionPower");
     if (gv.length && load != null) {
-      conds.push({ key: "grid_out", title: "ไฟกริดหาย (ไฟดับ)", detail: `แรงดันกริด ${gv.map((v) => v.toFixed(0)).join("/")} V ขณะโหลด ${Math.round(load)} W`, active: gv.every((v) => v < GRID_ABSENT_V) && load > 0 });
+      conds.push({ key: "grid_out", title: "ไฟดับ", detail: `แรงดันไฟจากการไฟฟ้า ${gv.map((v) => v.toFixed(0)).join("/")} V ขณะใช้ไฟ ${Math.round(load)} W`, active: gv.every((v) => v < GRID_ABSENT_V) && load > 0 });
     }
   }
 
@@ -181,14 +181,14 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
   if (env.ALERT_SOC_MIN && Number.isFinite(socMin) && socMin > 0) {
     const mp = dev && Array.isArray(dev.dataList) ? dev.dataList.find((x: any) => x.key === "BMSSOC" || x.key === "SOC") : null;
     const soc = mp ? Number(mp.value) : l && Number(l.soc) > 0 ? Number(l.soc) : NaN;
-    if (Number.isFinite(soc)) conds.push({ key: "soc_low", title: `แบตต่ำกว่า ${socMin}%`, detail: `SOC ${Math.round(soc)}%`, active: soc < socMin });
+    if (Number.isFinite(soc)) conds.push({ key: "soc_low", title: `แบตเตอรี่ต่ำกว่า ${socMin}%`, detail: `SOC ${Math.round(soc)}%`, active: soc < socMin });
   }
 
   // Deye's own alarm log — one condition per ongoing alarm, cleared when it ends.
   const seenAl = new Set<string>();
   for (const a of (dev && dev.alarms && dev.alarms.active) || []) {
     const k = "deye:" + a.alertId; seenAl.add(k);
-    conds.push({ key: k, title: `${a.level >= 2 ? "Fault" : "Warning"} จากอินเวอร์เตอร์: ${a.name}`, detail: `เริ่ม ${hhmm(a.start * 1000)}${a.impact ? " · กระทบการทำงาน" : ""}`, active: true });
+    conds.push({ key: k, title: `${a.level >= 2 ? "ข้อผิดพลาด" : "แจ้งเตือน"}จากอินเวอร์เตอร์: ${a.name}`, detail: `เริ่ม ${hhmm(a.start * 1000)}${a.impact ? " · กระทบการทำงาน" : ""}`, active: true });
   }
   if (dev && dev.alarms) for (const k of Object.keys(st)) if (k.startsWith("deye:") && !seenAl.has(k)) conds.push({ key: k, title: st[k].title || k, detail: "", active: false });
 
@@ -201,7 +201,7 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
     const seenAtt = new Set<string>();
     for (const title of (dev && dev.attention) || []) {
       const k = keyOf(title); seenAtt.add(k);
-      conds.push({ key: k, title, detail: "จากการวิเคราะห์ค่าจากเครื่อง (ไม่ใช่ alarm ของ Deye)", active: true });
+      conds.push({ key: k, title, detail: "จากการวิเคราะห์ค่าจากเครื่อง (ไม่ใช่การแจ้งเตือนของ Deye)", active: true });
     }
     for (const k of Object.keys(st)) if (k.startsWith("attention:") && !seenAtt.has(k)) conds.push({ key: k, title: st[k].title || k, detail: "", active: false });
   } else {

@@ -12,7 +12,7 @@ export interface Insight { tone: "ok" | "info" | "warn" | "tip"; title: string; 
 // back to the same defaults the settings hook starts from.
 const rateOf = (s?: Settings) => (s || DEFAULT_SETTINGS);
 const rateNote = (s: Settings) =>
-  `คิดที่ค่าไฟ ${s.rate} บาท/หน่วย${s.sellRate > 0 ? ` · ขายคืน ${s.sellRate} บาท/หน่วย` : ""} (ปรับได้ในตั้งค่า)`;
+  `คิดที่ค่าไฟ ${s.rate} บาท/หน่วย${s.sellRate > 0 ? ` · ขายไฟ ${s.sellRate} บาท/หน่วย` : ""} (ปรับได้ในตั้งค่า)`;
 
 const b = (n: number) => Math.round(n).toLocaleString("th-TH");
 const u = (n: number) => (Number(n) || 0).toFixed(1);
@@ -40,13 +40,13 @@ export function analyze(l: Latest, capacityKw?: number, settings?: Settings): In
   if (producing && surplus > 200) {
     rec = `แดดกำลังดี ผลิตได้มากกว่าที่ใช้อยู่ ~${kw(surplus)} kW — ช่วงนี้เหมาะเปิดเครื่องใช้ไฟฟ้ากำลังสูง (แอร์ เครื่องซักผ้า ปั๊มน้ำ) ได้ใช้ไฟจากแสงอาทิตย์เต็มที่ ไม่เสียค่าไฟ`;
   } else if (producing && buying) {
-    rec = `แผงผลิตอยู่แต่ยังไม่พอกับที่ใช้ กำลังซื้อไฟเสริม ${kw(l.gridPower)} kW — ถ้าเลื่อนได้ ควรใช้เครื่องใช้ไฟฟ้ากำลังสูงตอนแดดแรง (ราว 9:00–15:00 น.) จะคุ้มกว่า`;
+    rec = `แผงโซลาร์ผลิตอยู่แต่ยังไม่พอกับที่ใช้ กำลังซื้อไฟเสริม ${kw(l.gridPower)} kW — ถ้าเลื่อนได้ ควรใช้เครื่องใช้ไฟฟ้ากำลังสูงตอนแดดแรง (ราว 9:00–15:00 น.) จะคุ้มกว่า`;
   } else if (producing) {
-    rec = `ระบบสมดุล — แสงอาทิตย์ที่ผลิตกำลังพอดีกับที่บ้านใช้อยู่ ไม่ต้องซื้อไฟ`;
+    rec = `ระบบสมดุล — แสงอาทิตย์ที่ผลิตกำลังพอดีกับที่ใช้ไฟอยู่ ไม่ต้องซื้อไฟ`;
   } else if (discharging) {
-    rec = `ตอนนี้แผงไม่ผลิต ใช้ไฟจากแบตเตอรี่ที่เก็บไว้ (แบตเหลือ ${socR}%) — ${l.soc <= 25 ? "แบตใกล้หมด แนะนำลดเครื่องใช้ไฟฟ้าขนาดใหญ่ รอแดดมาชาร์จ" : "ระบบทำงานปกติ ไม่ต้องปรับอะไร"}`;
+    rec = `ตอนนี้แผงโซลาร์ไม่ผลิต ใช้ไฟจากแบตเตอรี่ที่เก็บไว้ (แบตเหลือ ${socR}%) — ${l.soc <= 25 ? "แบตใกล้หมด แนะนำลดเครื่องใช้ไฟฟ้าขนาดใหญ่ รอแดดมาชาร์จ" : "ระบบทำงานปกติ ไม่ต้องปรับอะไร"}`;
   } else if (buying) {
-    rec = `ตอนนี้แผงไม่ผลิต${daytime ? " (แดดน้อย/มีเมฆ)" : " (กลางคืน)"} ใช้ไฟจากการไฟฟ้า ${kw(l.gridPower)} kW — เครื่องใช้ไฟฟ้ากำลังสูงควรใช้ตอนกลางวันที่มีแดด จะประหยัดกว่า`;
+    rec = `ตอนนี้แผงโซลาร์ไม่ผลิต${daytime ? " (แดดน้อย/มีเมฆ)" : " (กลางคืน)"} ใช้ไฟจากการไฟฟ้า ${kw(l.gridPower)} kW — เครื่องใช้ไฟฟ้ากำลังสูงควรใช้ตอนกลางวันที่มีแดด จะประหยัดกว่า`;
   } else {
     rec = `ตอนนี้ใช้ไฟไม่มาก ระบบทำงานปกติ`;
   }
@@ -54,15 +54,15 @@ export function analyze(l: Latest, capacityKw?: number, settings?: Settings): In
 
   // ----- 1) ตอนนี้ (สมดุลกำลังไฟแบบเรียลไทม์) -----
   const now: string[] = [];
-  if (l.genPower > 5) now.push(`แผงผลิต ${kw(l.genPower)} kW`);
-  else now.push(daytime ? "แผงยังไม่ผลิต (แดดน้อย/มีเมฆ)" : "กลางคืน แผงไม่ผลิต");
+  if (l.genPower > 5) now.push(`แผงโซลาร์ผลิต ${kw(l.genPower)} kW`);
+  else now.push(daytime ? "แผงโซลาร์ยังไม่ผลิต (แดดน้อย/มีเมฆ)" : "กลางคืน แผงโซลาร์ไม่ผลิต");
   if (l.gridPower > 5) now.push(`ดึงจากการไฟฟ้า ${kw(l.gridPower)} kW`);
-  else if (l.gridPower < -5) now.push(`ไหลย้อนเข้าระบบ ${kw(l.gridPower)} kW`);
+  else if (l.gridPower < -5) now.push(`ไฟย้อน ${kw(l.gridPower)} kW`);
   if (bs.includes("CHARGE")) now.push(`แบตชาร์จ ${kw(l.battPower)} kW`);
   else if (bs.includes("DIS")) now.push(`แบตจ่าย ${kw(l.battPower)} kW`);
   out.push({
     tone: "info",
-    title: `ตอนนี้ ${bkkClock(l.updatedAt || Date.now() / 1000)} น. — บ้านใช้ ${kw(l.usePower)} kW`,
+    title: `ตอนนี้ ${bkkClock(l.updatedAt || Date.now() / 1000)} น. — ใช้ไฟ ${kw(l.usePower)} kW`,
     detail: now.join(" · "),
   });
 
@@ -70,9 +70,9 @@ export function analyze(l: Latest, capacityKw?: number, settings?: Settings): In
   const pvDirect = Math.max(0, l.genToday - l.chargeToday - l.sellToday); // แสงอาทิตย์ที่ใช้กับโหลดโดยตรง
   const selfCons = l.genToday > 0.1 ? ((l.genToday - l.sellToday) / l.genToday) * 100 : 0;
   if (l.genToday > 0.1) {
-    const sub = [`ใช้กับบ้านเลย ${u(pvDirect)} หน่วย`];
+    const sub = [`ใช้ในบ้านเลย ${u(pvDirect)} หน่วย`];
     if (hasBatt) sub.push(`เก็บเข้าแบต ${u(l.chargeToday)} หน่วย`);
-    if (l.sellToday > 0.05) sub.push(`ไหลย้อนทิ้ง ${u(l.sellToday)} หน่วย`);
+    if (l.sellToday > 0.05) sub.push(`ไฟย้อน ${u(l.sellToday)} หน่วย`);
     const psh = capacityKw && capacityKw > 0 ? ` · เทียบแดดเต็มกำลัง ${(l.genToday / capacityKw).toFixed(1)} ชม.` : "";
     out.push({
       tone: "ok",
@@ -104,7 +104,7 @@ export function analyze(l: Latest, capacityKw?: number, settings?: Settings): In
     const saved = savingsOf({ use: l.useToday, buy: l.buyToday, sell: l.sellToday }, st);
     out.push({
       tone: saved < 0 ? "info" : "ok",
-      title: saved < 0 ? `วันนี้ค่าไฟเพิ่มสุทธิ ~${b(-saved)} บาท (ซื้อไฟมากกว่าที่ใช้ เช่น ชาร์จแบตจากกริด)` : `วันนี้ประหยัด ~${b(saved)} บาท`,
+      title: saved < 0 ? `วันนี้ค่าไฟเพิ่มสุทธิ ~${b(-saved)} บาท (ซื้อไฟมากกว่าที่ใช้ เช่น ชาร์จแบตจากการไฟฟ้า)` : `วันนี้ประหยัด ~${b(saved)} บาท`,
       detail: `ถ้าไม่มีโซลาร์ต้องจ่าย ~${b(woSolar)} บาท · จ่ายจริงแค่ ~${b(cost)} บาท`,
       sub: [rateNote(st)],
     });
@@ -199,7 +199,7 @@ function analyzeDay(points: any[], cap: number, st: Settings, totals?: DayTotals
   if (!exact && fr.length < 3) {
     out.push({
       tone: "tip", title: "สรุปทั้งวัน",
-      detail: pkGen > 50 ? `แผงผลิตสูงสุด ${kw(pkGen)} kW ตอน ${clockOf(pkGenTs)} น.` : "ยังไม่มีการผลิตที่ชัดเจนในวันนี้ (กลางคืน/แดดน้อย)",
+      detail: pkGen > 50 ? `แผงโซลาร์ผลิตสูงสุด ${kw(pkGen)} kW ตอน ${clockOf(pkGenTs)} น.` : "ยังไม่มีการผลิตที่ชัดเจนในวันนี้ (กลางคืน/แดดน้อย)",
     });
     if (pkUse > 50) out.push({ tone: "info", title: `ใช้ไฟสูงสุด ${kw(pkUse)} kW`, detail: `ตอน ${clockOf(pkUseTs)} น.` });
     return out;
@@ -227,7 +227,7 @@ function analyzeDay(points: any[], cap: number, st: Settings, totals?: DayTotals
       tone: "tip", title: `ผลิตไฟวันนี้ ~${u(genKwh)} หน่วย`,
       detail: `กำลังผลิตสูงสุด ${kw(pkGen)} kW ตอน ${clockOf(pkGenTs)} น.${capPct}`,
       sub: [
-        sunHrs > 0 ? `แผงทำงานช่วง ${clockOf(sunStart)}–${clockOf(sunEnd)} น. (~${sunHrs.toFixed(1)} ชม.)` : "",
+        sunHrs > 0 ? `แผงโซลาร์ทำงานช่วง ${clockOf(sunStart)}–${clockOf(sunEnd)} น. (~${sunHrs.toFixed(1)} ชม.)` : "",
         cap ? `เทียบแดดเต็มกำลัง ~${psh.toFixed(1)} ชม./วัน` : "",
       ].filter(Boolean),
     });
@@ -240,18 +240,18 @@ function analyzeDay(points: any[], cap: number, st: Settings, totals?: DayTotals
     out.push({
       tone: "info", title: `ใช้ไฟวันนี้ ~${u(useKwh)} หน่วย`,
       detail: `ใช้สูงสุด ${kw(pkUse)} kW ตอน ${clockOf(pkUseTs)} น.`,
-      sub: baseLoad > 60 ? [`ฐานโหลดช่วงไม่มีแดด ~${kw(baseLoad)} kW (อุปกรณ์ที่เปิดค้างไว้ตลอด)`] : undefined,
+      sub: baseLoad > 60 ? [`ใช้ไฟพื้นฐานช่วงไม่มีแดด ~${kw(baseLoad)} kW (อุปกรณ์ที่เปิดค้างไว้ตลอด)`] : undefined,
     });
   }
 
   // 3) แสงอาทิตย์ไปไหนบ้าง
   if (genKwh > 0.1) {
-    const sub = [`ใช้กับบ้านโดยตรง ~${u(toLoad)} หน่วย`];
+    const sub = [`ใช้ในบ้านโดยตรง ~${u(toLoad)} หน่วย`];
     if (hasBatt) sub.push(`เก็บเข้าแบต ~${u(chgKwh)} หน่วย`);
-    if (expKwh > 0.05) sub.push(`ไหลย้อนเข้าระบบ ~${u(expKwh)} หน่วย`);
+    if (expKwh > 0.05) sub.push(`ไฟย้อน ~${u(expKwh)} หน่วย`);
     out.push({
       tone: "ok", title: `ใช้แสงอาทิตย์ที่ผลิตเองได้ ${selfCons}%`,
-      detail: expKwh > genKwh * 0.15 ? "มีไฟไหลย้อนทิ้งพอควร — เพิ่มการใช้ตอนกลางวันจะคุ้มกว่า" : "แทบไม่มีไฟไหลย้อนทิ้ง ใช้แดดได้คุ้ม",
+      detail: expKwh > genKwh * 0.15 ? "มีไฟย้อนพอควร — เพิ่มการใช้ตอนกลางวันจะคุ้มกว่า" : "แทบไม่มีไฟย้อน ใช้แดดได้คุ้ม",
       sub,
     });
   }
@@ -272,14 +272,14 @@ function analyzeDay(points: any[], cap: number, st: Settings, totals?: DayTotals
     out.push({
       tone: selfSuff >= 70 ? "ok" : "info",
       title: `พึ่งพาตัวเองได้ ${selfSuff}% ของไฟที่ใช้`,
-      detail: `ซื้อจากการไฟฟ้า ~${u(impKwh)} หน่วย${expKwh > 0.05 ? ` · ไหลย้อน/ขาย ~${u(expKwh)} หน่วย` : ""}`,
+      detail: `ซื้อจากการไฟฟ้า ~${u(impKwh)} หน่วย${expKwh > 0.05 ? ` · ไฟย้อน ~${u(expKwh)} หน่วย` : ""}`,
     });
   } else if (useKwh > 0.1) {
     const offGrid = hasBatt && !usedGrid;
     out.push({
       tone: "ok",
-      title: offGrid ? "ทำงานแบบ off-grid วันนี้" : "พึ่งพาตัวเองเกือบ 100%",
-      detail: offGrid ? "ทั้งวันใช้แสงอาทิตย์ + แบตเตอรี่ ไม่ได้พึ่งการไฟฟ้าเลย" : "วันนี้แทบไม่ต้องซื้อไฟจากการไฟฟ้าเลย",
+      title: offGrid ? "วันนี้ไม่พึ่งการไฟฟ้าเลย" : "พึ่งพาตัวเองเกือบ 100%",
+      detail: offGrid ? "ทั้งวันใช้แสงอาทิตย์ + แบตเตอรี่ ไม่ได้ซื้อไฟเลย" : "วันนี้แทบไม่ต้องซื้อไฟจากการไฟฟ้าเลย",
     });
   }
 
@@ -334,11 +334,11 @@ function dayVerdict(m: {
   else if (m.clouds === "clear" && m.cap && m.genKwh > m.cap) parts.push("แดดต่อเนื่องเกือบทั้งวัน เส้นผลิตเรียบสม่ำเสมอ");
 
   // ความสมดุลผลิต vs ใช้
-  if (m.genKwh > m.useKwh * 1.05) parts.push(`ผลิตได้มากกว่าที่ใช้ (เหลือ ~${u(m.genKwh - m.useKwh)} หน่วย${m.hasBatt ? "ไปเก็บแบต/ไหลย้อน" : "ไหลย้อนเข้าระบบ"})`);
+  if (m.genKwh > m.useKwh * 1.05) parts.push(`ผลิตได้มากกว่าที่ใช้ (เหลือ ~${u(m.genKwh - m.useKwh)} หน่วย${m.hasBatt ? "ไปเก็บแบต/ไฟย้อน" : "เป็นไฟย้อน"})`);
   else if (m.genKwh > 0.1) parts.push(`ผลิตยังไม่พอกับที่ใช้ทั้งวัน ต้องเสริมจาก${m.hasBatt ? "แบต+" : ""}การไฟฟ้า`);
 
   // การพึ่งพาตัวเอง
-  if (m.hasBatt && !m.usedGrid && m.useKwh > 0.1) parts.push("พึ่งพาตัวเองเต็มตัว — ทั้งวันไม่ได้ใช้ไฟจากการไฟฟ้า (off-grid)");
+  if (m.hasBatt && !m.usedGrid && m.useKwh > 0.1) parts.push("พึ่งพาตัวเองเต็มตัว — ทั้งวันไม่ได้ใช้ไฟจากการไฟฟ้า");
   else if (m.selfSuff >= 80) parts.push(`พึ่งพาตัวเองได้สูงถึง ${m.selfSuff}% ระบบทำงานคุ้มค่า`);
   else if (m.selfSuff >= 50) parts.push(`พึ่งพาตัวเองได้ปานกลาง (${m.selfSuff}%)`);
   else if (m.impKwh > 0.1) parts.push(`ยังพึ่งการไฟฟ้าค่อนข้างมาก (${m.selfSuff}%)`);
@@ -346,12 +346,12 @@ function dayVerdict(m: {
   // คำแนะนำที่ทำได้จริง 1 ข้อ — ตามชนิดระบบ + จุดที่ปรับปรุงได้มากสุด
   const lowSoc = m.socMin != null && m.socMin <= 15;
   const lowAtNight = lowSoc && (() => { const h = bkkHour(m.socMinTs); return h < 6 || h >= 18; })();
-  if (m.hasBatt && !m.usedGrid && m.socMin != null && m.socMin <= 12) parts.push("แบตลงต่ำมากและไม่มีกริดสำรอง — เสี่ยงไฟดับ ควรลดโหลดและรอแดดมาชาร์จ");
-  else if (!m.hasBatt && m.genKwh > 0.1 && m.expKwh > m.genKwh * 0.2) parts.push("ระบบไม่มีแบต ไฟที่ผลิตเกินจะไหลย้อนทิ้ง — ใช้ไฟตอนกลางวันให้มากที่สุดจะคุ้มสุด");
-  else if (m.genKwh > 0.1 && m.expKwh > m.genKwh * 0.2) parts.push("มีไฟไหลย้อนทิ้งเยอะ — ลองเลื่อนเครื่องใช้ไฟฟ้าหนักมาช่วงกลางวันจะคุ้มกว่า");
-  else if (lowAtNight) parts.push("แบตลงต่ำช่วงกลางคืน — ถ้าเป็นบ่อยควรลดโหลดกลางคืนหรือเพิ่มความจุแบต");
+  if (m.hasBatt && !m.usedGrid && m.socMin != null && m.socMin <= 12) parts.push("แบตลงต่ำมากและไม่มีไฟจากการไฟฟ้าสำรอง — เสี่ยงไฟดับ ควรลดการใช้ไฟและรอแดดมาชาร์จ");
+  else if (!m.hasBatt && m.genKwh > 0.1 && m.expKwh > m.genKwh * 0.2) parts.push("ระบบไม่มีแบต ไฟที่ผลิตเกินจะเป็นไฟย้อน — ใช้ไฟตอนกลางวันให้มากที่สุดจะคุ้มสุด");
+  else if (m.genKwh > 0.1 && m.expKwh > m.genKwh * 0.2) parts.push("มีไฟย้อนเยอะ — ลองเลื่อนเครื่องใช้ไฟฟ้าหนักมาช่วงกลางวันจะคุ้มกว่า");
+  else if (lowAtNight) parts.push("แบตลงต่ำช่วงกลางคืน — ถ้าเป็นบ่อยควรลดการใช้ไฟกลางคืนหรือเพิ่มความจุแบต");
   else if (lowSoc) parts.push("แบตลงต่ำช่วงแดดน้อย — ระวังใช้ไฟเกินกำลังที่ผลิตได้");
-  else if (m.baseLoad > 300) parts.push(`ฐานโหลดช่วงไม่มีแดดค่อนข้างสูง (~${(m.baseLoad / 1000).toFixed(2)} kW) — มีอุปกรณ์กินไฟตลอดเวลา ลองหาดูจะช่วยลดค่าไฟ`);
+  else if (m.baseLoad > 300) parts.push(`ใช้ไฟพื้นฐานช่วงไม่มีแดดค่อนข้างสูง (~${(m.baseLoad / 1000).toFixed(2)} kW) — มีอุปกรณ์กินไฟตลอดเวลา ลองหาดูจะช่วยลดค่าไฟ`);
 
   return parts.join(" · ") || "ข้อมูลวันนี้ยังไม่พอสำหรับวิเคราะห์เชิงลึก";
 }
@@ -427,9 +427,9 @@ function analyzeSpan(range: "month" | "year", points: any[], cap: number, st: Se
     sub: [`${range === "month" ? "วันเมฆหนาที่สุด" : "เดือนที่ผลิตน้อยสุด"}: ${lbl(worst)} (${u(worst.gen || 0)} หน่วย)`, `ผลิตได้มากกว่าที่ใช้ ${posDays} จาก ${n} ${unit}`],
   });
   if (s.sell > 0.5) {
-    out.push({ tone: "info", title: `ไฟไหลย้อน ${u(s.sell)} หน่วย`, detail: `ใช้ไฟแดดที่ผลิตเองทันที ${selfCons}% · ที่เหลือไหลย้อนเข้าระบบ` });
+    out.push({ tone: "info", title: `ไฟย้อน ${u(s.sell)} หน่วย`, detail: `ใช้ไฟแดดที่ผลิตเองทันที ${selfCons}% · ที่เหลือเป็นไฟย้อน` });
   } else {
-    out.push({ tone: "ok", title: `ใช้ไฟแดดที่ผลิตเองได้ ${selfCons}%`, detail: "แทบไม่มีไฟไหลย้อนทิ้ง — ใช้แดดที่ผลิตได้คุ้มค่า" });
+    out.push({ tone: "ok", title: `ใช้ไฟแดดที่ผลิตเองได้ ${selfCons}%`, detail: "แทบไม่มีไฟย้อน — ใช้แดดที่ผลิตได้คุ้มค่า" });
   }
   if (noBuyDays > 0) out.push({ tone: "ok", title: `แทบไม่ต้องซื้อไฟ ${noBuyDays} ${unit}`, detail: `${unit}ที่ใช้แสงอาทิตย์และแบตเตอรี่ได้เกือบทั้งหมด` });
   return out;

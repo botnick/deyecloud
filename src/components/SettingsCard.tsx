@@ -46,12 +46,12 @@ export function SettingsCard({ settings, raw, onSave }: {
   return (
     <section className={`${cardP} mt-3`}>
       <div className="font-bold text-[17px] text-title">ตั้งค่าการคำนวณ</div>
-      <div className="text-[12.5px] text-muted mt-0.5 leading-snug">ใช้คำนวณเงินที่ประหยัด/ขายคืน และระยะคืนทุน (เก็บไว้ที่ระบบ ใช้ร่วมทุกเครื่อง)</div>
+      <div className="text-[12.5px] text-muted mt-0.5 leading-snug">ใช้คำนวณเงินที่ประหยัด/ขายไฟ และระยะคืนทุน (เก็บไว้ที่ระบบ ใช้ร่วมทุกเครื่อง)</div>
       <div className="grid gap-3.5 mt-3.5">
         <Field label="ค่าไฟ (฿/หน่วย)" hint={`ถ้าเว้นว่างจะใช้ค่าเริ่มต้น ${DEFAULT_SETTINGS.rate}`} value={rate} placeholder={String(DEFAULT_SETTINGS.rate)} onChange={setRate} />
-        <Field label="ค่าขายคืน (฿/หน่วย)" hint="ราคาที่การไฟฟ้ารับซื้อไฟที่ไหลย้อน (ถ้าไม่ขายใส่ 0)" value={sell} placeholder={String(DEFAULT_SETTINGS.sellRate)} onChange={setSell} />
+        <Field label="ค่าขายไฟ (฿/หน่วย)" hint="ราคาที่การไฟฟ้ารับซื้อไฟย้อน (ถ้าไม่ขายใส่ 0)" value={sell} placeholder={String(DEFAULT_SETTINGS.sellRate)} onChange={setSell} />
         <Field label="ทุนติดตั้งระบบ (฿)" hint="ใส่เพื่อดูระยะคืนทุน — ไม่ใส่ก็ได้" value={cost} placeholder="เช่น 250000" onChange={setCost} />
-        <Field label="ค่า CO₂ ของไฟกริด (กก./หน่วย)" hint={`emission factor ของประเทศ/การไฟฟ้าที่ใช้ — ไทย ≈ ${DEFAULT_SETTINGS.co2Factor} (อบก.)`} value={co2} placeholder={String(DEFAULT_SETTINGS.co2Factor)} onChange={setCo2} />
+        <Field label="ค่า CO₂ ของไฟจากการไฟฟ้า (กก./หน่วย)" hint={`emission factor ของประเทศ/การไฟฟ้าที่ใช้ — ไทย ≈ ${DEFAULT_SETTINGS.co2Factor} (อบก.)`} value={co2} placeholder={String(DEFAULT_SETTINGS.co2Factor)} onChange={setCo2} />
       </div>
       <button onClick={submit} disabled={!dirty && !saved}
         className={`mt-4 w-full h-12 rounded-2xl text-[16px] font-bold transition-all active:scale-[.98] ${saved ? "bg-secondary text-white" : dirty ? "bg-primary text-ink shadow-[0_8px_20px_-7px_rgba(255,204,0,0.6)]" : "bg-canvas text-muted"}`}>

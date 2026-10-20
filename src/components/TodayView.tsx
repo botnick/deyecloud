@@ -29,11 +29,11 @@ export function TodayView({ latest, capacity }: { latest: Latest | null; capacit
       <div className="grid grid-cols-2 gap-3.5 mt-3.5">
         <Tile tone="use" icon={<IconHouse />} label="ใช้ไฟวันนี้" value={latest.useToday} format={fmtKwh} unit="หน่วย" />
         <Tile tone="grid" icon={<IconGrid />} label="ซื้อไฟ" value={latest.buyToday} format={fmtKwh} unit="หน่วย" note="จากการไฟฟ้า" />
-        <Tile tone="grid" icon={<IconGrid />} label="ไฟย้อน" value={latest.sellToday} format={fmtKwh} unit="หน่วย" note="ไหลกลับระบบ" />
+        <Tile tone="grid" icon={<IconGrid />} label="ไฟย้อน" value={latest.sellToday} format={fmtKwh} unit="หน่วย" note="เข้าการไฟฟ้า" />
         <Tile tone="batt" icon={<IconBattery />} label="ชาร์จแบต" value={latest.chargeToday} format={fmtKwh} unit="หน่วย" note="วันนี้" />
       </div>
 
-      <h2 className={h2Mid}>พึ่งพาไฟตัวเอง</h2>
+      <h2 className={h2Mid}>พึ่งพาตัวเอง</h2>
       <div className={`${cardP} flex items-center gap-5`}>
         <svg viewBox="0 0 130 130" className="w-[130px] h-[130px] shrink-0">
           <circle cx="65" cy="65" r="54" fill="none" stroke="var(--color-grid)" strokeWidth="16" />

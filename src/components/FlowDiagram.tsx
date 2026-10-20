@@ -91,9 +91,9 @@ export function FlowDiagram({ latest }: { latest: Latest }) {
       </svg>
 
       <Node x={15.3} y={21.3} color="#f5a623" icon={<IconSun />} value={fmtPower(latest.genPower)} label="แผงโซลาร์" />
-      <Node x={84.7} y={21.3} color="#8b5cf6" icon={<IconGrid />} value={fmtPower(latest.gridPower)} label={gridOff ? "ไฟดับ" : buying ? "ซื้อไฟ" : "ไฟย้อน"} badge={gridOff ? "ออฟกริด" : "เชื่อมต่อ"} badgeWarn={gridOff} />
+      <Node x={84.7} y={21.3} color="#8b5cf6" icon={<IconGrid />} value={fmtPower(latest.gridPower)} label={gridOff ? "ไฟดับ" : buying ? "ซื้อไฟ" : "ไฟย้อน"} badge={gridOff ? "ไม่เชื่อมต่อ" : "เชื่อมต่อ"} badgeWarn={gridOff} />
       {hasBatt && <Node x={15.3} y={75.3} color="#18a673" icon={<BatteryGlyph soc={soc} />} value={`${soc}%`} valueColor={battCol} label={discharging ? "กำลังจ่าย" : charging ? "กำลังชาร์จ" : "แบตเตอรี่"} />}
-      <Node x={84.7} y={75.3} color="#0d4add" icon={<IconHouse />} value={fmtPower(latest.usePower)} label="บ้าน" />
+      <Node x={84.7} y={75.3} color="#0d4add" icon={<IconHouse />} value={fmtPower(latest.usePower)} label="ใช้ไฟ" />
 
       {/* centre inverter */}
       <div className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2">
