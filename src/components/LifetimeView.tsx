@@ -74,9 +74,9 @@ export function LifetimeView({ active }: { active: boolean }) {
       {/* impact stats */}
       <div className="grid grid-cols-2 gap-2.5 mt-3">
         <Stat label={`${savingsLabel(saved).label}${t.firstDay ? "ตั้งแต่เริ่มบันทึก" : "รวม"}`} value={savingsLabel(saved).text} color={savingsLabel(saved).negative ? "var(--color-warn)" : "var(--color-secondary)"} sub={`ที่ ${settings.rate} บาท/หน่วย`}
-          info={`ตั้งแต่เริ่มบันทึก (${t.firstDay ? thDate(t.firstDay) : "-"}): (ไฟที่ใช้ − ไฟที่ซื้อ) × ค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายไฟ × ${settings.sellRate} บาท/หน่วย` : ""} · ถ้าซื้อมากกว่าใช้ (ชาร์จแบตจากการไฟฟ้า) จะเป็นค่าไฟเพิ่มสุทธิ`} />
+          info={`ตั้งแต่เริ่มบันทึก (${t.firstDay ? thDate(t.firstDay) : "-"}): (ไฟที่ใช้ − ไฟที่ซื้อ) คูณด้วยค่าไฟ ${settings.rate} บาท/หน่วย${settings.sellRate > 0 ? ` + ขายไฟ คูณด้วย ${settings.sellRate} บาท/หน่วย` : ""} · ถ้าซื้อมากกว่าใช้ (ชาร์จแบตเตอรี่จากการไฟฟ้า) จะเป็นค่าไฟเพิ่มสุทธิ`} />
         <Stat label={`ลดคาร์บอน${t.firstDay ? "ตั้งแต่เริ่มบันทึก" : " (CO₂)"}`} value={kInt(co2)} unit="กก." color="#18a673" sub={`≈ ปลูกต้นไม้ ${kInt(trees)} ต้น/ปี`}
-          info={`คาร์บอนที่ลดได้ในช่วงที่ระบบบันทึก = ไฟที่ผลิตได้ ${kInt(t.gen)} หน่วย × ${settings.co2Factor} กก./หน่วย (ค่า emission factor ตั้งได้ในตั้งค่า) เทียบเท่าการดูดซับของต้นไม้ ~21 กก./ต้น/ปี · ตัวเลขผลิตสะสมด้านบนมาจากมิเตอร์ของอินเวอร์เตอร์ซึ่งอาจนับก่อนติดตั้งแอป`} />
+          info={`คาร์บอนที่ลดได้ในช่วงที่ระบบบันทึก คำนวณจากไฟที่ผลิตได้ ${kInt(t.gen)} หน่วย คูณด้วย ${settings.co2Factor} กก./หน่วย (ปรับค่าได้ในส่วนการตั้งค่า) เทียบเท่าการดูดซับของต้นไม้ประมาณ 21 กก./ต้น/ปี · ตัวเลขผลิตสะสมด้านบนมาจากมิเตอร์ของอินเวอร์เตอร์ซึ่งอาจนับก่อนติดตั้งแอป`} />
       </div>
 
       {/* payback — only when a system cost is set */}
@@ -96,7 +96,7 @@ export function LifetimeView({ active }: { active: boolean }) {
             {saved >= cost!
               ? <>คืนทุนครบแล้ว — ตอนนี้ประหยัดเกินทุน {baht(saved - cost!)} แล้ว</>
               : yearsLeft == null
-                ? <>ยังไม่มีเงินประหยัดสุทธิ (ช่วงที่บันทึกซื้อไฟมากกว่าที่ใช้ เช่น ชาร์จแบตจากการไฟฟ้า) — ยังประเมินปีคืนทุนไม่ได้</>
+                ? <>ยังไม่มีเงินประหยัดสุทธิ (ช่วงที่บันทึกซื้อไฟมากกว่าที่ใช้ เช่น ชาร์จแบตเตอรี่จากการไฟฟ้า) — ยังประเมินระยะเวลาคืนทุนไม่ได้</>
                 : <>คืนทุนแล้ว {baht(saved)} จาก {baht(cost!)} · คาดคืนทุนครบในอีก ~{yearsLeft.toFixed(1)} ปี (ประหยัดเฉลี่ย {baht(annual)}/ปี)</>}
           </div>
         </section>
