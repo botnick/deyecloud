@@ -29,7 +29,7 @@ export function YearInsights({ year, points, prevPoints, todayGen, primary }: { 
     <div className={`${cardP} mt-3`}>
       <div className="flex items-center gap-1.5 mb-2.5">
         <span className="font-bold text-[16px] text-title">ภาพรวมทั้งปี</span>
-        <InfoTip text="ผลิตเฉลี่ยต่อวันของแต่ละเดือน คิดเฉพาะวันที่มีข้อมูล (เดือนที่กำลังเดินไม่นับวันนี้) · แถบจาง = ปีก่อน · แถบลาย = เดือนที่ข้อมูลไม่ครบ · คาดทั้งปี = ที่บันทึกได้แล้ว + วันหลังจากวันนี้ประเมินจากเดือนเดียวกันของปีก่อน (ถ้าครบ) หรืออัตราของเดือนที่ครบในปีนี้ปรับตามแดดของแต่ละเดือน (จากพิกัดบ้าน) — เป็นค่าประมาณ ไม่ใช่ตัวเลขรับรอง" />
+        <InfoTip text="ผลิตไฟเฉลี่ยต่อวันของแต่ละเดือน คิดเฉพาะวันที่มีข้อมูล (เดือนปัจจุบันไม่นับรวมวันนี้) · แถบสีจางคือปีก่อน · แถบลายคือเดือนที่ข้อมูลไม่ครบถ้วน · คาดการณ์ทั้งปีคำนวณจากยอดที่บันทึกได้แล้ว รวมกับวันหลังจากวันนี้ที่ประเมินจากเดือนเดียวกันของปีก่อน (ถ้าครบ) หรืออัตราของเดือนที่ครบในปีนี้ปรับตามแดดของแต่ละเดือน (จากพิกัดบ้าน) — เป็นค่าประมาณการ ไม่ใช่ตัวเลขรับรอง" />
       </div>
       {/* monthly kWh/day bars (this year solid, last year faint) */}
       <div className="grid grid-cols-12 gap-1 items-end h-24">
@@ -42,8 +42,8 @@ export function YearInsights({ year, points, prevPoints, todayGen, primary }: { 
       </div>
       <div className="grid grid-cols-12 gap-1 mt-1 text-[9.5px] text-muted text-center">{TH_M.map((m) => <div key={m}>{m}</div>)}</div>
       <div className="text-[12.5px] text-body mt-3 space-y-1 leading-snug">
-        {partialMonths.length > 0 && <div className="text-muted">ข้อมูลไม่ครบ: {partialMonths.map((s) => `${TH_M[s.m - 1]} ${s.coverage}/${s.calendarDays} วัน`).join(" · ")}</div>}
-        {bw && <div>☀️ ดีสุด <b>{TH_M[bw.best.m - 1]}</b> {f1(bw.best.perDay!)} หน่วย/วัน · แย่สุด <b>{TH_M[bw.worst.m - 1]}</b> {f1(bw.worst.perDay!)} หน่วย/วัน</div>}
+        {partialMonths.length > 0 && <div className="text-muted">ข้อมูลไม่ครบถ้วน: {partialMonths.map((s) => `${TH_M[s.m - 1]} ${s.coverage}/${s.calendarDays} วัน`).join(" · ")}</div>}
+        {bw && <div>มากที่สุด <b>{TH_M[bw.best.m - 1]}</b> {f1(bw.best.perDay!)} หน่วย/วัน · น้อยที่สุด <b>{TH_M[bw.worst.m - 1]}</b> {f1(bw.worst.perDay!)} หน่วย/วัน</div>}
         {seasons.length > 0 && <div>{seasons.map((s) => `${SEASON_TH[s.season].split(" ")[0]} ${f1(s.perDay!)}`).join(" · ")} หน่วย/วัน</div>}
         {yoy && yoy.pct != null && <div>เทียบปีก่อน ({yoy.months} เดือนเดียวกัน): <b className={yoy.pct >= 0 ? "text-ok" : "text-warn"}>{yoy.pct > 0 ? "+" : ""}{yoy.pct}%</b></div>}
         {proj && (

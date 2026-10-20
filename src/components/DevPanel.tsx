@@ -31,7 +31,7 @@ export function DevPanel({ current, onPick, onPreviewInstall }: { current: strin
           >
             <div className="w-10 h-1.5 rounded-full bg-line mx-auto mb-3" />
             <div className="font-bold text-[18px] mb-1">จำลองสถานการณ์ (โหมดทดสอบ)</div>
-            <div className="text-body text-[13px] mb-3">ข้อมูลจริงมาจาก API 100% — อันนี้แค่ป้อนค่าจำลองให้ดูว่า UI รับทุกสถานะไหวไหม</div>
+            <div className="text-body text-[13px] mb-3">ข้อมูลจริงนำมาจาก API 100% — ส่วนนี้จำลองสถานการณ์เพื่อตรวจการแสดงผลของหน้าจอในทุกรูปแบบ</div>
             <button
               onClick={() => { onPick(null); setOpen(false); }}
               className={`w-full text-left px-4 py-3 rounded-2xl mb-2 font-semibold ${!current ? "bg-primary text-ink" : "bg-canvas text-title"}`}
@@ -51,7 +51,7 @@ export function DevPanel({ current, onPick, onPreviewInstall }: { current: strin
               onClick={() => { onPreviewInstall(); setOpen(false); }}
               className="w-full mt-2 px-4 py-3 rounded-2xl font-bold text-[#0d4add] bg-[#0d4add]/10 active:scale-[.99] transition-transform"
             >
-              👀 ดู banner ติดตั้ง (PWA)
+              ดู banner ติดตั้ง (PWA)
             </button>
             <button
               onClick={exitDevMode}

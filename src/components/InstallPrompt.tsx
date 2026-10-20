@@ -102,7 +102,7 @@ export function InstallPrompt({ forceShow = false }: { forceShow?: boolean }) {
       : `เพิ่ม ${APP_NAME} ลงหน้าจอโฮม`;
 
   let sub: React.ReactNode;
-  if (mode.kind === "button") sub = "เปิดเหมือนแอป · เปิดเร็ว · ใช้แบบออฟไลน์ได้";
+  if (mode.kind === "button") sub = "เปิดใช้เหมือนแอป · เข้าได้เร็ว · ใช้แบบออฟไลน์ได้";
   else if (mode.kind === "ios") sub = (<>กดปุ่ม <ShareIcon /> ด้านล่าง แล้วเลือก “เพิ่มไปยังหน้าจอโฮม”</>);
   else if (mode.kind === "macos") sub = (<>กดปุ่ม <ShareIcon /> บนแถบเครื่องมือ แล้วเลือก “Add to Dock”</>);
   else sub = (<>เปิดเมนู <MenuIcon /> ของเบราว์เซอร์ แล้วเลือก “ติดตั้ง” / “เพิ่มลงหน้าจอหลัก”</>);
@@ -116,7 +116,7 @@ export function InstallPrompt({ forceShow = false }: { forceShow?: boolean }) {
           <div className="text-[12px] text-body mt-0.5 leading-snug">{sub}</div>
         </div>
         {mode.kind === "button" && (
-          <button onClick={install} className="shrink-0 h-9 px-3.5 rounded-xl bg-primary text-ink text-[14px] font-bold active:scale-95 transition-transform">เพิ่มเลย</button>
+          <button onClick={install} className="shrink-0 h-9 px-3.5 rounded-xl bg-primary text-ink text-[14px] font-bold active:scale-95 transition-transform">ติดตั้ง</button>
         )}
         <button onClick={close} aria-label="ปิด" className="shrink-0 w-8 h-8 grid place-items-center text-muted rounded-full active:bg-line">
           <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
