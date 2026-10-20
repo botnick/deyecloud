@@ -134,7 +134,7 @@ h2 { font-size: clamp(28px, 3.2vw, 38px); line-height: 1.25; font-weight: 800; l
 .split { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 40px; }
 .split > h2 { position: sticky; top: 84px; align-self: start; font-size: clamp(24px, 2.6vw, 30px); margin: 0; }
 .split > .prose, .split > .faq { max-width: none; }
-@media (max-width: 1000px) { .split { grid-template-columns: 1fr; gap: 20px; } .split > h2 { position: static; } }
+@media (max-width: 1000px) { .split { grid-template-columns: minmax(0, 1fr); gap: 20px; } .split > h2 { position: static; } }
 
 /* faq */
 .faq { max-width: 860px; border-top: 1px solid var(--line); }
