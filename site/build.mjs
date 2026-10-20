@@ -281,7 +281,7 @@ async function heroSwitch(items, pre) {
     <div class="hs-stack">${imgs.join("")}</div>
     <div class="hs-tabs" role="presentation">${items.map((s, i) => `<label for="hs${i}">${esc(s.sub.split(/\s*·\s*/)[0] || s.alt)}</label>`).join("")}</div>
   </div>
-  <script>(()=>{const r=[...document.querySelectorAll('.hs input[name=hs]')],h=document.querySelector('.hs');if(r.length<2||matchMedia('(prefers-reduced-motion: reduce)').matches)return;let seen=true,t=setInterval(()=>{if(!seen||document.hidden)return;const i=r.findIndex(x=>x.checked);r[(i+1)%r.length].checked=true},4000);new IntersectionObserver(e=>{seen=e[0].isIntersecting}).observe(h);h.addEventListener('pointerdown',()=>clearInterval(t),{once:true});h.addEventListener('keydown',()=>clearInterval(t),{once:true})})()</script>`;
+  <script>(()=>{const r=[...document.querySelectorAll('.hs input[name=hs]')],h=document.querySelector('.hs');if(r.length<2||matchMedia('(prefers-reduced-motion: reduce)').matches)return;let seen=true,t=setInterval(()=>{if(!seen||document.hidden)return;const i=r.findIndex(x=>x.checked);r[(i+1)%r.length].checked=true},4000);new IntersectionObserver(e=>{seen=e[0].isIntersecting}).observe(h);for(const ev of ['pointerdown','keydown','focusin','click','change'])h.addEventListener(ev,()=>clearInterval(t))})()</script>`;
 }
 
 async function home() {
