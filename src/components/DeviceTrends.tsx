@@ -56,8 +56,8 @@ export function DeviceTrends({ dev }: { dev: Device }) {
   const notes: string[] = [];
   if (h) {
     const socMin = vals(want.soc, "min"); const st = times(want.soc);
-    if (socMin.length) { const i = socMin.indexOf(Math.min(...socMin)); notes.push(`แบตต่ำสุด ${Math.round(socMin[i])}% (${fmtT(st[i], days)}${days > 1 ? " " + new Date(st[i] * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", ...TZ }) : ""})`); }
-    const tb = vals(want.tBatt, "max"); if (tb.length) notes.push(`แบตร้อนสุด ${r1(Math.max(...tb))}°C`);
+    if (socMin.length) { const i = socMin.indexOf(Math.min(...socMin)); notes.push(`แบตเตอรี่ต่ำสุด ${Math.round(socMin[i])}% (${fmtT(st[i], days)}${days > 1 ? " " + new Date(st[i] * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", ...TZ }) : ""})`); }
+    const tb = vals(want.tBatt, "max"); if (tb.length) notes.push(`แบตเตอรี่ร้อนสุด ${r1(Math.max(...tb))}°C`);
     const ti = vals(want.tInv, "max"); if (ti.length) notes.push(`เครื่องร้อนสุด ${r1(Math.max(...ti))}°C`);
     if (want.pv.length >= 2) {
       const sums = want.pv.map((k) => vals(k).reduce((a, b) => a + b, 0));
@@ -65,7 +65,7 @@ export function DeviceTrends({ dev }: { dev: Device }) {
       if (tot > 0) {
         const share = sums.map((x) => Math.round((x / tot) * 100));
         const active = share.filter((x) => x > 0).length;
-        notes.push(`สัดส่วนพลังงานต่อสตริง ${share.map((p, i) => `PV${i + 1} ${p}%`).join(" · ")}` + (active >= 2 && Math.max(...share) - Math.min(...share.filter((x) => x > 0)) >= 25 ? " — ต่างกันมาก ลองดูเงาบัง/สายต่อ" : ""));
+        notes.push(`สัดส่วนพลังงานต่อสตริง ${share.map((p, i) => `PV${i + 1} ${p}%`).join(" · ")}` + (active >= 2 && Math.max(...share) - Math.min(...share.filter((x) => x > 0)) >= 25 ? " — ต่างกันมาก ควรตรวจดูเงาบังหรือการเชื่อมต่อสายไฟ" : ""));
       }
     }
     const gv = want.grid.map((k) => vals(k, "min")).flat(); if (gv.length) notes.push(`แรงดันการไฟฟ้าต่ำสุด ${Math.round(Math.min(...gv))} V`);
@@ -91,7 +91,7 @@ export function DeviceTrends({ dev }: { dev: Device }) {
           <LineMini values={vals(want.soc)} color="#7b5cf0" unit="%" xLabels={xl(want.soc)} /></div>
       )}
       {h && (enough(want.tBatt) || enough(want.tInv)) && (
-        <div className={`${cardP} mb-2.5`}><div className="font-bold text-[15px] mb-1.5">อุณหภูมิ <span className="text-[12px] font-normal text-muted">แบต (ทึบ) · เครื่อง (ประ)</span></div>
+        <div className={`${cardP} mb-2.5`}><div className="font-bold text-[15px] mb-1.5">อุณหภูมิ <span className="text-[12px] font-normal text-muted">แบตเตอรี่ (เส้นทึบ) · เครื่อง (เส้นประ)</span></div>
           <LineMini values={enough(want.tBatt) ? vals(want.tBatt) : vals(want.tInv)} color="#f97316" unit="°C" area={false} xLabels={xl(enough(want.tBatt) ? want.tBatt : want.tInv)}
             secondary={enough(want.tBatt) && enough(want.tInv) ? { values: vals(want.tInv), color: "#ef4444", max: Math.max(1, ...vals(want.tInv, "max")) } : undefined} /></div>
       )}

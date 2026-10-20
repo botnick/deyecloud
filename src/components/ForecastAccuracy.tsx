@@ -19,8 +19,8 @@ export function ForecastAccuracyCard({ skyDays }: { skyDays: number }) {
   return (
     <div className={`${cardP} mt-3`}>
       <div className="flex items-center gap-1.5">
-        <span className="font-bold text-[16px] text-title">ความแม่นยำพยากรณ์</span>
-        <InfoTip text={`เทียบ "พรุ่งนี้คาดผลิต" ที่ระบบบอกไว้ตอนเย็น กับที่ผลิตได้จริงในวันนั้น ${a.n} วันล่าสุด · คะแนน = 100% − (หน่วยที่คลาดรวม ÷ หน่วยที่ผลิตจริงรวม) · ไม่นับวันที่ข้อมูลกลางวันขาด (เช่นตัวส่งข้อมูลหลุด) · ระบบใช้ผลนี้ปรับค่าเมฆของบ้านนี้เอง (${skyDays} วันที่เรียนรู้แล้ว)`} />
+        <span className="font-bold text-[16px] text-title">ความแม่นยำของการพยากรณ์</span>
+        <InfoTip text={`เทียบ "พรุ่งนี้คาดผลิต" ที่ระบบประเมินไว้ตอนเย็น กับที่ผลิตได้จริงในวันนั้น ${a.n} วันล่าสุด · คะแนนคือ 100% ลบด้วย (หน่วยที่คลาดเคลื่อนรวม หารด้วยหน่วยที่ผลิตจริงรวม) · ไม่นับวันที่ข้อมูลกลางวันขาดหาย (เช่นตัวส่งข้อมูลหลุด) · ระบบใช้ผลนี้ปรับค่าเมฆของบ้านนี้เอง (${skyDays} วันที่เรียนรู้แล้ว)`} />
       </div>
       <div className="flex items-end justify-between gap-4 mt-2.5">
         <div className={`text-[40px] font-extrabold tabnum leading-none ${tone}`}>{a.score ?? "—"}<span className="text-[17px] font-bold text-body ml-0.5">%</span></div>
@@ -54,7 +54,7 @@ export function ForecastAccuracyCard({ skyDays }: { skyDays: number }) {
                     <div className="text-[12px] text-muted tabnum mt-1">จริง <b className="text-title">{act.toFixed(1)}</b> · คาด {r.predicted.toFixed(1)}</div>
                   </div>
                   <span className={`justify-self-end text-[12px] font-bold tabnum px-2 py-1 rounded-full whitespace-nowrap ${ok ? "text-ok bg-ok/10" : "text-warn bg-warn/10"}`}>
-                    {ok ? "แม่น" : e > 0 ? `สูงไป ${e.toFixed(0)}` : `ต่ำไป ${(-e).toFixed(0)}`}
+                    {ok ? "แม่นยำ" : e > 0 ? `สูงไป ${e.toFixed(0)}` : `ต่ำไป ${(-e).toFixed(0)}`}
                   </span>
                 </div>
               );
