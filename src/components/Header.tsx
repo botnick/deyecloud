@@ -30,7 +30,7 @@ export function Header({ title, stationName, stations, selectedId, onSwitch, onR
           <button
             onClick={() => { if (cooling) return; haptic(); onRefresh(); }}
             disabled={cooling}
-            aria-label={cooling ? `รีเฟรชได้ในอีก ${cooldown} วินาที` : "รีเฟรช"}
+            aria-label={cooling ? `โหลดข้อมูลใหม่ได้ในอีก ${cooldown} วินาที` : "โหลดข้อมูลใหม่"}
             className="ios-btn absolute right-3"
             style={{ top: "calc(5px + env(safe-area-inset-top))" }}
           >

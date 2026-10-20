@@ -113,13 +113,13 @@ export function WeatherHero({ weather: w, force }: { weather: Weather; force?: {
 
         <div className="wh-chips">
           <div className="wh-chip"><span>ความชื้น</span><b>{w.humidity != null ? `${Math.round(w.humidity)}%` : "—"}</b></div>
-          <div className="wh-chip"><span>ลม</span><b>{w.wind != null ? <>{w.wind}<small> กม/ชม</small></> : "—"}</b></div>
-          <div className="wh-chip"><span>ฝน</span><b>{w.rain != null ? <>{(+w.rain).toFixed(1)}<small> มม</small></> : "—"}</b></div>
+          <div className="wh-chip"><span>ลม</span><b>{w.wind != null ? <>{w.wind}<small> กม./ชม.</small></> : "—"}</b></div>
+          <div className="wh-chip"><span>ฝน</span><b>{w.rain != null ? <>{(+w.rain).toFixed(1)}<small> มม.</small></> : "—"}</b></div>
           <div className="wh-chip"><span>UV</span><b>{w.uv != null ? <>{w.uv}<small> <i className="uvdot" style={{ background: UV(w.uv).color }} />{UV(w.uv).level}</small></> : "—"}</b></div>
         </div>
 
         {night ? (
-          <div className="wh-pv"><span>กลางคืน · พักการผลิต</span><span className="dim">รอแดด {hm(w.sun?.rise) != null ? `${w.sun!.rise!.trim()} น.` : "พรุ่งนี้"}</span></div>
+          <div className="wh-pv"><span>กลางคืน · หยุดพักการผลิต</span><span className="dim">รอแดด {hm(w.sun?.rise) != null ? `${w.sun!.rise!.trim()} น.` : "พรุ่งนี้"}</span></div>
         ) : (
           <div className="wh-pv">
             <span>แสงแดดวันนี้ · {solar.label}</span><span>{solar.pct}%</span>

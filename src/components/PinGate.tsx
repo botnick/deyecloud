@@ -24,7 +24,7 @@ export function PinGate({ onOk }: { onOk: () => void }) {
     const value = pinRef.current;
     if (busyRef.current || !value) return;
     busyRef.current = true; setBusy(true); setErr("");
-    const r = await postLogin(value).catch(() => ({ ok: false, error: "เชื่อมต่อไม่ได้" }));
+    const r = await postLogin(value).catch(() => ({ ok: false, error: "ไม่สามารถเชื่อมต่อได้" }));
     busyRef.current = false; setBusy(false);
     if (r.ok) { onOk(); return; }
     setErr(r.error || "รหัสไม่ถูกต้อง"); setPinBoth(""); setShake(true); setTimeout(() => setShake(false), 450);
@@ -54,7 +54,7 @@ export function PinGate({ onOk }: { onOk: () => void }) {
         <IconSun className="w-10 h-10 text-ink" />
       </div>
       <h1 className="text-[24px] font-extrabold mt-4">{APP_NAME}</h1>
-      <p className="text-[16px] text-body mt-1">ใส่รหัสเพื่อเข้าดูข้อมูล</p>
+      <p className="text-[16px] text-body mt-1">กรอกรหัสเพื่อเข้าดูข้อมูล</p>
 
       <div className={`pin-dots ${shake ? "shake" : ""}`} aria-label={`ใส่แล้ว ${pin.length} หลัก`} role="status">
         {Array.from({ length: Math.max(4, pin.length) }, (_, i) => <i key={i} className={i < pin.length ? "on" : ""} />)}
