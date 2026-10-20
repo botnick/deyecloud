@@ -1,5 +1,7 @@
 # Deploy — โซลาร์มอนิเตอร์ (Deye Solar Monitor)
 
+> **English:** step-by-step deployment of Deye Solar Monitor to Cloudflare Workers + D1 (free plan): one-click button or `npm run setup`, Deye API secrets, PIN, D1 database. [Website](https://botnick.github.io/deyecloud/en/)
+
 คู่มือ deploy แบบละเอียด ตั้งแต่ศูนย์ → แอปออนไลน์ บน **Cloudflare Workers** (ฟรีแพลน **$0**)
 แอปทั้งหมด (หน้าเว็บ + API + cron + ฐานข้อมูล) อยู่ใน **Worker เดียว** — ตั้งค่าน้อย คำสั่งเดียวจบ
 

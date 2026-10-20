@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deye Solar Monitor — free real-time dashboard for Deye inverters</title>
+<meta name="description" content="Free, self-hosted real-time monitor for Deye solar inverters via the Deye Cloud Open API: PV production, home load, battery, grid import/export, a forecast that learns from your roof, and Discord/Telegram alerts. Installable PWA on Cloudflare Workers + D1.">
+<link rel="canonical" href="https://botnick.github.io/deyecloud/en/">
+<link rel="alternate" hreflang="th" href="https://botnick.github.io/deyecloud/">
+<link rel="alternate" hreflang="en" href="https://botnick.github.io/deyecloud/en/">
+<link rel="alternate" hreflang="x-default" href="https://botnick.github.io/deyecloud/">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#faf8ff">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Deye Solar Monitor">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="th_TH">
+<meta property="og:title" content="Deye Solar Monitor — free real-time dashboard for Deye inverters">
+<meta property="og:description" content="Production, load, battery and grid in one installable app. Runs free on Cloudflare.">
+<meta property="og:url" content="https://botnick.github.io/deyecloud/en/">
+<meta property="og:image" content="https://botnick.github.io/deyecloud/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Four app screens: home, today, weather, history">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="alternate" type="text/plain" title="llms.txt" href="https://botnick.github.io/deyecloud/llms.txt">
+<link rel="icon" type="image/svg+xml" href="../icon.svg">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap">
+<link rel="preload" as="image" href="../img/home.webp" fetchpriority="high">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://botnick.github.io/deyecloud/#app",
+      "name": "Deye Solar Monitor",
+      "alternateName": ["deyecloud", "โซลาร์มอนิเตอร์"],
+      "description": "Free, self-hosted real-time monitor for Deye solar inverters using the Deye Cloud Open API: PV production, load, battery, grid import/export, a learning production forecast, measured battery health and Discord/Telegram alerts. Installable PWA on Cloudflare Workers + D1. Interface in Thai.",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Web, Android, iOS (PWA)",
+      "inLanguage": "th",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "url": "https://botnick.github.io/deyecloud/en/",
+      "downloadUrl": "https://github.com/botnick/deyecloud",
+      "codeRepository": "https://github.com/botnick/deyecloud",
+      "screenshot": "https://botnick.github.io/deyecloud/og.jpg",
+      "author": { "@type": "Person", "name": "botnick", "url": "https://github.com/botnick" }
+    },
+    {
+      "@type": "FAQPage",
+      "inLanguage": "en",
+      "mainEntity": [
+        { "@type": "Question", "name": "What is Deye Solar Monitor?",
+          "acceptedAnswer": { "@type": "Answer", "text": "A free, self-hosted web app that shows a Deye solar system live — production, home load, battery and grid — using the official Deye Cloud Open API. It adds a production forecast that learns from your own roof, measured battery health, monthly savings and alerts, and installs on a phone as a PWA." } },
+        { "@type": "Question", "name": "Does it cost anything?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No. It runs on the free tier of Cloudflare Workers and D1. It polls every 5 minutes (288 requests a day), far below the free limit of 100,000 a day." } },
+        { "@type": "Question", "name": "Which inverters does it support?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Any system that reports to Deye Cloud — on-grid, hybrid or off-grid. You need a developer account at developer.deyecloud.com for an App ID and App Secret." } },
+        { "@type": "Question", "name": "Is the interface in English?",
+          "acceptedAnswer": { "@type": "Answer", "text": "The app interface is Thai, built for Thai households with large numbers and labelled colours. The code, API and setup work the same anywhere Deye Cloud is available." } },
+        { "@type": "Question", "name": "Are my Deye credentials safe?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Deye keys and the account password are stored as server-side secrets only and never reach the phone. People sign in with a PIN, the app is marked noindex, and all data stays in your own Cloudflare account." } }
+      ]
+    }
+  ]
+}
+</script>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav aria-label="Main">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="../icon.svg" alt="" width="30" height="30">Deye Solar Monitor</a>
+    <div class="links">
+      <a class="hide-sm" href="#features">Features</a>
+      <a class="hide-sm" href="#install">Install</a>
+      <a class="hide-sm" href="#faq">FAQ</a>
+      <a href="../" hreflang="th" lang="th">ไทย</a>
+      <a class="btn btn-g btn-sm" href="https://github.com/botnick/deyecloud"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.56-.29-5.25-1.28-5.25-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.7 5.38-5.27 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<main id="main">
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <span class="pill"><b>Free</b>Code on GitHub · runs on Cloudflare</span>
+      <h1>Watch your <em>Deye</em><br>solar system live</h1>
+      <p class="lead">Production, home load, battery and grid at a glance. Big numbers, readable by everyone, installable on any phone, no monthly fee.</p>
+      <div class="cta">
+        <a class="btn btn-y" href="https://deploy.workers.cloudflare.com/?url=https://github.com/botnick/deyecloud">Deploy free in 1 click
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a class="btn btn-g" href="#screens">See screens</a>
+      </div>
+      <p class="note">For Deye inverters on Deye Cloud · on-grid / hybrid / off-grid · app interface in Thai</p>
+    </div>
+    <div class="stage">
+      <img class="phone" src="../img/home.webp" width="520" height="986" alt="Home screen: a 3D house with live solar, load, grid and battery figures" fetchpriority="high">
+      <div class="chip c1" aria-hidden="true"><i style="background:var(--sun)"></i><div>Produced today<strong>32.0 kWh</strong></div></div>
+      <div class="chip c2" aria-hidden="true"><i style="background:var(--bat)"></i><div>Self-sufficiency<strong>83%</strong></div></div>
+      <div class="chip c3" aria-hidden="true"><i style="background:var(--p)"></i><div>Saved today<strong>฿195</strong></div></div>
+    </div>
+  </div>
+  <div class="wrap wide">
+    <div class="stats rv">
+      <div class="stat"><strong>$0</strong><span>server cost per month</span></div>
+      <div class="stat"><strong>1 min</strong><span>live refresh</span></div>
+      <div class="stat"><strong>5 min</strong><span>history samples</span></div>
+      <div class="stat"><strong>1 click</strong><span>deploy to Cloudflare</span></div>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <p class="eyebrow">FEATURES</p>
+    <h2 class="rv">Everything you want to know, in seconds</h2>
+    <p class="sub">Real data from the Deye Cloud Open API, turned into plain words. Every colour is labelled, every button is large.</p>
+    <div class="grid">
+      <article class="card rv"><div class="ico" style="background:#fff5d6;color:#b07800"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></div><h3>Live, every minute</h3><p>A rotatable 3D house with power flowing from panels, battery and grid in the real direction.</p></article>
+      <article class="card rv"><div class="ico" style="background:#e6f6ef;color:var(--bat)"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="18" height="10" rx="2"/><path d="M22 11v2M6 11v2"/></svg></div><h3>How long the battery lasts</h3><p>Why it is charging or discharging, when it runs out, and health measured from real cycles, not the label.</p></article>
+      <article class="card rv"><div class="ico" style="background:#f3e6fb;color:var(--p)"><svg viewBox="0 0 24 24"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 1 0 6 16.5"/><path d="M8 19h9.5"/></svg></div><h3>A forecast that learns</h3><p>Tomorrow's production from the weather forecast, recalibrated every day against what your roof actually made.</p></article>
+      <article class="card rv"><div class="ico" style="background:#e8eefc;color:var(--home)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></div><h3>Full history</h3><p>Day, month and year charts, savings with a month-end estimate, and CSV export.</p></article>
+      <article class="card rv"><div class="ico" style="background:#fdecec;color:#d23b3b"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></div><h3>Alerts that matter</h3><p>Inverter offline, grid loss, low battery — to Discord or Telegram, confirmed before sending.</p></article>
+      <article class="card rv"><div class="ico" style="background:#eeeaf6;color:var(--ink)"><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div><h3>Private, PIN only</h3><p>Deye keys stay on the server. Family members sign in with a PIN, never your Deye password.</p></article>
+    </div>
+  </div>
+</section>
+
+<section id="screens">
+  <div class="wrap">
+    <p class="eyebrow">SCREENS</p>
+    <h2 class="rv">Designed to read like a native iPhone app</h2>
+    <div class="rail" tabindex="0" aria-label="Screenshots, scrollable">
+      <figure><img src="../img/home.webp" width="520" height="986" loading="lazy" alt="Home: system status and live energy flow"><figcaption>Home<span>status + live flow</span></figcaption></figure>
+      <figure><img src="../img/today.webp" width="520" height="986" loading="lazy" alt="Today: produced, used, bought, exported and self-sufficiency"><figcaption>Today<span>produced · used · bought</span></figcaption></figure>
+      <figure><img src="../img/weather.webp" width="520" height="986" loading="lazy" alt="Weather: forecast, expected production and forecast accuracy"><figcaption>Weather<span>forecast + expected kWh</span></figcaption></figure>
+      <figure><img src="../img/history.webp" width="520" height="986" loading="lazy" alt="History: savings and energy chart"><figcaption>History<span>day · month · year · all</span></figcaption></figure>
+    </div>
+    <div class="duo">
+      <div class="card rv"><img src="../img/hero-day.webp" width="640" height="620" loading="lazy" alt="3D house by day, full production and export"><p>Daytime · full sun</p></div>
+      <div class="card rv"><img src="../img/hero-night.webp" width="640" height="620" loading="lazy" alt="3D house at night, lights on and battery supplying"><p>Night · on battery</p></div>
+      <div class="card rv"><img src="../img/card-battery.webp" width="640" height="616" loading="lazy" alt="Battery health card with measured capacity and cycles"><p>Battery health · measured</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <p class="eyebrow">INSTALL</p>
+    <h2 class="rv">Up and running in under 10 minutes</h2>
+    <div class="steps">
+      <div class="card rv"><h3>Get Deye API keys</h3><p>Sign up at <a href="https://developer.deyecloud.com">developer.deyecloud.com</a> for an App ID and App Secret.</p></div>
+      <div class="card rv"><h3>Click Deploy</h3><p>Cloudflare creates the app and database. Enter your keys, Deye login and a PIN.</p></div>
+      <div class="card rv"><h3>Add to Home Screen</h3><p>Open your link on the phone and add it to the home screen. It behaves like a real app.</p></div>
+    </div>
+    <pre aria-label="Install from the command line"><span class="c"># or with one command</span>
+npx wrangler login
+cp .dev.vars.example .dev.vars   <span class="c"># fill in secrets</span>
+npm run setup                    <span class="c"># create D1 + secrets + deploy</span></pre>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <p class="eyebrow">FAQ</p>
+    <h2 class="rv">Questions</h2>
+    <div class="faq">
+      <details open><summary>What is Deye Solar Monitor?</summary><p>A free, self-hosted web app that shows a Deye solar system live — production, home load, battery and grid — using the official Deye Cloud Open API. It adds a production forecast that learns from your own roof, measured battery health, monthly savings and alerts, and installs on a phone as a PWA.</p></details>
+      <details><summary>Does it cost anything?</summary><p>No. It runs on the free tier of Cloudflare Workers and D1. It polls every 5 minutes (288 requests a day), far below the free limit of 100,000 a day.</p></details>
+      <details><summary>Which inverters does it support?</summary><p>Any system that reports to Deye Cloud — on-grid, hybrid or off-grid. You need a developer account at developer.deyecloud.com for an App ID and App Secret.</p></details>
+      <details><summary>Is the interface in English?</summary><p>The app interface is Thai, built for Thai households with large numbers and labelled colours. The code, API and setup work the same anywhere Deye Cloud is available.</p></details>
+      <details><summary>Are my Deye credentials safe?</summary><p>Deye keys and the account password are stored as server-side secrets only and never reach the phone. People sign in with a PIN, the app is marked noindex, and all data stays in your own Cloudflare account.</p></details>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="final rv">
+    <h2>Start watching your system today</h2>
+    <p>Free, no monthly fee, your data stays in your own account.</p>
+    <div class="cta" style="justify-content:center">
+      <a class="btn btn-y" href="https://deploy.workers.cloudflare.com/?url=https://github.com/botnick/deyecloud">Deploy free</a>
+      <a class="btn btn-g" href="https://github.com/botnick/deyecloud">View on GitHub</a>
+    </div>
+  </div>
+</div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Deye Solar Monitor · โซลาร์มอนิเตอร์</span>
+    <span><a href="https://github.com/botnick/deyecloud">GitHub</a> · <a href="https://github.com/botnick/deyecloud/blob/main/DEPLOY.md">Deploy guide</a> · <a href="https://github.com/botnick/deyecloud/blob/main/ARCHITECTURE.md">Architecture</a> · <a href="../" hreflang="th" lang="th">ภาษาไทย</a></span>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,5 +1,7 @@
 # ARCHITECTURE — โซลาร์มอนิเตอร์ (Deye Solar Monitor)
 
+> **English:** architecture of Deye Solar Monitor — a real-time Deye inverter dashboard on Cloudflare Workers + D1: Worker routes, cron polling of the Deye Cloud Open API, data model, forecast and battery models. [Website](https://botnick.github.io/deyecloud/en/)
+
 PWA ดูข้อมูลระบบโซลาร์เซลล์แบบเรียลไทม์ ภาษาไทย สำหรับผู้สูงอายุ
 รันบน **Cloudflare Workers ฟรี 100% ($0 free plan)**
 

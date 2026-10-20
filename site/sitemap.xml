@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://botnick.github.io/deyecloud/</loc>
+    <xhtml:link rel="alternate" hreflang="th" href="https://botnick.github.io/deyecloud/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://botnick.github.io/deyecloud/en/"/>
+  </url>
+  <url>
+    <loc>https://botnick.github.io/deyecloud/en/</loc>
+    <xhtml:link rel="alternate" hreflang="th" href="https://botnick.github.io/deyecloud/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://botnick.github.io/deyecloud/en/"/>
+  </url>
+</urlset>

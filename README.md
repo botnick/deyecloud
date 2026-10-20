@@ -23,15 +23,17 @@
 </p>
 
 <p align="center">
+  <a href="https://botnick.github.io/deyecloud/"><b>เว็บไซต์</b></a> ·
   <a href="#ภาพหน้าจอ">ภาพหน้าจอ</a> ·
   <a href="#ฟีเจอร์">ฟีเจอร์</a> ·
   <a href="#ติดตั้ง-ฟรี">ติดตั้ง</a> ·
   <a href="#ตั้งค่า">ตั้งค่า</a> ·
   <a href="./ARCHITECTURE.md">สถาปัตยกรรม</a> ·
-  <a href="./DEPLOY.md">คู่มือ deploy</a>
+  <a href="./DEPLOY.md">คู่มือ deploy</a> ·
+  <a href="#english">English</a>
 </p>
 
-<p align="center"><img src="docs/shots/banner.png?v=20261014" alt="ภาพหน้าจอแอปทุกหน้า" width="880"></p>
+<p align="center"><img src="docs/shots/banner.png?v=20261014" alt="ภาพหน้าจอแอปโซลาร์มอนิเตอร์ 4 หน้า: หน้าหลัก วันนี้ อากาศ ย้อนหลัง" width="880"></p>
 
 ---
 
@@ -177,6 +179,25 @@ npm run dev                       # → http://localhost:5174  (มือถื�
 
 ---
 
+## คำถามที่พบบ่อย
+
+### โซลาร์มอนิเตอร์คืออะไร
+แอปดูระบบโซลาร์เซลล์ที่ใช้อินเวอร์เตอร์ Deye แบบเรียลไทม์เป็นภาษาไทย ดึงข้อมูลจาก Deye Cloud Open API แล้วแสดงผลิตไฟ ใช้ไฟ แบตเตอรี่ และซื้อ-ขายไฟ พร้อมพยากรณ์และสรุปเงินที่ประหยัด ติดตั้งเป็นแอปบนมือถือได้
+
+### ต้องเสียเงินไหม
+ไม่ต้อง รันบน Cloudflare Workers + D1 ในโควต้าฟรี เก็บข้อมูลทุก 5 นาที (วันละ 288 ครั้ง) ต่ำกว่าลิมิตฟรี 100,000 ครั้งต่อวันมาก
+
+### ใช้กับอินเวอร์เตอร์รุ่นไหนได้บ้าง
+ระบบที่ส่งข้อมูลขึ้น Deye Cloud ทั้ง on-grid, hybrid และ off-grid แอปปรับคำแนะนำตามชนิดระบบให้เอง ต้องมีบัญชีนักพัฒนาที่ [developer.deyecloud.com](https://developer.deyecloud.com)
+
+### ต่างจากแอป Deye Cloud อย่างไร
+ภาษาไทยทั้งแอป ตัวเลขใหญ่อ่านง่าย มีพยากรณ์ที่เรียนรู้จากบ้านคุณ สุขภาพแบตจากการวัดจริง สรุปเงินที่ประหยัดรายเดือน แจ้งเตือน Discord / Telegram และคนในบ้านดูได้ด้วย PIN โดยไม่ต้องรู้รหัสบัญชี Deye
+
+### ข้อมูลและรหัสผ่านปลอดภัยไหม
+กุญแจและรหัสบัญชี Deye เก็บเป็นค่าลับฝั่งเซิร์ฟเวอร์ ไม่ส่งไปที่มือถือ เข้าแอปด้วย PIN หน้าแอปตั้งค่าไม่ให้ขึ้นในผลค้นหา และข้อมูลอยู่ในบัญชี Cloudflare ของคุณเอง
+
+---
+
 ## สถาปัตยกรรมโดยย่อ
 
 ```
@@ -199,6 +220,18 @@ npm run dev                       # → http://localhost:5174  (มือถื�
 **เพื่อผู้สูงอายุ:** เมนู 4 ปุ่ม · ตัวอักษร ≥14px ตัวเลขใหญ่ · เคารพ `prefers-reduced-motion` · ไอคอนเส้น ไม่ใช้ emoji ในแอป · บ้าน 3D หมุนได้ (three.js) เส้นไฟวิ่งตามทิศจริง กลางวัน/กลางคืน
 
 </details>
+
+---
+
+## English
+
+**Deye Solar Monitor** is a free, self-hosted real-time dashboard for **Deye solar inverters**, built on the official **Deye Cloud Open API**. It shows PV production, home load, battery state and grid import/export live, adds a production forecast that learns from your own roof, measured battery health, monthly savings, CSV export and Discord/Telegram alerts, and installs on a phone as a PWA. It runs entirely on the **Cloudflare Workers + D1 free tier** (no monthly cost). The app interface is Thai.
+
+- **Supports:** any Deye system on Deye Cloud — on-grid, hybrid, off-grid
+- **Needs:** a Deye developer account ([developer.deyecloud.com](https://developer.deyecloud.com)) for an App ID and App Secret
+- **Install:** the *Deploy to Cloudflare* button above, or `npm run setup` — see [DEPLOY.md](./DEPLOY.md)
+- **Privacy:** Deye credentials stay server-side; users sign in with a PIN; the dashboard is `noindex`
+- **Website:** [botnick.github.io/deyecloud/en](https://botnick.github.io/deyecloud/en/)
 
 ---
 

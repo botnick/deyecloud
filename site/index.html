@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>โซลาร์มอนิเตอร์ — แอปดูโซลาร์เซลล์ Deye แบบเรียลไทม์ ภาษาไทย ฟรี</title>
+<meta name="description" content="แอปดูระบบโซลาร์เซลล์ Deye แบบเรียลไทม์ เป็นภาษาไทย ผลิตไฟ ใช้ไฟ แบตเตอรี่ ซื้อ-ขายไฟ พยากรณ์ที่เรียนรู้จากบ้านคุณ ติดตั้งเป็นแอปบนมือถือ รันฟรีบน Cloudflare ไม่มีค่ารายเดือน">
+<link rel="canonical" href="https://botnick.github.io/deyecloud/">
+<link rel="alternate" hreflang="th" href="https://botnick.github.io/deyecloud/">
+<link rel="alternate" hreflang="en" href="https://botnick.github.io/deyecloud/en/">
+<link rel="alternate" hreflang="x-default" href="https://botnick.github.io/deyecloud/">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#faf8ff">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="โซลาร์มอนิเตอร์">
+<meta property="og:locale" content="th_TH">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:title" content="โซลาร์มอนิเตอร์ — ดูโซลาร์เซลล์ Deye แบบเรียลไทม์ ภาษาไทย">
+<meta property="og:description" content="ผลิตไฟ ใช้ไฟ แบตเตอรี่ ซื้อ-ขายไฟ ครบในแอปเดียว ติดตั้งบนมือถือ รันฟรีบน Cloudflare">
+<meta property="og:url" content="https://botnick.github.io/deyecloud/">
+<meta property="og:image" content="https://botnick.github.io/deyecloud/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="หน้าจอแอปโซลาร์มอนิเตอร์ 4 หน้า: หน้าหลัก วันนี้ อากาศ ย้อนหลัง">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="alternate" type="text/plain" title="llms.txt" href="https://botnick.github.io/deyecloud/llms.txt">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap">
+<link rel="preload" as="image" href="img/home.webp" fetchpriority="high">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://botnick.github.io/deyecloud/#app",
+      "name": "โซลาร์มอนิเตอร์ (Deye Solar Monitor)",
+      "alternateName": ["deyecloud", "Deye Solar Monitor", "แอปดูโซลาร์เซลล์ Deye"],
+      "description": "แอปดูระบบโซลาร์เซลล์ Deye แบบเรียลไทม์ ภาษาไทย จาก Deye Cloud Open API: ผลิตไฟ ใช้ไฟ แบตเตอรี่ ซื้อ-ขายไฟ พยากรณ์ผลิตไฟ สุขภาพแบต แจ้งเตือน Discord/Telegram รันฟรีบน Cloudflare Workers + D1",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Web, Android, iOS (PWA)",
+      "inLanguage": "th",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "THB" },
+      "url": "https://botnick.github.io/deyecloud/",
+      "downloadUrl": "https://github.com/botnick/deyecloud",
+      "codeRepository": "https://github.com/botnick/deyecloud",
+      "screenshot": "https://botnick.github.io/deyecloud/og.jpg",
+      "featureList": [
+        "ดูกำลังผลิต ใช้ไฟ แบตเตอรี่ และซื้อ-ขายไฟแบบสด อัปเดตทุก 1 นาที",
+        "พยากรณ์ผลิตไฟที่เรียนรู้จากผลจริงของบ้าน",
+        "สุขภาพแบตเตอรี่จากการวัดจริง",
+        "ประวัติราย วัน เดือน ปี และส่งออก CSV",
+        "แจ้งเตือนผ่าน Discord หรือ Telegram",
+        "ติดตั้งเป็นแอปบนมือถือ (PWA)"
+      ],
+      "author": { "@type": "Person", "name": "botnick", "url": "https://github.com/botnick" }
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://botnick.github.io/deyecloud/#site",
+      "url": "https://botnick.github.io/deyecloud/",
+      "name": "โซลาร์มอนิเตอร์",
+      "inLanguage": "th"
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "โซลาร์มอนิเตอร์คืออะไร",
+          "acceptedAnswer": { "@type": "Answer", "text": "เป็นแอปดูระบบโซลาร์เซลล์ที่ใช้อินเวอร์เตอร์ Deye แบบเรียลไทม์เป็นภาษาไทย ดึงข้อมูลจาก Deye Cloud Open API แล้วแสดงผลิตไฟ ใช้ไฟ แบตเตอรี่ และซื้อ-ขายไฟ พร้อมพยากรณ์และสรุปเงินที่ประหยัด ติดตั้งเป็นแอปบนมือถือได้" } },
+        { "@type": "Question", "name": "ต้องเสียเงินไหม",
+          "acceptedAnswer": { "@type": "Answer", "text": "ไม่ต้อง แอปรันบน Cloudflare Workers และ D1 ในโควต้าฟรี ไม่มีค่าเซิร์ฟเวอร์รายเดือน ระบบเก็บข้อมูลทุก 5 นาทีหรือวันละ 288 ครั้ง ต่ำกว่าลิมิตฟรี 100,000 ครั้งต่อวันมาก" } },
+        { "@type": "Question", "name": "ใช้กับอินเวอร์เตอร์รุ่นไหนได้บ้าง",
+          "acceptedAnswer": { "@type": "Answer", "text": "ใช้ได้กับระบบที่ส่งข้อมูลขึ้น Deye Cloud ทั้งแบบ on-grid, hybrid และ off-grid แอปปรับคำแนะนำตามชนิดระบบให้เอง ต้องสมัครบัญชีนักพัฒนาที่ developer.deyecloud.com เพื่อรับ App ID และ App Secret" } },
+        { "@type": "Question", "name": "ต่างจากแอป Deye Cloud อย่างไร",
+          "acceptedAnswer": { "@type": "Answer", "text": "เป็นภาษาไทยทั้งแอป ตัวเลขใหญ่อ่านง่าย มีพยากรณ์ผลิตไฟที่เรียนรู้จากบ้านคุณ สุขภาพแบตจากการวัดจริง สรุปเงินที่ประหยัดรายเดือน แจ้งเตือนผ่าน Discord หรือ Telegram และให้คนในบ้านดูได้ด้วย PIN โดยไม่ต้องรู้รหัสบัญชี Deye" } },
+        { "@type": "Question", "name": "ข้อมูลและรหัสผ่านปลอดภัยไหม",
+          "acceptedAnswer": { "@type": "Answer", "text": "กุญแจและรหัสบัญชี Deye เก็บเป็นค่าลับฝั่งเซิร์ฟเวอร์เท่านั้น ไม่ส่งไปที่มือถือ ผู้ใช้เข้าแอปด้วย PIN และหน้าเว็บตั้งค่าให้ไม่ขึ้นในผลค้นหา ข้อมูลอยู่ในบัญชี Cloudflare ของคุณเอง" } },
+        { "@type": "Question", "name": "ติดตั้งยากไหม",
+          "acceptedAnswer": { "@type": "Answer", "text": "กดปุ่ม Deploy to Cloudflare แล้วใส่ค่าที่ระบบถาม หรือรัน npm run setup คำสั่งเดียว จะได้ลิงก์ของคุณเอง เปิดบนมือถือแล้วกดเพิ่มลงหน้าจอโฮม" } }
+      ]
+    }
+  ]
+}
+</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">ข้ามไปเนื้อหา</a>
+<nav aria-label="เมนูหลัก">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="icon.svg" alt="" width="30" height="30">โซลาร์มอนิเตอร์</a>
+    <div class="links">
+      <a class="hide-sm" href="#features">ฟีเจอร์</a>
+      <a class="hide-sm" href="#install">ติดตั้ง</a>
+      <a class="hide-sm" href="#faq">คำถาม</a>
+      <a href="en/" hreflang="en" lang="en">EN</a>
+      <a class="btn btn-g btn-sm" href="https://github.com/botnick/deyecloud"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.56-.29-5.25-1.28-5.25-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.7 5.38-5.27 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<main id="main">
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <span class="pill"><b>ฟรี</b>โค้ดเปิดบน GitHub · รันบน Cloudflare</span>
+      <h1><span class="nw">ดูโซลาร์เซลล์ <em>Deye</em></span><br><span class="nw">แบบสด เป็นภาษาไทย</span></h1>
+      <p class="lead">ผลิตไฟ ใช้ไฟ แบตเตอรี่ ซื้อ-ขายไฟ ครบในแอปเดียว ตัวเลขใหญ่ อ่านง่ายทุกวัย ติดตั้งบนมือถือได้ ไม่มีค่ารายเดือน</p>
+      <div class="cta">
+        <a class="btn btn-y" href="https://deploy.workers.cloudflare.com/?url=https://github.com/botnick/deyecloud">ติดตั้งฟรีใน 1 คลิก
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a class="btn btn-g" href="#screens">ดูหน้าจอ</a>
+      </div>
+      <p class="note">ใช้กับอินเวอร์เตอร์ Deye ที่ต่อ Deye Cloud · on-grid / hybrid / off-grid</p>
+    </div>
+    <div class="stage">
+      <img class="phone" src="img/home.webp" width="520" height="986" alt="หน้าหลักของแอป: บ้าน 3D พร้อมตัวเลขโซลาร์ บ้านใช้ ซื้อไฟ และแบตเตอรี่แบบสด" fetchpriority="high">
+      <div class="chip c1" aria-hidden="true"><i style="background:var(--sun)"></i><div>ผลิตวันนี้<strong>32.0 หน่วย</strong></div></div>
+      <div class="chip c2" aria-hidden="true"><i style="background:var(--bat)"></i><div>พึ่งพาตัวเอง<strong>83%</strong></div></div>
+      <div class="chip c3" aria-hidden="true"><i style="background:var(--p)"></i><div>ประหยัดวันนี้<strong>฿195</strong></div></div>
+    </div>
+  </div>
+  <div class="wrap wide">
+    <div class="stats rv">
+      <div class="stat"><strong>0 บาท</strong><span>ค่าเซิร์ฟเวอร์ต่อเดือน</span></div>
+      <div class="stat"><strong>1 นาที</strong><span>รีเฟรชข้อมูลสด</span></div>
+      <div class="stat"><strong>5 นาที</strong><span>เก็บประวัติอัตโนมัติ</span></div>
+      <div class="stat"><strong>1 คลิก</strong><span>ติดตั้งบน Cloudflare</span></div>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <p class="eyebrow">ฟีเจอร์</p>
+    <h2 class="rv">ทุกอย่างที่อยากรู้ <span class="nw">เปิดดูได้ในไม่กี่วินาที</span></h2>
+    <p class="sub">ดึงข้อมูลจริงจาก Deye Cloud Open API แล้วแปลงเป็นภาษาคน ทุกสีมีคำกำกับ ปุ่มใหญ่ ใช้ได้ทั้งบ้าน</p>
+    <div class="grid">
+      <article class="card rv"><div class="ico" style="background:#fff5d6;color:#b07800"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></div><h3>เห็นสด ทุกนาที</h3><p>บ้าน 3D หมุนได้ จุดไฟวิ่งจากแผง แบต และเสาไฟเข้าบ้านตามทิศจริง</p></article>
+      <article class="card rv"><div class="ico" style="background:#e6f6ef;color:var(--bat)"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="18" height="10" rx="2"/><path d="M22 11v2M6 11v2"/></svg></div><h3>แบตใช้ได้ถึงกี่โมง</h3><p>บอกว่ากำลังชาร์จหรือจ่ายเพราะอะไร และสุขภาพแบตจากการวัดจริง ไม่ใช่ค่าบนฉลาก</p></article>
+      <article class="card rv"><div class="ico" style="background:#f3e6fb;color:var(--p)"><svg viewBox="0 0 24 24"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 1 0 6 16.5"/><path d="M8 19h9.5"/></svg></div><h3>พยากรณ์ที่เรียนรู้เอง</h3><p>คาดผลิตไฟพรุ่งนี้จากพยากรณ์อากาศ แล้วปรับตัวเองทุกวันจากผลจริงของบ้านคุณ</p></article>
+      <article class="card rv"><div class="ico" style="background:#e8eefc;color:var(--home)"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></div><h3>ย้อนหลังทั้งปี</h3><p>กราฟราย วัน เดือน ปี เงินที่ประหยัดและคาดทั้งเดือน ดาวน์โหลด CSV ได้</p></article>
+      <article class="card rv"><div class="ico" style="background:#fdecec;color:#d23b3b"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></div><h3>เตือนเมื่อมีปัญหา</h3><p>อินเวอร์เตอร์ออฟไลน์ ไฟดับ แบตต่ำ ส่งเข้า Discord หรือ Telegram ยืนยันก่อนส่ง ไม่เตือนมั่ว</p></article>
+      <article class="card rv"><div class="ico" style="background:#eeeaf6;color:var(--ink)"><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div><h3>ปลอดภัย เข้าด้วย PIN</h3><p>กุญแจ Deye อยู่ฝั่งเซิร์ฟเวอร์ คนในบ้านดูได้โดยไม่ต้องรู้รหัสบัญชี</p></article>
+    </div>
+  </div>
+</section>
+
+<section id="screens">
+  <div class="wrap">
+    <p class="eyebrow">หน้าจอ</p>
+    <h2 class="rv">ออกแบบให้อ่านง่าย <span class="nw">เหมือนแอปบน iPhone</span></h2>
+    <div class="rail" tabindex="0" aria-label="ภาพหน้าจอ เลื่อนดูได้">
+      <figure><img src="img/home.webp" width="520" height="986" loading="lazy" alt="หน้าหลัก: สถานะระบบและผังพลังงานสด"><figcaption>หน้าหลัก<span>สถานะ + ผังพลังงานสด</span></figcaption></figure>
+      <figure><img src="img/today.webp" width="520" height="986" loading="lazy" alt="วันนี้: ผลิต ใช้ ซื้อ และไฟย้อน พร้อมสัดส่วนพึ่งพาตัวเอง"><figcaption>วันนี้<span>ผลิต · ใช้ · ซื้อ · พึ่งพาตัวเอง</span></figcaption></figure>
+      <figure><img src="img/weather.webp" width="520" height="986" loading="lazy" alt="อากาศ: พยากรณ์ คาดการณ์ผลิตไฟ และความแม่นยำ"><figcaption>อากาศ<span>พยากรณ์ + คาดผลิตไฟ</span></figcaption></figure>
+      <figure><img src="img/history.webp" width="520" height="986" loading="lazy" alt="ย้อนหลัง: เงินที่ประหยัดและกราฟพลังงาน"><figcaption>ย้อนหลัง<span>วัน · เดือน · ปี · ตลอด</span></figcaption></figure>
+    </div>
+    <div class="duo">
+      <div class="card rv"><img src="img/hero-day.webp" width="640" height="620" loading="lazy" alt="บ้าน 3D ตอนกลางวัน ผลิตไฟเต็มและขายไฟคืน"><p>กลางวัน · ผลิตเต็ม</p></div>
+      <div class="card rv"><img src="img/hero-night.webp" width="640" height="620" loading="lazy" alt="บ้าน 3D ตอนกลางคืน ไฟในบ้านเปิดและแบตจ่ายไฟ"><p>กลางคืน · แบตจ่าย</p></div>
+      <div class="card rv"><img src="img/card-battery.webp" width="640" height="616" loading="lazy" alt="การ์ดสุขภาพแบตเตอรี่ ความจุจริงและจำนวนรอบ"><p>สุขภาพแบต · วัดจริง</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <p class="eyebrow">ติดตั้ง</p>
+    <h2 class="rv">ใช้เวลาไม่ถึง 10 นาที</h2>
+    <div class="steps">
+      <div class="card rv"><h3>ขอกุญแจ Deye</h3><p>สมัครที่ <a href="https://developer.deyecloud.com">developer.deyecloud.com</a> รับ App ID กับ App Secret</p></div>
+      <div class="card rv"><h3>กด Deploy</h3><p>Cloudflare สร้างแอปและฐานข้อมูลให้ ใส่กุญแจ อีเมล รหัส Deye และ PIN ที่ต้องการ</p></div>
+      <div class="card rv"><h3>เพิ่มลงหน้าจอโฮม</h3><p>เปิดลิงก์ของคุณบนมือถือ แล้วกดเพิ่มลงหน้าจอโฮม ใช้เหมือนแอปจริง</p></div>
+    </div>
+    <pre aria-label="ติดตั้งด้วยคำสั่ง"><span class="c"># หรือใช้คำสั่งเดียว</span>
+npx wrangler login
+cp .dev.vars.example .dev.vars   <span class="c"># ใส่ค่าลับ</span>
+npm run setup                    <span class="c"># สร้าง D1 + ตั้งค่า + deploy</span></pre>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <p class="eyebrow">คำถามที่พบบ่อย</p>
+    <h2 class="rv">ถามบ่อย</h2>
+    <div class="faq">
+      <details open><summary>โซลาร์มอนิเตอร์คืออะไร</summary><p>แอปดูระบบโซลาร์เซลล์ที่ใช้อินเวอร์เตอร์ Deye แบบเรียลไทม์เป็นภาษาไทย ดึงข้อมูลจาก Deye Cloud Open API แล้วแสดงผลิตไฟ ใช้ไฟ แบตเตอรี่ และซื้อ-ขายไฟ พร้อมพยากรณ์และสรุปเงินที่ประหยัด ติดตั้งเป็นแอปบนมือถือได้</p></details>
+      <details><summary>ต้องเสียเงินไหม</summary><p>ไม่ต้อง แอปรันบน Cloudflare Workers และ D1 ในโควต้าฟรี ระบบเก็บข้อมูลทุก 5 นาที (วันละ 288 ครั้ง) ต่ำกว่าลิมิตฟรี 100,000 ครั้งต่อวันมาก</p></details>
+      <details><summary>ใช้กับอินเวอร์เตอร์รุ่นไหนได้บ้าง</summary><p>ระบบที่ส่งข้อมูลขึ้น Deye Cloud ทั้ง on-grid, hybrid และ off-grid แอปปรับคำแนะนำตามชนิดระบบให้เอง ต้องมีบัญชีนักพัฒนาที่ developer.deyecloud.com</p></details>
+      <details><summary>ต่างจากแอป Deye Cloud อย่างไร</summary><p>ภาษาไทยทั้งแอป ตัวเลขใหญ่อ่านง่าย มีพยากรณ์ที่เรียนรู้จากบ้านคุณ สุขภาพแบตจากการวัดจริง สรุปเงินที่ประหยัดรายเดือน แจ้งเตือน Discord หรือ Telegram และคนในบ้านดูได้ด้วย PIN</p></details>
+      <details><summary>ข้อมูลและรหัสผ่านปลอดภัยไหม</summary><p>กุญแจและรหัสบัญชี Deye เก็บเป็นค่าลับฝั่งเซิร์ฟเวอร์ ไม่ส่งไปที่มือถือ เข้าแอปด้วย PIN หน้าแอปตั้งค่าไม่ให้ขึ้นในผลค้นหา และข้อมูลอยู่ในบัญชี Cloudflare ของคุณเอง</p></details>
+      <details><summary>ติดตั้งยากไหม</summary><p>กดปุ่มติดตั้งแล้วใส่ค่าที่ระบบถาม หรือรัน <code>npm run setup</code> คำสั่งเดียว จะได้ลิงก์ของคุณเอง เปิดบนมือถือแล้วกดเพิ่มลงหน้าจอโฮม</p></details>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="final rv">
+    <h2>เริ่มดูระบบของคุณวันนี้</h2>
+    <p>ฟรี ไม่มีค่ารายเดือน ข้อมูลอยู่ในบัญชีของคุณเอง</p>
+    <div class="cta" style="justify-content:center">
+      <a class="btn btn-y" href="https://deploy.workers.cloudflare.com/?url=https://github.com/botnick/deyecloud">ติดตั้งฟรี</a>
+      <a class="btn btn-g" href="https://github.com/botnick/deyecloud">ดูโค้ดบน GitHub</a>
+    </div>
+  </div>
+</div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>โซลาร์มอนิเตอร์ · Deye Solar Monitor</span>
+    <span><a href="https://github.com/botnick/deyecloud">GitHub</a> · <a href="https://github.com/botnick/deyecloud/blob/main/DEPLOY.md">คู่มือติดตั้ง</a> · <a href="https://github.com/botnick/deyecloud/blob/main/ARCHITECTURE.md">สถาปัตยกรรม</a> · <a href="en/" hreflang="en" lang="en">English</a></span>
+  </div>
+</footer>
+</body>
+</html>
