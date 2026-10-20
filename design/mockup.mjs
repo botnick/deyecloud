@@ -14,7 +14,7 @@ const CHROME = process.env.CHROME || [
 ].find(existsSync);
 const BASE = process.env.BASE || "http://localhost:5174";
 const PIN = process.env.PIN || "2580"; // local dev PIN; pass PIN=… with BASE=… for a deployed instance
-const OUT = "docs/shots";
+const OUT = process.env.OUT || "docs/shots";
 mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
