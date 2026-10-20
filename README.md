@@ -88,19 +88,30 @@
 ## ฟีเจอร์
 
 ### ดูระบบแบบสด
-- **หน้าหลัก** — บ้าน 3D หมุนได้พร้อมจุดไฟวิ่งตามทิศจริง, สถานะระบบ (ปกติ/แจ้งเตือน), ผลิตไฟวันนี้, เงินที่ประหยัด
+- **หน้าหลัก** — บ้าน 3D หมุนได้พร้อมจุดไฟวิ่งตามทิศจริง, สถานะระบบ (ปกติ/แจ้งเตือน), ผลิตไฟวันนี้, เงินที่ประหยัดวันนี้ และ **เดือนนี้ประหยัดแล้ว** พร้อมตัวเลขคาดทั้งเดือน
 - **แบตเตอรี่ตอนนี้** — กำลังชาร์จ/จ่ายเท่าไหร่ และ **เพราะอะไร** เป็นประโยคสั้นๆ, "ใช้ได้ถึงกี่โมง" / "เต็มราวกี่โมง" คิดจากความจุที่วัดจริงและจุดตัดที่เรียนรู้จากข้อมูลบ้านนี้ (ไม่ใช้ค่าบนฉลาก)
 - **วันนี้** — สรุปผลิต/ใช้/ซื้อ/ไฟย้อน, สัดส่วนพึ่งพาตัวเอง, การหมุนเวียนพลังงาน · สลับมุมมอง **ทั้งวัน** หรือ **เที่ยงถึงเที่ยง** (เห็นการใช้ไฟกลางวันกับกลางคืนแยกกัน)
 - **รายละเอียดเครื่อง** — ค่าต่อเฟส / PV string / BMS, **alarm จริงจากอินเวอร์เตอร์**, ตรวจสุขภาพระบบ (สมดุลเฟส · ช่องแบต · แรงดัน/ความถี่ · อุณหภูมิ — เงียบเมื่อปกติ), แนวโน้ม 1–90 วัน
 - **หลายสถานี** — บัญชีมีหลายระบบ มีตัวสลับบนหัวจอให้เอง
 
+<p>
+  <img src="docs/shots/saved.png?v=20261020" alt="ผลิตไฟวันนี้ ใช้ไฟ ซื้อไฟ และเงินที่ประหยัดวันนี้กับเดือนนี้" width="300">
+  <img src="docs/shots/selfuse.png?v=20261020" alt="สัดส่วนพึ่งพาไฟตัวเองวันนี้" width="300">
+</p>
+
 ### วิเคราะห์และพยากรณ์
-- **พยากรณ์ที่เรียนรู้จากผลจริง** — ขนาดระบบสอบเทียบจากวันแดดดี + ค่าเมฆของบ้านนี้ปรับทุกวันจาก "คาด vs จริง" · การ์ดความแม่นยำพยากรณ์
+- **พยากรณ์ที่เรียนรู้จากผลจริง** — ขนาดระบบสอบเทียบจากวันแดดดี + ค่าเมฆของบ้านนี้ปรับทุกวันจาก "คาด vs จริง" (วันใหม่มีน้ำหนักมากกว่า ตามฤดูทัน) · การ์ดความแม่นยำพยากรณ์: คะแนน + แท่งผลิตจริงรายวันพร้อมขีดที่คาดไว้ และป้าย แม่น / ต่ำไป / สูงไป
 - **อากาศ** — พยากรณ์ TMD (หรือ Open-Meteo), เส้นทางดวงอาทิตย์ + ช่วงแดดดีสุด, ดัชนี UV, ราย ชม. + 7 วัน
 - **สุขภาพแบตเตอรี่ (วัดจริง)** — ความจุใช้ได้จริงจากช่วงคายประจุ, SOH เทียบพิกัด BMS, จำนวนรอบ, ใช้ลึกเฉลี่ย, แนวโน้ม 60 วัน
-- **ย้อนหลัง + ภาพรวมทั้งปี** — กราฟราย วัน/เดือน/ปี/ตลอด, เดือนดีสุด/แย่สุด, เทียบปีก่อน, คาดผลิตทั้งปีตามแดดของพิกัดบ้าน
+- **ย้อนหลัง + ภาพรวมทั้งปี** — กราฟราย วัน/เดือน/ปี/ตลอด, สรุปรายเดือน (เงินที่ประหยัด, คาดทั้งเดือน, ยอดผลิต / ใช้ / ซื้อ / แบตจ่ายหรือขายคืน), เดือนดีสุด/แย่สุด, เทียบปีก่อน, คาดผลิตทั้งปีตามแดดของพิกัดบ้าน
 - **คำแนะนำอัตโนมัติ** — คิดจากสมการสมดุลพลังงานของเลขจริง ปรับตามชนิดระบบ on-grid / hybrid / off-grid
 - **เทียบ + ส่งออก** — เทียบช่วงก่อนหน้าแบบเวลาเท่ากัน (วันนี้ vs เมื่อวานถึงเวลานี้) · ดาวน์โหลด CSV ทุก 5 นาที / รายวัน / รายเดือน
+
+<p>
+  <img src="docs/shots/forecast.png?v=20261020" alt="คาดการณ์การผลิตไฟ วันนี้ พรุ่งนี้ มะรืนนี้" width="300">
+  <img src="docs/shots/accuracy.png?v=20261020" alt="ความแม่นยำพยากรณ์ เทียบผลิตจริงกับที่คาดไว้รายวัน" width="300">
+  <img src="docs/shots/month.png?v=20261020" alt="สรุปเดือนนี้ เงินที่ประหยัด คาดทั้งเดือน และยอดผลิต ใช้ ซื้อ แบตจ่าย" width="300">
+</p>
 
 ### ทนทาน ไม่ต้องเฝ้า
 - **แจ้งเตือนออกนอกแอป** (ไม่บังคับ) — Discord webhook / Telegram: อินเวอร์เตอร์ออฟไลน์, alarm เกิด/หาย, ไฟกริดหาย, แบตต่ำ, ฟ้าโปร่งแต่ไม่ผลิตไฟ — ส่ง "กลับมาปกติ" ให้ด้วย · ออกแบบให้ **ไม่เตือนมั่ว** (ต้องยืนยันหลายรอบก่อนส่ง)
@@ -133,7 +144,7 @@ cp .dev.vars.example .dev.vars   # ใส่ค่าจริง
 npm run dev                       # → http://localhost:5174  (มือถือใน LAN: http://<ip>:5174)
 ```
 
-- ใส่ PIN ที่ตั้งไว้เพื่อเข้า · **cron ไม่ทำงานใน `vite dev`** → เปิด `GET /api/_poll` หนึ่งครั้งเพื่อดึงข้อมูลแรก
+- ใส่ PIN ที่ตั้งไว้เพื่อเข้า · **cron ไม่ทำงานใน `vite dev`** → เปิด `GET /api/_poll` หนึ่งครั้งเพื่อดึงข้อมูลแรก (route `/api/_*` ต้องตั้ง `APP_PIN` และล็อกอินก่อน)
 - ดูข้อมูลดิบจาก Deye `GET /api/_debug` · ทดสอบหน้าจอด้วยฉากจำลอง `?dev=1` หรือ `?sim=peak`
 
 | คำสั่ง | ทำอะไร |
@@ -153,7 +164,7 @@ npm run dev                       # → http://localhost:5174  (มือถื�
 
 ## ตั้งค่า
 
-ตั้งน้อยที่สุด — **สถานี พิกัด กำลังติดตั้ง สถานที่ ดึงจาก Deye เองแล้วเก็บไว้** ไม่มีค่าส่วนตัวฝังในโค้ด · ค่าไฟ / ค่าขายคืน / ทุนติดตั้ง / CO₂ ตั้งในแอป (แท็บ "ตลอด" → ตั้งค่า)
+ตั้งน้อยที่สุด — **สถานี พิกัด กำลังติดตั้ง สถานที่ ดึงจาก Deye เองแล้วเก็บไว้** ไม่มีค่าส่วนตัวฝังในโค้ด · ค่าไฟ / ค่าขายคืน / ทุนติดตั้ง / CO₂ ตั้งในแอป (ย้อนหลัง → แท็บ "ตลอด" → ตั้งค่าการคำนวณ) ทุกเครื่องเห็นค่าเดียวกัน
 
 | ต้องตั้ง | ที่มา |
 |---|---|
@@ -174,6 +185,7 @@ npm run dev                       # → http://localhost:5174  (มือถื�
 | `ALERT_SOC_MIN` · `ALERT_REPEAT_MIN` · `ALERT_MUTE` · `ALERT_HEURISTICS` | เกณฑ์แบตต่ำ · เตือนซ้ำทุกกี่นาที (360) · ปิดรายกติกา · ส่งคำแนะนำเชิงวิเคราะห์ออกนอกแอปด้วย |
 | `GRID_NOMINAL_V` / `GRID_NOMINAL_HZ` | แรงดัน/ความถี่ปกติของไซต์ (เช่น 230/50) — ไม่ตั้ง = ไม่เช็คค่าสัมบูรณ์ (จงใจไม่เดา) |
 | `CONTACT_EMAIL` | อีเมลติดต่อที่แนบไปกับการค้นชื่อสถานที่ (OpenStreetMap ขอให้ระบุ) |
+| `DEYE_RELAY_URL` | ทางอ้อมเมื่อ Deye บล็อกเครือข่าย Cloudflare — รัน `scripts/deye-relay.mjs` บนเครื่องอื่นแล้วใส่ที่อยู่ (ติดตั้งเองให้เปลี่ยนเป็นของคุณหรือลบออกจาก `wrangler.jsonc`) ดู [`DEPLOY.md`](./DEPLOY.md) |
 
 </details>
 
@@ -206,9 +218,9 @@ npm run dev                       # → http://localhost:5174  (มือถื�
                   cron ทุก 5 นาที    └─▶ TMD / Open-Meteo     (อากาศ + UV ตามพิกัดสถานี)
 ```
 
-ทุกอย่างอยู่ใน Worker เดียว · ค่าลับไม่ออกไปฝั่งมือถือ · การรับแดด (ขึ้น-ตก, ช่วงแดดดี, ชั่วโมงแดดเต็ม) คำนวณจริงด้วย NOAA + Haurwitz · โควต้าต่อรอบของ free tier ถูกคิดไว้ในโค้ด (cron วันละ 288 ครั้ง ห่างลิมิต 100,000 req/วันมาก)
+ทุกอย่างอยู่ใน Worker เดียว · ค่าลับไม่ออกไปฝั่งมือถือ · ถ้า Deye บล็อกเครือข่าย Cloudflare จะอ้อมผ่าน relay ที่ตั้งไว้ (`DEYE_RELAY_URL`) · การรับแดด (ขึ้น-ตก, ช่วงแดดดี, ชั่วโมงแดดเต็ม) คำนวณจริงด้วย NOAA + Haurwitz · โควต้าต่อรอบของ free tier ถูกคิดไว้ในโค้ด (cron วันละ 288 ครั้ง ห่างลิมิต 100,000 req/วันมาก)
 
-**Stack:** Vite 6 · React 19 · TypeScript · Tailwind CSS v4 · Hono 4 · Cloudflare Workers / D1 / Cron / Static Assets · vite-plugin-pwa · Vitest · Meteocons
+**Stack:** Vite 6 · React 19 · TypeScript · Tailwind CSS v4 · three.js · Hono 4 · Cloudflare Workers / D1 / Cron / Static Assets · vite-plugin-pwa · Vitest · Meteocons
 
 <details>
 <summary><b>ดีไซน์</b></summary>
@@ -227,11 +239,49 @@ npm run dev                       # → http://localhost:5174  (มือถื�
 
 **Deye Solar Monitor** is a free, self-hosted real-time dashboard for **Deye solar inverters**, built on the official **Deye Cloud Open API**. It shows PV production, home load, battery state and grid import/export live, adds a production forecast that learns from your own roof, measured battery health, monthly savings, CSV export and Discord/Telegram alerts, and installs on a phone as a PWA. It runs entirely on the **Cloudflare Workers + D1 free tier** (no monthly cost). The app interface is Thai.
 
+### Live view
+- **Home** — a rotatable 3D house with power flowing in the real direction between panels, battery, grid and home; system status; today's production and savings, plus savings so far this month with a whole-month estimate
+- **Battery now** — charging or discharging, the reason in one sentence, and when it will run out or be full, from measured capacity and the cut-off learned from this house
+- **Today** — produced, used, bought and exported, self-sufficiency and energy flow, as a whole day or noon-to-noon (daytime and night-time use apart)
+- **Device detail** — per-phase, PV string and BMS values, real inverter alarms, a quiet-when-normal health check, trends over 1–90 days
+- **Several stations** — a switcher appears when the account has more than one system
+
+### Analysis and forecast
+- **A forecast that learns** — system size calibrated from clear days, cloud factors re-learned daily from forecast vs actual (recent days weigh more, so it follows the season); an accuracy card with a score and each day's production bar with a tick at the forecast, labelled on target / too low / too high
+- **Weather** — Thai Meteorological Department forecast (or Open-Meteo), sun path and best sun window, UV index, hourly and 7-day
+- **Measured battery health** — usable capacity from real discharges, SOH against the BMS rating, cycles, average depth, 60-day trend
+- **History and year overview** — day / month / year / all-time charts, a month summary (savings, whole-month estimate, produced / used / bought / battery or exported), best and worst months, year-on-year, a whole-year estimate from the site's sunlight
+- **Recommendations** — derived from the energy balance of measured values, adjusted for on-grid, hybrid or off-grid
+- **Compare and export** — against the previous period at the same time of day; CSV every 5 minutes, daily or monthly
+
+### Hands-off reliability
+- **Alerts** (optional) — Discord webhook or Telegram: inverter offline, alarm raised or cleared, grid loss, low battery, clear sky but no production, plus "back to normal"; confirmed over several polls before sending
+- **No fake values** — a dropped logger or stuck Deye values are detected and not stored; gaps are backfilled automatically when data returns
+- **Clear status** — cannot reach Deye, collection stopped or inverter silent, each explained in the app; `/api/_health` for uptime monitors
+- **Installable PWA** — install hints per device (Android, iPhone, Mac, others), works offline
+
+### Install
 - **Supports:** any Deye system on Deye Cloud — on-grid, hybrid, off-grid
 - **Needs:** a Deye developer account ([developer.deyecloud.com](https://developer.deyecloud.com)) for an App ID and App Secret
-- **Install:** the *Deploy to Cloudflare* button above, or `npm run setup` — see [DEPLOY.md](./DEPLOY.md)
-- **Privacy:** Deye credentials stay server-side; users sign in with a PIN; the dashboard is `noindex`
-- **Website:** [botnick.github.io/deyecloud/en](https://botnick.github.io/deyecloud/en/)
+- **One click:** the *Deploy to Cloudflare* button above; Cloudflare creates the repo and the D1 database and asks for the secrets
+- **One command:** `npx wrangler login`, `cp .dev.vars.example .dev.vars`, then `npm run setup` — see [DEPLOY.md](./DEPLOY.md)
+
+### FAQ
+
+#### What is Deye Solar Monitor?
+A free, self-hosted web app that shows a Deye solar system live — production, home load, battery and grid — using the official Deye Cloud Open API, with a forecast that learns from your own roof, measured battery health, savings and alerts. It installs on a phone as a PWA.
+
+#### Does it cost anything?
+No. It runs on the free tier of Cloudflare Workers and D1. It polls every 5 minutes (288 requests a day), far below the free limit of 100,000 a day.
+
+#### Which inverters does it support?
+Any system that reports to Deye Cloud — on-grid, hybrid or off-grid. You need a developer account at developer.deyecloud.com for an App ID and App Secret.
+
+#### Is the interface in English?
+The app interface is Thai, built for Thai households with large numbers and labelled colours. The code, API and setup work the same anywhere Deye Cloud is available.
+
+#### Are my Deye credentials safe?
+Deye keys and the account password are server-side secrets only and never reach the phone. People sign in with a PIN, the app is marked noindex, and all data stays in your own Cloudflare account.
 
 ---
 

@@ -25,7 +25,8 @@ const AUTH_COOKIE_MAX_AGE = 31536000; // 1 year, seconds
 
 // --- Auto-migrate: tables build themselves on first use (no setup step) --
 // ts/day are INTEGER/TEXT PRIMARY KEYs (covering range scans) → no secondary
-// index needed; samples/daily are kept forever, device_samples on a 90-day window.
+// index needed; daily is kept forever, samples and device_samples are pruned
+// (SAMPLES_RETENTION_DAYS / DEVICE_RETENTION_DAYS).
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`,
   `CREATE TABLE IF NOT EXISTS samples (ts INTEGER PRIMARY KEY, gen_power REAL, use_power REAL, grid_power REAL, batt_power REAL, soc REAL, gen_today REAL, use_today REAL, buy_today REAL, sell_today REAL, charge_today REAL, discharge_today REAL, gen_total REAL)`,

@@ -1,4 +1,4 @@
-# Deploy — โซลาร์มอนิเตอร์ (Deye Solar Monitor)
+# คู่มือติดตั้ง — โซลาร์มอนิเตอร์ (Deye Solar Monitor)
 
 > **English:** step-by-step deployment of Deye Solar Monitor to Cloudflare Workers + D1 (free plan): one-click button or `npm run setup`, Deye API secrets, PIN, D1 database. [Website](https://botnick.github.io/deyecloud/en/)
 
@@ -32,8 +32,8 @@
 | `DEYE_EMAIL` | ✅ | **อีเมลที่ใช้ล็อกอินแอป Deye Cloud** (แอปมือถือ/เว็บที่ดูโซลาร์ปกติ) |
 | `DEYE_PASSWORD` | ✅ | **รหัสผ่านบัญชี Deye Cloud** เดียวกับอีเมลข้างบน (โค้ดแปลงเป็น sha256 ให้เอง ไม่ส่ง plain) |
 | `APP_PIN` | ⬜ | **คุณตั้งเอง** — PIN ล็อกแอป (เช่น 2580) · ไม่ตั้ง = เปิดสาธารณะใครเปิดก็ดูได้ |
-| `GRID_NOMINAL_V` / `GRID_NOMINAL_HZ` | ⬜ | แรงดัน/ความถี่ปกติของไซต์คุณ (ไทย 1 เฟส = `230` / `50`) ใช้เป็นเกณฑ์แจ้งเตือนสุขภาพอินเวอร์เตอร์ · **ไม่ใส่ = ปิดเฉพาะการเช็คค่าสัมบูรณ์** (ระบบจงใจไม่เดาจากค่าที่วัดได้ เพราะไฟตกทั้งไซต์จะกลายเป็น "ปกติ") |
-| `ALERT_WEBHOOK_URL` | ⬜ | **แจ้งเตือนเข้า Discord** — สร้าง Webhook ในห้อง Discord (Edit Channel → Integrations → Webhooks) แล้ววาง URL · ระบบจะเตือนเมื่อ: อินเวอร์เตอร์ออฟไลน์ / ดึง Deye ไม่ได้ติดกัน 3 รอบ / แดดจัดแต่ผลิต ≈0 / ไฟกริดหาย / แบตต่ำ / เจอจุดผิดปกติ · และส่ง "กลับมาปกติ" เมื่อหาย · ทดสอบ: `POST /api/_alert_test` (ต้องล็อกอิน PIN) |
+| `GRID_NOMINAL_V` / `GRID_NOMINAL_HZ` | ⬜ | แรงดัน/ความถี่ปกติของไซต์คุณ (ไทย 1 เฟส = `230` / `50`) ใช้เป็นเกณฑ์ตรวจสุขภาพอินเวอร์เตอร์ · **ไม่ใส่ = ปิดเฉพาะการเช็คค่าสัมบูรณ์** (การเช็คสมดุลเฟสยังทำงาน) (ระบบจงใจไม่เดาจากค่าที่วัดได้ เพราะไฟตกทั้งไซต์จะกลายเป็น "ปกติ") |
+| `ALERT_WEBHOOK_URL` | ⬜ | **แจ้งเตือนเข้า Discord** — สร้าง Webhook ในห้อง Discord (Edit Channel → Integrations → Webhooks) แล้ววาง URL · ระบบจะเตือนเมื่อ: อินเวอร์เตอร์ออฟไลน์ / ดึง Deye ไม่ได้ติดกัน 3 รอบ / ฟ้าโปร่งช่วงแดดแรงแต่ผลิต ≈0 / ไฟกริดหาย / แบตต่ำ / alarm จากอินเวอร์เตอร์ (Deye) · และส่ง "กลับมาปกติ" เมื่อหาย · ทดสอบ: `POST /api/_alert_test` (ต้องล็อกอิน PIN) |
 | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | ⬜ | แจ้งเตือนเข้า Telegram (ใช้คู่กับหรือแทน webhook) |
 | `ALERT_SOC_MIN` | ⬜ | เตือนเมื่อแบตต่ำกว่า % นี้ (ไม่ตั้ง = ไม่เตือนแบตต่ำ) · `ALERT_REPEAT_MIN` = เตือนซ้ำทุกกี่นาทีถ้ายังไม่หาย (ค่าเริ่มต้น 360) |
 | `ALERT_HEURISTICS` / `ALERT_MUTE` | ⬜ | ผลวิเคราะห์ (เฟสไม่สมดุล / ช่องแบต ฯลฯ) เป็น "คำแนะนำ" **ไม่ส่งออกเป็นแจ้งเตือน** เว้นแต่ตั้ง `ALERT_HEURISTICS=1` · `ALERT_MUTE=offline,no_production` ปิดกติกาเป็นรายตัว (คีย์: offline · poll_failed · no_production · grid_out · soc_low · deye: · attention) |
@@ -45,6 +45,7 @@
 |---|---|---|
 | `DEYE_BASE_URL` | `https://eu1-developer.deyecloud.com/v1.0` | **บัญชีอยู่โซน US** → เปลี่ยนเป็น `https://us1-developer.deyecloud.com/v1.0` |
 | `TMD_BASE` | `https://data.tmd.go.th/nwpapi/v1/forecast/location` | ปกติไม่ต้องแตะ |
+| `DEYE_RELAY_URL` | ที่อยู่ relay ของผู้ดูแล repo นี้ | **ติดตั้งเอง ให้เปลี่ยนเป็น relay ของคุณหรือลบบรรทัดนี้** — ใช้เฉพาะตอน Deye บล็อก Workers (ดูหัวข้อแก้ปัญหา) |
 
 ค่า **optional อื่น ๆ** (ไม่ใส่ก็ทำงาน — ตั้งเป็น secret หรือใน `vars` ก็ได้):
 
@@ -53,9 +54,9 @@
 | `DEYE_COMPANY_ID` | ปกติ `"0"` (โค้ด default ให้แล้ว) · บัญชีองค์กรบางอันต้องใส่เลขของตัวเอง |
 | `DEYE_STATION_ID` | ปักสถานีเจาะจง (แทนเลือกสถานีแรกอัตโนมัติ) — ใส่ตอนมีหลายสถานีแล้วอยากล็อกตัวหลัก |
 | `WEATHER_LAT` / `WEATHER_LON` / `WEATHER_PLACE` | บังคับพิกัด/ชื่อเมืองของอากาศเอง (ปกติดึงจากสถานี Deye ให้อัตโนมัติ) |
-| `CONTACT_EMAIL` | อีเมลติดต่อที่โชว์ในแอป |
+| `CONTACT_EMAIL` | อีเมลติดต่อที่แนบไปตอนค้นชื่อสถานที่จาก OpenStreetMap (ไม่ใส่ = ใช้ลิงก์ repo แทน) |
 
-> 💡 ค่าไฟ/CO₂ ที่ใช้คำนวณ "เงินที่ประหยัด" ปรับที่ไฟล์ `src/lib/config.ts` (`ELECTRICITY_RATE` = 4.4 บาท/kWh · `CO2_PER_KWH` = 0.5)
+> 💡 ค่าไฟ / ค่าขายคืน / ทุนติดตั้ง / ค่า CO₂ ตั้งในแอป (แท็บ "ย้อนหลัง" → "ตลอด" → ตั้งค่าการคำนวณ) เก็บใน D1 ทุกเครื่องเห็นค่าเดียวกัน · ไม่ตั้ง = ใช้ค่าเริ่มต้นใน `src/lib/config.ts` (ค่าไฟ 4.4 บาท/หน่วย · ขายคืน 0 · CO₂ 0.5 กก./หน่วย)
 
 ---
 
@@ -117,12 +118,14 @@ npx wrangler d1 execute deye-monitor --remote --command "SELECT COUNT(*) FROM sa
 | ไม่เจอสถานี / ข้อมูลว่าง | บัญชี Deye นั้นไม่มีสถานีผูกอยู่ หรือใช้ Open API กับบัญชีผิด · ลองใส่ `DEYE_STATION_ID` ให้ชัด |
 | อากาศไม่ขึ้น | ไม่ใส่ `TMD_TOKEN` ไม่เป็นไร (ใช้ Open-Meteo) · ถ้าใส่แล้วยังไม่ขึ้น เช็ก token ที่ data.tmd.go.th |
 | cron ไม่เขียนข้อมูลตอน dev | **cron ไม่ทำงานใน `vite dev`** เป็นปกติ → เปิด `GET /api/_poll` 1 ครั้งเพื่อ seed ข้อมูลแรก (ต้อง login PIN ก่อน) |
-| แอปขึ้นแถบเหลือง "ระบบเก็บข้อมูลหยุด" | เปิด `/api/_health` (ไม่ต้อง PIN) — ดู `lastPollError` และ `deyeLogin` · ถ้า `deyeLogin.ok=false` = รหัส/secret Deye ผิด → แก้ secret แล้วรอ `holdUntil` หรือ deploy ใหม่ (isolate ใหม่จะลอง login เมื่อ hold หมด) · ระบบเติมข้อมูลช่วงที่หายให้เองเมื่อกลับมา (ย้อนหลังได้ 2 วัน/รอบ) — เก่ากว่านั้น `POST /api/_backfill?from=YYYY-MM-DD` |
+| แอปขึ้นแถบเหลือง "ระบบเก็บข้อมูลหยุด" | เปิด `/api/_health` (ไม่ต้อง PIN) — ดู `lastPollError` และ `deyeLogin` · ถ้า `deyeLogin.ok=false` = รหัส/secret Deye ผิด → แก้ secret แล้วรอ `holdUntil` หรือ deploy ใหม่ (isolate ใหม่จะลอง login เมื่อ hold หมด) · ระบบเติมข้อมูลช่วงที่หายให้เองเมื่อกลับมา (ย้อนหลังได้ 2 วัน/รอบ) — เก่ากว่านั้น `POST /api/_backfill?from=YYYY-MM-DD` (ครั้งละไม่เกิน 10 วัน ย้อนได้ไม่เกิน 90 วัน · ทำต่อจาก `nextFrom` ที่ตอบกลับ) |
 | ใส่ PIN แล้วบอก "ลองผิดหลายครั้ง — รออีก N วินาที" | มีการเดา PIN (หรือพิมพ์ผิดเกิน 3 ครั้ง) → รอตามที่บอก (สูงสุด 15 นาที) · ใส่ถูกครั้งเดียวจะรีเซ็ต |
 | `/api/_poll` `/api/_backfill` ตอบ 403 | ต้องตั้ง `APP_PIN` และ login ก่อน — route ผู้ดูแลไม่เปิดสาธารณะแม้ไม่ตั้ง PIN |
 | การ์ด "ตรวจสุขภาพ" บอกช่องแบตไม่จ่ายกระแสหลังย้ายสาย/ถอดแบต | ระบบจำโครงสร้างช่องแบตที่เคยมีกระแส (ถาวรต่อเครื่อง) — เปลี่ยนสายจริงให้รีเซ็ต: `wrangler d1 execute deye-monitor --remote --command "DELETE FROM meta WHERE k LIKE 'batt_chan_seen_%'"` แล้วระบบเรียนรู้ใหม่ใน ~15 นาที |
-| `_health` ขึ้น `HTTP 403 non-JSON (… cloudfront …)` ทั้งที่แอป Deye ปกติ | Deye บล็อกเครือข่าย Cloudflare Workers ทั้งหมด (เจอ 15 ต.ค. 2026) → รัน `node scripts/deye-relay.mjs` บนเครื่องที่เปิดตลอด (ใช้ `.dev.vars` ชุดเดียวกัน) เปิดเป็น HTTPS แล้วใส่ URL ใน `DEYE_RELAY_URL` (`wrangler.jsonc`) · เว็บยังเรียก Deye ตรงก่อน โดนบล็อกค่อยอ้อมผ่าน relay |
-| แจ้งเตือนไม่มา | `POST /api/_alert_test` (login แล้ว) → ต้องได้ `ok:true` · ถ้า `delivered.webhook` ไม่ใช่ 2xx เช็ค URL webhook · กติกาส่วนใหญ่ต้องเกิดติดกัน 3 รอบ (15 นาที) ก่อนเตือน |
+| `_health` ขึ้น `HTTP 403 non-JSON (… cloudfront …)` ทั้งที่แอป Deye ปกติ | Deye บล็อกเครือข่าย Cloudflare Workers ทั้งหมด (เจอ 15 ต.ค. 2026) → รัน `node scripts/deye-relay.mjs` บนเครื่องที่เปิดตลอดและ Deye ไม่บล็อก (อ่าน `DEYE_APP_SECRET` จาก env หรือ `.dev.vars` · พอร์ต `PORT` ค่าตั้งต้น 47812) เปิดเป็น HTTPS แล้วใส่ URL ใน `DEYE_RELAY_URL` (`wrangler.jsonc`) · Worker ยังเรียก Deye ตรงก่อน โดนบล็อกค่อยอ้อมผ่าน relay (แล้วใช้ relay ต่อ 15 นาทีก่อนลองตรงอีก) · relay รับเฉพาะ `/account/token` `/station/*` `/device/*` และต้องมีกุญแจที่คิดจาก App Secret (ไม่มีค่าลับใหม่) · เช็คว่า relay ทำงาน: `GET /healthz` |
+| แจ้งเตือนไม่มา | `POST /api/_alert_test` (login แล้ว) → ต้องได้ `ok:true` · ถ้า `delivered.webhook` ไม่ใช่ 2xx เช็ค URL webhook · ออฟไลน์ / ดึง Deye ไม่ได้ ต้องเกิดติดกัน 3 รอบ (15 นาที) · ไม่ผลิตไฟ 4 รอบ (20 นาที) ก่อนเตือน |
+| อยากให้ทุกเครื่องใส่ PIN ใหม่ (เช่น มือถือหาย) โดยไม่เปลี่ยน PIN | `POST /api/_logout_all` (login แล้ว) — เครื่องอื่นหลุดภายใน ~1 นาที · เปลี่ยน `APP_PIN` ก็ทำให้ทุกเครื่องหลุดเช่นกัน |
+| ย้อนหลังมีวันที่ยอดซ้ำกับวันถัดไป (ข้อมูลจาก backfill รุ่นเก่า) | `POST /api/_purge_day?day=YYYY-MM-DD` ดูก่อน (ไม่ลบ) แล้วเติม `&confirm=1` เพื่อลบ — ลบได้เฉพาะเมื่อ Deye ยืนยันว่าไม่มีข้อมูลวันนั้น · ค่าที่บันทึกตอนตัวส่งข้อมูลหลุด ลบด้วย `POST /api/_purge?from=&to=` (unix วินาที, ≤31 วัน, `&confirm=1`) |
 
 ---
 
@@ -138,10 +141,11 @@ npx wrangler d1 execute deye-monitor --remote --command "SELECT COUNT(*) FROM sa
 - Worker `name`: **`deyecloud`** · D1 database: `deye-monitor` · cron: ทุก 5 นาที (`*/5 * * * *`)
 - เสิร์ฟหน้าเว็บผ่าน **Workers Static Assets** → URL: `https://deyecloud.<subdomain>.workers.dev`
 - `vars` ที่ commit มีแค่ `DEYE_BASE_URL` + `TMD_BASE` + `DEYE_RELAY_URL` (ทางอ้อมตอน Deye บล็อก ลบได้) — ค่าบัญชี/ค่าลับตั้งต่อ Worker (ไม่อยู่ในโค้ด)
+- GitHub Actions: `ci.yml` ตรวจ typecheck + test + build ทุก push/PR (ไม่ deploy) · `pages.yml` เผยแพร่เว็บไซต์โปรเจกต์ใน `site/` ขึ้น GitHub Pages
 
 ## 💸 ทำไม $0 (Cloudflare free plan)
 
-ทุกอย่างรันใน Worker เดียวบนฟรีแพลน — cron 288 ครั้ง/วัน + ผู้ใช้ไม่กี่คน << ลิมิต 100k req/วัน · D1 ~288 แถว/วัน << 5GB · Cron Triggers / Static Assets / Open-Meteo ฟรี → **ไม่มีทางเกินโควต้า** (รายละเอียดสถาปัตยกรรมใน [`ARCHITECTURE.md`](./ARCHITECTURE.md))
+ทุกอย่างรันใน Worker เดียวบนฟรีแพลน — cron 288 ครั้ง/วัน + ผู้ใช้ไม่กี่คน << ลิมิต 100k req/วัน · D1 ~288 แถว/วัน (+ ค่าเครื่อง ~96 แถว/วัน) และลบของเก่าเอง << 500 MB · Cron Triggers / Static Assets / Open-Meteo ฟรี → **ไม่มีทางเกินโควต้า** (รายละเอียดสถาปัตยกรรมใน [`ARCHITECTURE.md`](./ARCHITECTURE.md))
 
 ---
 
@@ -150,5 +154,5 @@ npx wrangler d1 execute deye-monitor --remote --command "SELECT COUNT(*) FROM sa
 - ถ้าเชื่อม Deye ไม่ได้ชั่วคราว แอปขึ้นแถบ "เชื่อมต่อระบบไม่ได้" + คงข้อมูลล่าสุด + ลองใหม่อัตโนมัติ
 - บัญชีที่มีหลายสถานี: มีตัวสลับสถานีบนหัวจอให้อัตโนมัติ
 - ตัวเลขผังพลังงาน (solar/บ้าน/กริด/แบต) อ่านจาก inverter ให้ตรงกับแอป Deye · ยอดพลังงานรายวันมาจาก station
-- deploy ครั้งแรกหลังอัปเดตระบบ PIN (ส.ค. 2026) ทุกเครื่องต้องใส่ PIN ใหม่ 1 ครั้ง (รูปแบบ cookie เปลี่ยน)
+- เมื่อรูปแบบ cookie ของ PIN เปลี่ยน (ล่าสุด ต.ค. 2026) ทุกเครื่องต้องใส่ PIN ใหม่ 1 ครั้ง · ล็อกอินแล้วอยู่ได้ 1 ปี
 - ต่อ uptime monitor (เช่น UptimeRobot/Better Stack) ที่ `GET /api/_health` — ตอบ 503 เมื่อระบบเก็บข้อมูลหยุด

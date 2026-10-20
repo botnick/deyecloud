@@ -1,11 +1,11 @@
-# Publishes the static project site in site/ to the gh-pages branch, which GitHub Pages
-# serves at botnick.github.io/deyecloud. Separate from the app: the dashboard itself
-# deploys through Cloudflare Workers Builds.
+# Builds the project website from the repo (site/build.mjs reads README.md, the other root
+# *.md files, docs/shots, package.json and git history) and publishes it to the gh-pages
+# branch, which GitHub Pages serves. Runs on every push to main so the site always matches
+# the latest repo. Separate from the app: the dashboard deploys through Cloudflare Workers Builds.
 name: pages
 on:
   push:
     branches: [main]
-    paths: ["site/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 permissions:
   contents: write
@@ -17,10 +17,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # per-page "last updated" dates come from git history
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build site
+        run: |
+          mkdir -p "$RUNNER_TEMP/site-tools"
+          npm install --prefix "$RUNNER_TEMP/site-tools" --no-audit --no-fund marked@15 sharp@0.34
+          SITE_TOOLS="$RUNNER_TEMP/site-tools" node site/build.mjs
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site
+          publish_dir: ./site/_site
           publish_branch: gh-pages
           force_orphan: true
           user_name: botnick
