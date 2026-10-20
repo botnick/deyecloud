@@ -54,8 +54,9 @@ code { overflow-wrap: anywhere; font: 0.86em/1.4 var(--mono); background: #eeece
 
 /* hero image switcher (CSS only) */
 .hs { position: relative; }
-.hs-stack { display: grid; border-radius: 22px; overflow: hidden; background: var(--surface); border: 1px solid var(--line); }
-.hs-img { grid-area: 1 / 1; opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility .35s; }
+.hs-stack { display: grid; border-radius: 22px; overflow: hidden; }
+/* the source shots carry their own rounded card edge — zoom past it so only one corner shows */
+.hs-img { transform: scale(1.03); grid-area: 1 / 1; opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility .35s; }
 .hs-tabs { display: flex; justify-content: center; gap: 6px; margin-top: 14px; }
 .hs-tabs label { cursor: pointer; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 14px; color: var(--ink-2); user-select: none; }
 .hs input:focus-visible ~ .hs-tabs { outline: 3px solid var(--link); outline-offset: 4px; border-radius: 999px; }
@@ -75,6 +76,9 @@ h2 { font-size: clamp(28px, 3.2vw, 38px); line-height: 1.25; font-weight: 800; l
 /* screens */
 .phones { display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 20px 12px; margin: 0 -20px 24px; scrollbar-width: thin; }
 .phones figure { flex: 0 0 min(240px, 62vw); margin: 0; scroll-snap-align: start; }
+/* centred when the row fits; auto margins collapse to 0 when it scrolls */
+.phones figure:first-child { margin-left: auto; }
+.phones figure:last-child { margin-right: auto; }
 /* source shots have a drop shadow cut off at the canvas edge — fade it out instead of a hard line */
 .phones img { -webkit-mask-image: linear-gradient(to bottom, #000 86%, transparent 99%); mask-image: linear-gradient(to bottom, #000 86%, transparent 99%); }
 .phones figcaption { font-size: 14px; color: var(--ink-3); text-align: center; margin-top: 4px; }
@@ -125,6 +129,12 @@ h2 { font-size: clamp(28px, 3.2vw, 38px); line-height: 1.25; font-weight: 800; l
 .req, .opt { display: inline-block; font-size: 13px; padding: 1px 8px; border-radius: 6px; white-space: nowrap; }
 .req { background: #fff1bf; color: #6b5200; }
 .opt { background: #efeee9; color: var(--ink-3); }
+
+/* heading-left / content-right sections (install, settings, FAQ, architecture) */
+.split { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 40px; }
+.split > h2 { position: sticky; top: 84px; align-self: start; font-size: clamp(24px, 2.6vw, 30px); margin: 0; }
+.split > .prose, .split > .faq { max-width: none; }
+@media (max-width: 1000px) { .split { grid-template-columns: 1fr; gap: 20px; } .split > h2 { position: static; } }
 
 /* faq */
 .faq { max-width: 860px; border-top: 1px solid var(--line); }

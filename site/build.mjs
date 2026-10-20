@@ -331,28 +331,28 @@ ${featSec ? `<section id="${id(featSec)}">
 </section>` : ""}
 
 ${installSec ? `<section class="band" id="${id(installSec)}">
-  <div class="wrap">
+  <div class="wrap split">
     <h2>${phr(installSec.title)}</h2>
     <div class="prose">${mdToHtml(installSec.body, { from: rel })}</div>
   </div>
 </section>` : ""}
 
 ${settingsSec ? `<section id="${id(settingsSec)}">
-  <div class="wrap">
+  <div class="wrap split">
     <h2>${phr(settingsSec.title)}</h2>
     <div class="prose">${mdToHtml(settingsSec.body, { from: rel })}</div>
   </div>
 </section>` : ""}
 
 ${faqSec ? `<section class="band" id="${id(faqSec)}">
-  <div class="wrap">
+  <div class="wrap split">
     <h2>${phr(faqSec.title)}</h2>
     ${faqHtml(faqs, "th", rel)}
   </div>
 </section>` : ""}
 
 ${archSec ? `<section id="${id(archSec)}">
-  <div class="wrap">
+  <div class="wrap split">
     <h2>${phr(archSec.title)}</h2>
     <div class="prose">${mdToHtml(archSec.body, { from: rel })}</div>
   </div>
@@ -396,7 +396,7 @@ async function english() {
   </div>
 </section>
 ${enFaqs.length ? `<section class="band" id="faq">
-  <div class="wrap">
+  <div class="wrap split">
     <h2>${phr(enFaqPart.title)}</h2>
     ${faqHtml(enFaqs, "en", rel)}
   </div>
