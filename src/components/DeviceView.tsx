@@ -95,7 +95,7 @@ function DeviceHeader({ onBack }: { onBack: () => void }) {
         <IconChevron className="w-6 h-6 rotate-180" />หน้าหลัก
       </button>
       <h1 className="text-[32px] font-extrabold tracking-tight leading-tight text-title">รายละเอียดเครื่อง</h1>
-      <div className="text-[13.5px] font-semibold text-muted">อินเวอร์เตอร์ · แบตเตอรี่ · แจ้งเตือน</div>
+      <div className="text-[13.5px] font-semibold text-muted">อินเวอร์เตอร์ · แบตเตอรี่ · การแจ้งเตือน</div>
     </div>
   );
 }
@@ -131,7 +131,7 @@ export function DeviceView({ latest, active, stationId, isPrimary = true, onBack
         <DeviceHeader onBack={onBack} />
         {failed ? (
           <div className={`${cardP} text-center py-8`}>
-            <div className="text-[16px] font-bold text-title">ดึงข้อมูลเครื่องไม่ได้</div>
+            <div className="text-[16px] font-bold text-title">โหลดข้อมูลอุปกรณ์ไม่ได้</div>
             <div className="text-[14px] text-body mt-1">เชื่อมต่อระบบไม่ได้ในขณะนี้</div>
             <button onClick={load} className="mt-4 h-11 px-5 rounded-xl bg-primary text-ink font-bold active:scale-95 transition-transform">ลองใหม่</button>
           </div>
@@ -202,7 +202,7 @@ export function DeviceView({ latest, active, stationId, isPrimary = true, onBack
   const battNote = battAh
     ? `ความจุที่ตั้งไว้ ${Math.round(battAh)} Ah` +
       (battV ? ` ≈ ${((battAh * battV) / 1000).toFixed(1)} kWh` : "") +
-      (chans.length > 1 ? ` · อินเวอร์เตอร์รายงาน ${chans.length} ช่องแบต` : "")
+      (chans.length > 1 ? ` · อินเวอร์เตอร์รายงาน ${chans.length} ช่องแบตเตอรี่` : "")
     : undefined;
 
   // remaining scalar readings, grouped + Thai-labelled (table keys removed)
@@ -250,7 +250,7 @@ export function DeviceView({ latest, active, stationId, isPrimary = true, onBack
       {/* Deye's own alarm log — real faults/warnings the inverter raised */}
       {dev.alarms && (dev.alarms.active.length > 0 || dev.alarms.recent.length > 0) && (
         <div className="mt-3.5">
-          <div className="text-[15px] font-bold mb-2">แจ้งเตือนจากอินเวอร์เตอร์ (Deye)</div>
+          <div className="text-[15px] font-bold mb-2">การแจ้งเตือนจากอินเวอร์เตอร์ (Deye)</div>
           <div className={`${card} divide-y divide-line`}>
             {[...dev.alarms.active, ...dev.alarms.recent.filter((r) => !dev.alarms!.active.some((a) => a.alertId === r.alertId))].slice(0, 8).map((a) => (
               <div key={a.alertId} className="flex items-start gap-3 px-4 py-3">
@@ -258,8 +258,8 @@ export function DeviceView({ latest, active, stationId, isPrimary = true, onBack
                 <div className="min-w-0 flex-1">
                   <div className="text-[14px] font-semibold leading-tight">{a.name} <span className="text-[12px] font-normal text-muted">· {a.level >= 2 ? "Fault" : "Warning"}</span></div>
                   <div className="text-[12.5px] text-muted mt-0.5">
-                    {a.end == null ? "กำลังเกิดอยู่ · เริ่ม " : ""}{new Date(a.start * 1000).toLocaleString("th-TH-u-ca-gregory", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })}
-                    {a.end != null && ` · หายเมื่อ ${new Date(a.end * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })} (${Math.max(1, Math.round((a.end - a.start) / 60))} นาที)`}
+                    {a.end == null ? "กำลังเกิดขึ้น · เริ่มเมื่อ " : ""}{new Date(a.start * 1000).toLocaleString("th-TH-u-ca-gregory", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })}
+                    {a.end != null && ` · สิ้นสุดเมื่อ ${new Date(a.end * 1000).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })} (${Math.max(1, Math.round((a.end - a.start) / 60))} นาที)`}
                   </div>
                 </div>
               </div>
