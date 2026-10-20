@@ -177,3 +177,8 @@ h2 { font-size: clamp(28px, 3.2vw, 38px); line-height: 1.25; font-weight: 800; l
 .notfound { min-height: 80vh; display: grid; place-content: center; text-align: center; gap: 8px; }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+
+/* variable names in tables stay whole (the table scrolls sideways on small screens instead) */
+.prose td code, .prose th code { white-space: nowrap; overflow-wrap: normal; }
+.prose td:first-child { white-space: nowrap; }
+.prose td:first-child code { display: inline-block; margin: 1px 0; }

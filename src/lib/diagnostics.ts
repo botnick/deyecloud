@@ -186,7 +186,7 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {},
     out.push({
       tone: tInv >= 75 ? "warn" : "info",
       title: `อินเวอร์เตอร์ร้อน ${f1(tInv)}°C`,
-      detail: tInv >= 75 ? "ร้อนมาก — เช็คพัดลมและการระบายอากาศ เครื่องอาจลดกำลังเองเพื่อป้องกัน" : "เริ่มร้อน ควรดูการระบายอากาศรอบเครื่อง",
+      detail: tInv >= 75 ? "ร้อนมาก — ตรวจเช็กพัดลมและการระบายอากาศ เครื่องอาจลดกำลังเองเพื่อป้องกัน" : "เริ่มร้อน ควรดูการระบายอากาศรอบเครื่อง",
     });
   }
   const tBat = n("Temperature- Battery");
@@ -228,7 +228,7 @@ export function analyzeDevice(dataList: DeviceData[], nominal: GridNominal = {},
       out.push({
         tone: "info",
         title: `สตริงแผงโซลาร์ผลิตไม่เท่ากัน (${Math.round(s.pct)}%)`,
-        detail: strings.map((x) => `PV${x.i} ${w(x.p)} W`).join(" · ") + ` — ${weak.join(", ")} ผลิตต่ำกว่าเพื่อน`,
+        detail: strings.map((x) => `PV${x.i} ${w(x.p)} W`).join(" · ") + ` — ${weak.join(", ")} ผลิตได้ต่ำกว่าสตริงอื่น`,
         sub: ["สาเหตุที่พบบ่อย: เงาบัง (ต้นไม้/เสา) แผงโซลาร์สกปรก หรือจำนวนแผงต่อสตริงไม่เท่ากัน"],
       });
     }

@@ -119,7 +119,7 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
   pf.ticks = inp.pollError ? pf.ticks + 1 : 0;
   if (inp.pollError && pf.ticks === 1) pf.since = now;
   st.poll_failed = pf;
-  conds.push({ key: "poll_failed", title: "ดึงข้อมูลจาก Deye ไม่ได้", detail: inp.pollError ? `ล้มเหลวติดกัน ${pf.ticks} รอบ · ${inp.pollError}` : "", active: pf.ticks >= CONSECUTIVE_TICKS });
+  conds.push({ key: "poll_failed", title: "ดึงข้อมูลจาก Deye ไม่ได้", detail: inp.pollError ? `ล้มเหลวติดต่อกัน ${pf.ticks} รอบ · ${inp.pollError}` : "", active: pf.ticks >= CONSECUTIVE_TICKS });
 
   if (dev && dev.availability) {
     // Deye's device timestamp can lag a few minutes behind the poll; a single
@@ -133,7 +133,7 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
     else off.ticks = isOff ? off.ticks + 1 : 0;
     if (isOff && !off.sent && off.ticks === 1) off.since = now;
     st.offline = off;
-    conds.push({ key: "offline", title: "อินเวอร์เตอร์ออฟไลน์", detail: `${dev.availability.reason || ""} · ติดกัน ${off.ticks} รอบ`, active: isOff && (off.sent || off.ticks >= CONSECUTIVE_TICKS) });
+    conds.push({ key: "offline", title: "อินเวอร์เตอร์ออฟไลน์", detail: `${dev.availability.reason || ""} · ติดต่อกัน ${off.ticks} รอบ`, active: isOff && (off.sent || off.ticks >= CONSECUTIVE_TICKS) });
   }
 
   if (l && inp.sun && inp.capacityW && inp.capacityW > 0) {
@@ -155,7 +155,7 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
     st.no_production = np;
     conds.push({
       key: "no_production", title: "ฟ้าโปร่งกลางวันแต่ไม่ผลิตไฟเลย",
-      detail: `ผลิต ${Math.round(Number(l.genPower))} W ทั้งที่ท้องฟ้าโปร่ง ในช่วงแดดแรง (${inp.sun.peakStart}–${inp.sun.peakEnd} ตัดหัวท้าย 1 ชม.) ติดกัน ${np.ticks} รอบ`,
+      detail: `ผลิต ${Math.round(Number(l.genPower))} W ทั้งที่ท้องฟ้าโปร่ง ในช่วงแดดแรง (${inp.sun.peakStart}–${inp.sun.peakEnd} ตัดหัวท้าย 1 ชม.) ติดต่อกัน ${np.ticks} รอบ`,
       // raise only on evidence; an open incident stays open until production is
       // actually observed (a dead array is still dead under a cloud, and at night)
       // Open-incident invariant (same as offline): once sent, it stays active
@@ -188,7 +188,7 @@ export async function evaluateAlerts(env: AlertEnv, inp: EvalInput): Promise<voi
   const seenAl = new Set<string>();
   for (const a of (dev && dev.alarms && dev.alarms.active) || []) {
     const k = "deye:" + a.alertId; seenAl.add(k);
-    conds.push({ key: k, title: `${a.level >= 2 ? "ข้อผิดพลาด" : "แจ้งเตือน"}จากอินเวอร์เตอร์: ${a.name}`, detail: `เริ่ม ${hhmm(a.start * 1000)}${a.impact ? " · กระทบการทำงาน" : ""}`, active: true });
+    conds.push({ key: k, title: `${a.level >= 2 ? "ข้อผิดพลาด" : "การแจ้งเตือน"}จากอินเวอร์เตอร์: ${a.name}`, detail: `เริ่ม ${hhmm(a.start * 1000)}${a.impact ? " · กระทบการทำงาน" : ""}`, active: true });
   }
   if (dev && dev.alarms) for (const k of Object.keys(st)) if (k.startsWith("deye:") && !seenAl.has(k)) conds.push({ key: k, title: st[k].title || k, detail: "", active: false });
 
