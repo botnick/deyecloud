@@ -164,12 +164,22 @@ export default function App() {
   useEffect(() => { stationParamRef.current = stations.length > 1 ? (selectedId ?? undefined) : undefined; }, [stations, selectedId]);
 
 
+  // Bumped on sign-out: any session check or data request started before it is stale and
+  // must not write state, the stored readings or the "signed in" flag back.
+  const authGenRef = useRef(0);
   useEffect(() => {
-    getSession().then((s) => { markAuthed(s.authed); setAuthed(s.authed); })
+    const gen = authGenRef.current;
+    getSession().then((s) => { if (gen !== authGenRef.current) return; markAuthed(s.authed); setAuthed(s.authed); })
       // no answer (offline / server error): keep a known device on its last data with the offline
       // banner; the PIN screen would only fail too. Unknown devices still get the PIN screen.
-      .catch(() => { if (wasAuthed() && loadCache().latest) { setAuthed(true); setOffline(true); } else setAuthed(false); });
-    const out = () => { markAuthed(false); setAuthed(false); };
+      .catch(() => { if (gen !== authGenRef.current) return; if (wasAuthed() && loadCache().latest) { setAuthed(true); setOffline(true); } else setAuthed(false); });
+    const out = () => {
+      authGenRef.current++;
+      markAuthed(false);
+      latestRef.current = null; weatherRef.current = null;
+      setLatest(null); setWeather(null);
+      setAuthed(false);
+    };
     window.addEventListener(SIGNED_OUT, out);
     return () => window.removeEventListener(SIGNED_OUT, out);
   }, []);
@@ -180,13 +190,19 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  // One request at a time; a refresh asked for meanwhile (e.g. the station just resolved) runs
+  // right after instead of being dropped. A reply for a station that is no longer selected, or
+  // from before a sign-out, is discarded.
   const inFlightRef = useRef(false);
-  const refresh = useCallback(async (spin: boolean) => {
-    if (inFlightRef.current) return; // a slow poll still running: don't stack another on top
+  const pendingRef = useRef<boolean | null>(null);
+  const refresh = useCallback(async (spin: boolean): Promise<void> => {
+    if (inFlightRef.current) { pendingRef.current = (pendingRef.current ?? false) || spin; return; }
     inFlightRef.current = true;
     if (spin) setSpinning(true);
+    const gen = authGenRef.current, station = stationParamRef.current;
     try {
-      const [l, w] = await Promise.all([getLatest(stationParamRef.current).catch(() => null), getWeather().catch(() => null)]);
+      const [l, w] = await Promise.all([getLatest(station).catch(() => null), getWeather().catch(() => null)]);
+      if (gen !== authGenRef.current || station !== stationParamRef.current) return;
       const okLatest = !!(l && !l.error);
       const newLatest = okLatest ? l : latestRef.current;
       const newWeather = w && !w.error ? w : weatherRef.current;
@@ -197,8 +213,13 @@ export default function App() {
     } finally {
       inFlightRef.current = false;
       if (spin) setTimeout(() => setSpinning(false), 500);
+      const again = pendingRef.current;
+      pendingRef.current = null;
+      if (again !== null && gen === authGenRef.current) void refreshRef.current(again);
     }
   }, []);
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
 
   // Manual refresh (header button): a visible 60s cooldown so it can't be
   // spammed — upstream data only changes every ~5 min anyway.
