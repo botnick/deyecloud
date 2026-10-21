@@ -18,12 +18,17 @@ export async function rememberGap(db: DB, from: number, to: number, now = Math.f
 
 // One cheap meta read per tick; at most hourly a primary-key range count and, while the gap
 // is still mostly empty, a refill of the days it touches. Returns what it did (for tests/logs).
-export async function retryGap(db: DB, now: number, refill: (fromDay: string, toDay: string) => Promise<{ samplesWritten: number } | null>) {
+// minFrom: the oldest second the refill can still reach (start of the oldest day the self-heal
+// window covers). Older parts of the gap are dropped, so neither the coverage count nor the
+// refill keeps asking for days that can no longer be fetched while the newest day is skipped.
+export async function retryGap(db: DB, now: number, refill: (fromDay: string, toDay: string) => Promise<{ samplesWritten: number } | null>, minFrom = 0) {
   const r = (await db.prepare("SELECT v FROM meta WHERE k='pending_gap'").first()) as { v: string } | null;
   if (!r) return "none";
   let g: PendingGap;
   try { g = JSON.parse(r.v); } catch { await drop(db); return "dropped"; }
   if (now - g.at < GAP_RETRY_S) return "wait";
+  if (g.from < minFrom) g = { ...g, from: minFrom };
+  if (g.to <= g.from) { await drop(db); return "dropped"; }
   const want = Math.max(1, Math.floor((g.to - g.from) / 300) - 1);
   const have = ((await db.prepare("SELECT COUNT(*) c FROM samples WHERE ts > ? AND ts < ?").bind(g.from, g.to).first()) as { c: number } | null)?.c || 0;
   if (have >= want * GAP_FILLED) { await drop(db); console.log(`gap retry: ${have}/${want} samples present, done`); return "filled"; }

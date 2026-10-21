@@ -54,3 +54,15 @@ describe("pending data gap", () => {
     expect(await retryGap(DB, gapTo + 2 * GAP_RETRY_S, async () => null)).toBe("refilled");
   });
 });
+
+describe("pending gap older than the refill window", () => {
+  it("retries only the reachable days, newest included", async () => {
+    const { DB } = mk();
+    const from = Date.parse("2026-10-19T12:00:00+07:00") / 1000, to = Date.parse("2026-10-21T12:00:00+07:00") / 1000;
+    await rememberGap(DB, from, to, to);
+    const asked: string[][] = [];
+    const minFrom = Date.parse("2026-10-20T00:00:00+07:00") / 1000; // 2-day window at 21 Oct
+    expect(await retryGap(DB, to + GAP_RETRY_S, async (a, b) => { asked.push([a, b]); return { samplesWritten: 0 }; }, minFrom)).toBe("refilled");
+    expect(asked).toEqual([["2026-10-20", "2026-10-21"]]);
+  });
+});

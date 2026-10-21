@@ -286,7 +286,8 @@ async function pollAndStore(env: Env) {
     // above can find nothing yet. Remember the gap and retry it hourly for 24 h (below).
     await rememberGap(env.DB, Math.max(gapFrom, Math.floor(Date.now() / 1000) - SELF_HEAL_MAX_DAYS * 86400), ts).catch(() => {});
   } else {
-    await retryGap(env.DB, ts, (from, to) => backfillRange(env, from, to, SELF_HEAL_MAX_DAYS)).catch((e) => console.error("gap retry failed", e));
+    const healFrom = Math.floor(Date.parse(bkkDayOf(Date.now() - (SELF_HEAL_MAX_DAYS - 1) * 86400000) + "T00:00:00+07:00") / 1000);
+    await retryGap(env.DB, ts, (from, to) => backfillRange(env, from, to, SELF_HEAL_MAX_DAYS), healFrom).catch((e) => console.error("gap retry failed", e));
   }
 
   // Full inverter telemetry — heavy JSON, captured ~every 15 min. Gate on elapsed
@@ -631,7 +632,9 @@ app.get("/api/_health", async (c) => {
   // every call that alone passes D1's free 5M reads/day. Counts are refreshed at most every 6 h.
   const s0 = await first<{ m: number }>("SELECT MAX(ts) m FROM samples");
   const d0 = await first<{ m: string }>("SELECT MAX(day) m FROM daily");
-  const ds0 = await first<{ m: number }>("SELECT MAX(ts) m FROM device_samples");
+  // device_samples' key is (sn, ts): MAX(ts) would scan the table. The cron records the last
+  // telemetry capture in meta, which is the same timestamp.
+  const ds0 = await first<{ m: number }>("SELECT CAST(v AS INTEGER) m FROM meta WHERE k='last_telemetry'");
   let counts: { at: number; s: number; d: number; ds: number } | null = null;
   try { const r = await first<{ v: string }>("SELECT v FROM meta WHERE k='row_counts'"); if (r) counts = JSON.parse(r.v); } catch {}
   if (!counts || now - counts.at > 6 * 3600) {
