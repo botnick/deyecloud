@@ -168,11 +168,6 @@ export default function App() {
   // must not write state, the stored readings or the "signed in" flag back.
   const authGenRef = useRef(0);
   useEffect(() => {
-    const gen = authGenRef.current;
-    getSession().then((s) => { if (gen !== authGenRef.current) return; markAuthed(s.authed); setAuthed(s.authed); })
-      // no answer (offline / server error): keep a known device on its last data with the offline
-      // banner; the PIN screen would only fail too. Unknown devices still get the PIN screen.
-      .catch(() => { if (gen !== authGenRef.current) return; if (wasAuthed() && loadCache().latest) { setAuthed(true); setOffline(true); } else setAuthed(false); });
     const out = () => {
       authGenRef.current++;
       markAuthed(false);
@@ -180,6 +175,13 @@ export default function App() {
       setLatest(null); setWeather(null);
       setAuthed(false);
     };
+    const gen = authGenRef.current;
+    // session=false goes through the same invalidation as a 401: requests started from the
+    // optimistic open must not write the old readings back after the PIN screen shows
+    getSession().then((s) => { if (gen !== authGenRef.current) return; if (!s.authed) { out(); return; } markAuthed(true); setAuthed(true); })
+      // no answer (offline / server error): keep a known device on its last data with the offline
+      // banner; the PIN screen would only fail too. Unknown devices still get the PIN screen.
+      .catch(() => { if (gen !== authGenRef.current) return; if (wasAuthed() && loadCache().latest) { setAuthed(true); setOffline(true); } else setAuthed(false); });
     window.addEventListener(SIGNED_OUT, out);
     return () => window.removeEventListener(SIGNED_OUT, out);
   }, []);
