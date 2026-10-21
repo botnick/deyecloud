@@ -1,6 +1,7 @@
 // Cloudflare Worker (Hono) — API for the Deye Open API behind a PIN, history in
 // D1, realtime polling on a cron schedule. The SPA is served via the ASSETS
 // binding (configured by @cloudflare/vite-plugin).
+import { rememberGap, retryGap } from "./gaps";
 import { Hono } from "hono";
 import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, dayItem, isAuthHold, isAuthEnvelope, stationAlerts, type DeyeAlert, bkkDay, DeyeNonJsonError, type Env } from "./deye";
 import { sunInfo } from "./sun";
@@ -281,6 +282,11 @@ async function pollAndStore(env: Env) {
     if (gapDay < earliest) console.warn(`self-heal: gap starts ${gapDay}, refilling only ${from}..${day}; run /api/_backfill?from=${gapDay} for the rest`);
     const r = await backfillRange(env, from, day, SELF_HEAL_MAX_DAYS).catch((e) => { console.error("self-heal backfill failed", e); return null; });
     if (r) console.log(`self-heal: refilled ${r.samplesWritten} samples over ${r.daysProcessed} day(s) after a ${Math.round((ts - gapFrom) / 60)}-min gap`);
+    // The logger often uploads its buffer minutes or hours after it reconnects, so the refill
+    // above can find nothing yet. Remember the gap and retry it hourly for 24 h (below).
+    await rememberGap(env.DB, Math.max(gapFrom, Math.floor(Date.now() / 1000) - SELF_HEAL_MAX_DAYS * 86400), ts).catch(() => {});
+  } else {
+    await retryGap(env.DB, ts, (from, to) => backfillRange(env, from, to, SELF_HEAL_MAX_DAYS)).catch((e) => console.error("gap retry failed", e));
   }
 
   // Full inverter telemetry — heavy JSON, captured ~every 15 min. Gate on elapsed
