@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Latest, Weather } from "../lib/api";
 import { fmtPower } from "../lib/format";
 import { condText, skyPhase, skyWx, type SkyPhase } from "../lib/weather";
-import type { Flow, HouseView } from "../three/view";
+import type { Flow, HouseView, LabelPos } from "../three/view";
 import type { FlowKey } from "../three/house";
 
 /* Home hero — a real-time 3D model of the solar house (three.js, loaded lazily) on a sky
@@ -24,7 +24,27 @@ function useClock() {
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 60_000); return () => clearInterval(id); }, []);
   return now;
 }
-const hasWebGL = () => { try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch { return false; } };
+// probe once per page load, then hand the probe's GL context straight back (browsers cap live contexts)
+let webglOk: boolean | null = null;
+const hasWebGL = () => {
+  if (webglOk !== null) return webglOk;
+  try {
+    const c = document.createElement("canvas");
+    const gl = (c.getContext("webgl2") || c.getContext("webgl")) as WebGLRenderingContext | null;
+    webglOk = !!gl;
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+  } catch { webglOk = false; }
+  return webglOk;
+};
+type Pin = { x: number; y: number; behind: boolean };
+// stick a label to its device: one compositor transform (no left/top layout), the trailing
+// translate is the stylesheet's "chip above a stem" offset that this inline transform replaces
+const pinTo = (el: HTMLDivElement, p: Pin, w: number, h: number) => {
+  // keep the whole chip inside the card (pole label near the edge)
+  const x = (Math.max(16, Math.min(84, p.x)) * w) / 100, y = (Math.max(34, p.y) * h) / 100;
+  el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, calc(-100% - 14px))`;
+  const op = p.behind ? "0.6" : "1"; if (el.style.opacity !== op) el.style.opacity = op;
+};
 
 export function HouseScene({ latest, weather, title, force }: { latest: Latest; weather: Weather | null; title?: string; force?: { phase?: SkyPhase } }) {
   const now = useClock();
@@ -59,6 +79,7 @@ export function HouseScene({ latest, weather, title, force }: { latest: Latest; 
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<HouseView | null>(null);
   const chips = useRef<Partial<Record<FlowKey, HTMLDivElement | null>>>({});
+  const pins = useRef<{ pos: LabelPos; w: number; h: number } | null>(null); // last projected label spots
   const [live3d, setLive3d] = useState(false);
   const flowsRef = useRef(flows); flowsRef.current = flows;
   const dimRef = useRef(dim); dimRef.current = dim;
@@ -71,14 +92,16 @@ export function HouseScene({ latest, weather, title, force }: { latest: Latest; 
         view.current = createHouseView(host.current, {
           night: dimRef.current,
           reducedMotion: !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
-          // pin each label to its device every frame (DOM writes, no React render)
-          onFrame: (pos) => {
-            for (const k of Object.keys(pos) as FlowKey[]) {
-              const el = chips.current[k]; if (!el) continue;
-              // keep the whole chip inside the card (pole label near the edge)
-              el.style.left = `${Math.max(16, Math.min(84, pos[k].x))}%`; el.style.top = `${Math.max(34, pos[k].y)}%`;
-              el.style.opacity = pos[k].behind ? "0.6" : "1";
-            }
+          // pin each label to its device when the camera moves (DOM writes, no React render)
+          onLabels: (pos, w, h) => {
+            pins.current = { pos, w, h };
+            for (const k of Object.keys(pos) as FlowKey[]) { const el = chips.current[k]; if (el) pinTo(el, pos[k], w, h); }
+          },
+          // GPU reset (low memory, driver crash): drop the 3D view, show the picture again
+          onContextLost: () => {
+            const v = view.current; view.current = null; pins.current = null; setLive3d(false);
+            for (const el of Object.values(chips.current)) if (el) { el.style.transform = ""; el.style.opacity = ""; }
+            setTimeout(() => v?.dispose(), 0);
           },
         });
         view.current.setFlows(flowsRef.current);
@@ -92,7 +115,8 @@ export function HouseScene({ latest, weather, title, force }: { latest: Latest; 
 
   const [skyTop, skyBot] = SKY[phase];
   const chip = (k: FlowKey, label: string, value: string, extra?: React.ReactNode) => (
-    <div ref={(el) => { chips.current[k] = el; }} className="hs-pin" style={{ left: `${POSTER[k][0]}%`, top: `${POSTER[k][1]}%` }}>
+    <div ref={(el) => { chips.current[k] = el; const p = pins.current; if (el && p && live3d) pinTo(el, p.pos[k], p.w, p.h); }} className="hs-pin"
+      style={live3d ? { left: 0, top: 0 } : { left: `${POSTER[k][0]}%`, top: `${POSTER[k][1]}%` }}>
       <div className="hs-chip">
         <span className="dot" style={{ background: k === "grid" && gridOff ? "#94a3b8" : COL[k] }} />
         <span className="txt"><span className="lb">{label}</span><span className="vl">{value}</span></span>

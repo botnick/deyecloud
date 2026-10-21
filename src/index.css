@@ -329,7 +329,7 @@ textarea {
 .hscene .hs-3d { position: absolute; inset: 0; cursor: grab; }
 .hscene .hs-3d:active { cursor: grabbing; }
 /* a label pinned to its device: the chip floats above a short stem ending on the point */
-.hscene .hs-pin { position: absolute; z-index: 1; transform: translate(-50%, calc(-100% - 14px)); pointer-events: none; transition: opacity .25s ease; will-change: left, top; }
+.hscene .hs-pin { position: absolute; z-index: 1; transform: translate(-50%, calc(-100% - 14px)); pointer-events: none; transition: opacity .25s ease; will-change: transform; }
 .hscene .hs-pin .hs-chip { padding: 5px 9px 5px 8px; min-width: 0; border-radius: 13px; gap: 6px; }
 .hscene .hs-pin .hs-chip .lb { font-size: 11px; }
 .hscene .hs-pin .hs-chip .vl { font-size: 15px; }
