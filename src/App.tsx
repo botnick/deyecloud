@@ -170,6 +170,7 @@ export default function App() {
   useEffect(() => {
     const out = () => {
       authGenRef.current++;
+      pendingRef.current = null;
       markAuthed(false);
       latestRef.current = null; weatherRef.current = null;
       setLatest(null); setWeather(null);
@@ -195,13 +196,20 @@ export default function App() {
   // One request at a time; a refresh asked for meanwhile (e.g. the station just resolved) runs
   // right after instead of being dropped. A reply for a station that is no longer selected, or
   // from before a sign-out, is discarded.
-  const inFlightRef = useRef(false);
-  const pendingRef = useRef<boolean | null>(null);
+  // Both are tagged with the sign-in generation: a request left over from before a sign-out
+  // neither blocks nor drains the queue of the new session.
+  const inFlightRef = useRef<{ gen: number } | null>(null);
+  const pendingRef = useRef<{ gen: number; spin: boolean } | null>(null);
   const refresh = useCallback(async (spin: boolean): Promise<void> => {
-    if (inFlightRef.current) { pendingRef.current = (pendingRef.current ?? false) || spin; return; }
-    inFlightRef.current = true;
-    if (spin) setSpinning(true);
     const gen = authGenRef.current, station = stationParamRef.current;
+    if (inFlightRef.current && inFlightRef.current.gen === gen) {
+      const p = pendingRef.current;
+      pendingRef.current = { gen, spin: (p && p.gen === gen && p.spin) || spin };
+      return;
+    }
+    const me = { gen };
+    inFlightRef.current = me;
+    if (spin) setSpinning(true);
     try {
       const [l, w] = await Promise.all([getLatest(station).catch(() => null), getWeather().catch(() => null)]);
       if (gen !== authGenRef.current || station !== stationParamRef.current) return;
@@ -213,11 +221,11 @@ export default function App() {
       setOffline(!okLatest); // live data unreachable → show the banner, keep last-known
       saveCache({ latest: newLatest, weather: newWeather });
     } finally {
-      inFlightRef.current = false;
+      if (inFlightRef.current === me) inFlightRef.current = null;
       if (spin) setTimeout(() => setSpinning(false), 500);
-      const again = pendingRef.current;
-      pendingRef.current = null;
-      if (again !== null && gen === authGenRef.current) void refreshRef.current(again);
+      const p = pendingRef.current;
+      if (p && p.gen !== authGenRef.current) pendingRef.current = null; // queued before a sign-out
+      else if (p && !inFlightRef.current) { pendingRef.current = null; void refreshRef.current(p.spin); }
     }
   }, []);
   const refreshRef = useRef(refresh);
