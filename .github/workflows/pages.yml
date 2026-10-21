@@ -7,27 +7,33 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+# Read-only by default; only the publish job may write (to gh-pages). Actions are pinned by
+# commit SHA and the checkout token is not left in git config, so a compromised dependency
+# installed during the build can't push to main (which deploys the app).
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: pages
   cancel-in-progress: true
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           fetch-depth: 0 # per-page "last updated" dates come from git history
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - name: Build site
         run: |
           mkdir -p "$RUNNER_TEMP/site-tools"
-          npm install --prefix "$RUNNER_TEMP/site-tools" --no-audit --no-fund marked@15 sharp@0.34
+          npm install --prefix "$RUNNER_TEMP/site-tools" --no-audit --no-fund --ignore-scripts marked@15 sharp@0.34
           SITE_TOOLS="$RUNNER_TEMP/site-tools" node site/build.mjs
-      - uses: peaceiris/actions-gh-pages@v4
+      - uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./site/_site

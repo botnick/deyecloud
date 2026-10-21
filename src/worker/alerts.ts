@@ -76,7 +76,7 @@ export async function notify(env: AlertEnv, text: string): Promise<{ webhook?: n
   if (env.ALERT_WEBHOOK_URL) {
     jobs.push(fetch(env.ALERT_WEBHOOK_URL, {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ content: text.slice(0, 1900), username: "Solar Monitor" }),
+      body: JSON.stringify({ content: text.slice(0, 1900), username: "Solar Monitor", allowed_mentions: { parse: [] } }), // never @everyone from a station or alarm name
       signal: AbortSignal.timeout(10000),
     }).then((r) => { out.webhook = r.status; }).catch(() => { out.webhook = 0; }));
   }

@@ -39,8 +39,9 @@ export default defineConfig({
       },
       workbox: {
         // Precache everything needed to render fully offline — including the bundled
-        // Meteocons weather SVGs and any fonts/images (default only globs js/css/html).
+        // fonts/images too (default only globs js/css/html)
         globPatterns: ["**/*.{js,css,html,svg,webp,png,ico,woff,woff2}"],
+        globIgnores: ["pwa-512.png", "maskable-512.png"], // install icons: the browser fetches them itself; not needed offline (−184 KB on first visit)
         // Never serve the SPA shell for API calls; let them hit the Worker.
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
