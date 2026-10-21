@@ -32,7 +32,8 @@ async function api<T>(path: string, opts?: RequestInit): Promise<T> {
   // Network failure rejects the fetch itself; a 5xx means our Worker reached
   // the client but Deye was unreachable. Both surface as a thrown error so the
   // UI can show the offline banner. 4xx (e.g. login 401) passes through as JSON.
-  const r = await fetch(path, { credentials: "same-origin", ...opts });
+  // 12 s cap: on a weak signal a request can otherwise hang for minutes with no offline banner
+  const r = await fetch(path, { credentials: "same-origin", signal: AbortSignal.timeout(12000), ...opts });
   if (r.status >= 500) throw new ApiError(r.status);
   // signed out (e.g. every session revoked) while the app was open → back to the PIN screen
   if (r.status === 401 && path !== "/api/login") window.dispatchEvent(new Event(SIGNED_OUT));

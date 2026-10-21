@@ -81,10 +81,21 @@ function loadCache(): { latest: Latest | null; weather: Weather | null } {
 function saveCache(d: { latest: Latest | null; weather: Weather | null }) {
   try { localStorage.setItem("deye_cache", JSON.stringify(d)); } catch {}
 }
+const AUTHED_KEY = "deye_was_authed";
+function wasAuthed(): boolean { try { return localStorage.getItem(AUTHED_KEY) === "1"; } catch { return false; } }
+function markAuthed(on: boolean) {
+  try {
+    if (on) localStorage.setItem(AUTHED_KEY, "1");
+    else { localStorage.removeItem(AUTHED_KEY); localStorage.removeItem("deye_cache"); } // signed out: don't keep readings on the device
+  } catch {}
+}
 
 export default function App() {
   const cached = loadCache();
-  const [authed, setAuthed] = useState<boolean | null>(null);
+  // Signed in before on this device: open straight onto the last-known data instead of waiting
+  // for /api/session (and instead of the PIN screen when offline). A revoked session still
+  // lands on the PIN screen: the session check or the first data call answers 401.
+  const [authed, setAuthed] = useState<boolean | null>(() => (wasAuthed() && cached.latest ? true : null));
   const [view, setViewState] = useState<View>(viewFromPath());
   const [devMode] = useState(() => {
     try {
@@ -154,8 +165,11 @@ export default function App() {
 
 
   useEffect(() => {
-    getSession().then((s) => setAuthed(s.authed)).catch(() => setAuthed(false));
-    const out = () => setAuthed(false);
+    getSession().then((s) => { markAuthed(s.authed); setAuthed(s.authed); })
+      // no answer (offline / server error): keep a known device on its last data with the offline
+      // banner; the PIN screen would only fail too. Unknown devices still get the PIN screen.
+      .catch(() => { if (wasAuthed() && loadCache().latest) { setAuthed(true); setOffline(true); } else setAuthed(false); });
+    const out = () => { markAuthed(false); setAuthed(false); };
     window.addEventListener(SIGNED_OUT, out);
     return () => window.removeEventListener(SIGNED_OUT, out);
   }, []);
@@ -166,7 +180,10 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  const inFlightRef = useRef(false);
   const refresh = useCallback(async (spin: boolean) => {
+    if (inFlightRef.current) return; // a slow poll still running: don't stack another on top
+    inFlightRef.current = true;
     if (spin) setSpinning(true);
     try {
       const [l, w] = await Promise.all([getLatest(stationParamRef.current).catch(() => null), getWeather().catch(() => null)]);
@@ -178,6 +195,7 @@ export default function App() {
       setOffline(!okLatest); // live data unreachable → show the banner, keep last-known
       saveCache({ latest: newLatest, weather: newWeather });
     } finally {
+      inFlightRef.current = false;
       if (spin) setTimeout(() => setSpinning(false), 500);
     }
   }, []);
@@ -248,7 +266,7 @@ export default function App() {
     return <Splash />;
   }
   if (!authed) {
-    return <PinGate onOk={() => { setAuthed(true); }} />;
+    return <PinGate onOk={() => { markAuthed(true); setAuthed(true); }} />;
   }
 
   return (
