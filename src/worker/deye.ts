@@ -19,6 +19,7 @@ export interface Env {
   TMD_TOKEN?: string;
   CONTACT_EMAIL?: string;
   APP_PIN?: string;
+  SESSION_SECRET?: string; // optional cookie-signing secret (falls back to DEYE_APP_SECRET)
   // Grid nominals for the health checks. Optional and deliberately NOT defaulted:
   // they must describe the site independently of what the inverter is measuring,
   // otherwise a site-wide sag redefines "normal" and hides itself. Unset simply

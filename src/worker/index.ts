@@ -76,7 +76,7 @@ async function ensureSchema(env: Env) {
 // if the cookie lingers, and (b) it is not one constant string per PIN. Changing
 // APP_PIN revokes everything at once; so does bumping the session epoch (meta
 // 'auth_epoch', POST /api/_logout_all) without touching the PIN. Compared in constant time.
-const AUTH_SCHEME = "deye-monitor-v3:";
+const AUTH_SCHEME = "deye-monitor-v4:";
 async function hmacHex(secret: string, msg: string): Promise<string> {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg));
@@ -88,8 +88,19 @@ function timingSafeEq(a: string, b: string): boolean {
   for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return d === 0;
 }
+// Cookie signing key. Never the PIN itself: a short PIN as the HMAC key lets anyone holding one
+// cookie brute-force the PIN offline. The key comes from a long server-side secret
+// (SESSION_SECRET if set, else the Deye app secret), mixed with the PIN so changing the PIN
+// still signs everyone out.
+let signKeyMemo: { src: string; key: string } | null = null;
+async function signKey(env: Env): Promise<string> {
+  const base = env.SESSION_SECRET || env.DEYE_APP_SECRET || "deye-monitor-no-secret"; // Deye cannot work without its secret; this only keeps tests and half-configured installs from crashing
+  const src = base + "\u0000" + (env.APP_PIN || "");
+  if (signKeyMemo?.src !== src) signKeyMemo = { src, key: await hmacHex(base, "deye-session-key|" + (env.APP_PIN || "")) };
+  return signKeyMemo.key;
+}
 async function authToken(env: Env, epoch: number, iat = Math.floor(Date.now() / 1000)): Promise<string> {
-  return `${iat}.${epoch}.${await hmacHex(env.APP_PIN || "", AUTH_SCHEME + iat + "." + epoch)}`;
+  return `${iat}.${epoch}.${await hmacHex(await signKey(env), AUTH_SCHEME + iat + "." + epoch)}`;
 }
 function getCookie(req: Request, name: string): string | null {
   const m = (req.headers.get("Cookie") || "").match(new RegExp("(?:^|; )" + name + "=([^;]+)"));
@@ -609,9 +620,20 @@ app.get("/api/_health", async (c) => {
   await ensureSchema(env);
   const now = Math.floor(Date.now() / 1000);
   const first = async <T = any>(sql: string) => (await env.DB.prepare(sql).first()) as T | null;
-  const s = await first<{ c: number; m: number }>("SELECT COUNT(*) c, MAX(ts) m FROM samples");
-  const d = await first<{ c: number; m: string }>("SELECT COUNT(*) c, MAX(day) m FROM daily");
-  const ds = await first<{ c: number; m: number }>("SELECT COUNT(*) c, MAX(ts) m FROM device_samples");
+  // MAX on the primary key reads one row. COUNT(*) reads the whole table (~45k rows for the
+  // three tables), and this route is public and meant for 5-minute uptime monitors: counted
+  // every call that alone passes D1's free 5M reads/day. Counts are refreshed at most every 6 h.
+  const s0 = await first<{ m: number }>("SELECT MAX(ts) m FROM samples");
+  const d0 = await first<{ m: string }>("SELECT MAX(day) m FROM daily");
+  const ds0 = await first<{ m: number }>("SELECT MAX(ts) m FROM device_samples");
+  let counts: { at: number; s: number; d: number; ds: number } | null = null;
+  try { const r = await first<{ v: string }>("SELECT v FROM meta WHERE k='row_counts'"); if (r) counts = JSON.parse(r.v); } catch {}
+  if (!counts || now - counts.at > 6 * 3600) {
+    const n = async (t: string) => (await first<{ c: number }>(`SELECT COUNT(*) c FROM ${t}`))?.c || 0;
+    counts = { at: now, s: await n("samples"), d: await n("daily"), ds: await n("device_samples") };
+    await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('row_counts',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify(counts)).run().catch(() => {});
+  }
+  const s = { c: counts.s, m: s0?.m || 0 }, d = { c: counts.d, m: d0?.m || null }, ds = { c: counts.ds, m: ds0?.m || 0 };
   const login = await loginStatus(env).catch(() => null);
   const pe = await first<{ v: string }>("SELECT v FROM meta WHERE k='last_poll_error'");
   let lastPollError: { at: number; msg: string } | null = null;
@@ -760,6 +782,18 @@ async function evaluatedForecastRows(env: Env, days: number) {
 }
 async function forecastModel(env: Env) {
   if (memModel && Date.now() - memModel.at < 30 * 60 * 1000) return memModel.m;
+  // Building the model scans every daylight sample of the last 120 days (~26k rows). The
+  // per-isolate memo above is lost on every cold start, and the cron runs every 5 min, so the
+  // model is also kept in meta for 6 h (it only changes once a day, when a new day is judged).
+  const today = bkkDayOf(Date.now());
+  try {
+    const r = (await env.DB.prepare("SELECT v FROM meta WHERE k='forecast_model'").first()) as { v: string } | null;
+    const p = r ? JSON.parse(r.v) : null;
+    if (p && p.day === today && Date.now() - p.at < 6 * 3600 * 1000 && p.m) {
+      memModel = { at: Date.now(), m: p.m };
+      return memModel.m;
+    }
+  } catch {}
   let capKw = 0, calibDays = 0;
   try {
     const sm = await getStationMeta(env);
@@ -781,6 +815,8 @@ async function forecastModel(env: Env) {
     sky = l.sky; skyDays = l.days;
   } catch (e) { console.warn("sky learning skipped", (e as Error).message); }
   memModel = { at: Date.now(), m: { capKw, calibDays, sky, skyDays } };
+  await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('forecast_model',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
+    .bind(JSON.stringify({ at: memModel.at, day: today, m: memModel.m })).run().catch(() => {});
   return memModel.m;
 }
 // Clear-sky PSH for the 15th of each month at the station — the site's own
