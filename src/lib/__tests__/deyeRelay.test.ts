@@ -7,7 +7,7 @@ function fakeDb() {
     bind: (...a: any[]) => stmt(sql, a),
     first: async () => (/SELECT v FROM meta/.test(sql) && meta.has(args[0]) ? { v: meta.get(args[0]) } : null),
     run: async () => {
-      if (/INSERT INTO meta/.test(sql)) { const m = /VALUES \('([a-z_]+)',\s*\?\)/.exec(sql); m ? meta.set(m[1], String(args[0])) : meta.set(args[0], String(args[1])); }
+      if (/INSERT INTO meta/.test(sql)) { const m = /VALUES \('([a-z_]+)',\s*\?\)/.exec(sql); if (m) meta.set(m[1], String(args[0])); else meta.set(args[0], String(args[1])); }
       return {};
     },
   });

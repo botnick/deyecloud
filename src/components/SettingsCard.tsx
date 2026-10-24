@@ -21,7 +21,7 @@ function Field({ label, hint, value, placeholder, onChange }: {
   );
 }
 
-export function SettingsCard({ settings, raw, onSave }: {
+export function SettingsCard({ settings: _settings, raw, onSave }: {
   settings: Settings;
   raw: RawSettings;
   onSave: (patch: RawSettings) => Promise<void> | void;

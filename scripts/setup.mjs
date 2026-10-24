@@ -31,7 +31,7 @@ ok("ล็อกอิน Cloudflare แล้ว");
 
 // 2) D1 database — find or create, then write the real id into wrangler.jsonc -
 let dbId;
-let out = "";
+let out;
 try { out = cap(`${W} d1 info ${DB_NAME}`); } catch { out = ""; }
 let m = out.match(UUID);
 if (m && m[0] !== PLACEHOLDER) {

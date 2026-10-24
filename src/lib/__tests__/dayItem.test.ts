@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-// @ts-ignore — node:sqlite (Node ≥22) has no type declarations in this project
+// @ts-expect-error — node:sqlite (Node ≥22) has no type declarations in this project
 import { DatabaseSync } from "node:sqlite";
-// @ts-ignore — no node type declarations in this project
+// @ts-expect-error — no node type declarations in this project
 import { readFileSync } from "node:fs";
 import { dayItem } from "../../worker/deye";
 

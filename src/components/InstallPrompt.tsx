@@ -14,7 +14,6 @@ const isIPad = () =>
 const isIOS = () => /iphone|ipod/i.test(ua()) || isIPad();
 const isMacSafari = () =>
   /Mac/.test(navigator.platform) && !isIPad() && /safari/i.test(ua()) && !/chrome|chromium|crios|edg|fxios|android/i.test(ua());
-const isFirefox = () => /firefox|fxios/i.test(ua());
 const isMobile = () => /android|iphone|ipad|ipod|mobile/i.test(ua()) || navigator.maxTouchPoints > 1;
 
 // One adaptive copy per platform. `step` = manual instruction (no one-tap button).

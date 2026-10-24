@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-// @ts-ignore — node:sqlite (Node ≥22) has no type declarations in this project
+// @ts-expect-error — node:sqlite (Node ≥22) has no type declarations in this project
 import { DatabaseSync } from "node:sqlite";
 
 // Real Worker app over an in-memory SQLite stand-in for D1 (auth paths only).

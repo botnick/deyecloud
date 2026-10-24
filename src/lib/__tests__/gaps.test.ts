@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-// @ts-ignore — node:sqlite (Node ≥22) has no type declarations in this project
+// @ts-expect-error — node:sqlite (Node ≥22) has no type declarations in this project
 import { DatabaseSync } from "node:sqlite";
 import { rememberGap, retryGap, GAP_RETRY_S, GAP_GIVE_UP_S } from "../../worker/gaps";
 

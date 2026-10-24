@@ -32,9 +32,7 @@ const SITE = (process.env.SITE_URL || `https://${owner}.github.io/${repo}/`).rep
 const BASE = new URL(SITE).pathname; // e.g. /deyecloud/
 const head = { date: git("log", "-1", "--format=%cI"), sha: git("log", "-1", "--format=%h"), full: git("log", "-1", "--format=%H") };
 const fileDate = (f) => git("log", "-1", "--format=%cI", "--", f) || head.date;
-const branch = process.env.GITHUB_REF_NAME || git("rev-parse", "--abbrev-ref", "HEAD") || "main";
 const blob = (f) => `${REPO_URL}/blob/main/${f}`;
-const ver = (name) => { const v = (pkg.dependencies || {})[name] || (pkg.devDependencies || {})[name]; return v ? v.replace(/^[^\d]*/, "").split(".")[0] : null; };
 
 // ---------- markdown helpers ----------
 function splitBy(md, level) {
