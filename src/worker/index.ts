@@ -657,6 +657,10 @@ app.get("/api/_health", async (c) => {
   const frozenSince = fzRow ? Number(fzRow.v) : null;
   const healthy = Math.max(lastTs, lastPollOk) > 0 && now - Math.max(lastTs, lastPollOk) <= STALE_AFTER_S;
   const loginBad = !!login && login.fails > 0;
+  // The route is public (uptime monitors); upstream error text can carry account or endpoint
+  // details, so only a signed-in caller gets it. Everyone else sees that an error happened.
+  const showErr = await isAuthed(c.req.raw, env).catch(() => false);
+  const errMsg = (m: string | null | undefined) => (m == null ? m : showErr ? m : "(เข้าสู่ระบบเพื่อดูรายละเอียด)");
   const payload = {
     // ok mirrors cronHealthy so uptime monitors can key on status code / `ok`.
     ok: healthy,
@@ -666,17 +670,17 @@ app.get("/api/_health", async (c) => {
     lastPollOk: lastPollOk ? new Date(lastPollOk * 1000).toISOString() : null,
     // logger offline: Deye keeps re-serving one reading; the cron polls but stores nothing
     inverterFrozenSince: frozenSince ? new Date(frozenSince * 1000).toISOString() : null,
-    lastPollError: lastPollError && { ...lastPollError, time: new Date(lastPollError.at * 1000).toISOString() },
+    lastPollError: lastPollError && { ...lastPollError, msg: errMsg(lastPollError.msg), time: new Date(lastPollError.at * 1000).toISOString() },
     summary: lastTs
       ? `cron เขียนล่าสุด ${ageMin} นาทีที่แล้ว · ${(s?.c || 0).toLocaleString()} แถว · ${healthy ? "ปกติ ✅" : "หยุด ⚠️"}` +
         (frozenSince ? ` · อินเวอร์เตอร์ไม่ส่งข้อมูลใหม่ตั้งแต่ ${new Date(frozenSince * 1000).toISOString()} (ไม่บันทึกค่าซ้ำ) 📡` : "") +
-        (lastPollError ? ` · error ล่าสุด: ${lastPollError.msg}` : "") +
-        (loginBad ? ` · ล็อกอิน Deye ล้มเหลว ${login!.fails} ครั้ง (${login!.msg}) ⛔` : "")
+        (lastPollError ? ` · error ล่าสุด: ${errMsg(lastPollError.msg)}` : "") +
+        (loginBad ? ` · ล็อกอิน Deye ล้มเหลว ${login!.fails} ครั้ง (${errMsg(login!.msg)}) ⛔` : "")
       : "ยังไม่มีข้อมูล cron",
     // Deye login guard — a wrong secret is retried with an exponential hold, never
     // every tick, so it can't walk the account's lockout counter down.
     deyeLogin: login && {
-      ok: !loginBad, fails: login.fails, lastError: login.msg,
+      ok: !loginBad, fails: login.fails, lastError: errMsg(login.msg),
       holdUntil: login.holdUntil ? new Date(login.holdUntil * 1000).toISOString() : null,
     },
     samples: { count: s?.c || 0, lastTs, lastTime: lastTs ? new Date(lastTs * 1000).toISOString() : null, ageMinutes: ageMin },

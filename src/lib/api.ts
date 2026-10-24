@@ -28,7 +28,11 @@ export class ApiError extends Error {
   constructor(public status: number) { super("HTTP " + status); }
 }
 export const SIGNED_OUT = "deye:signed-out";
+// Bumped by every successful PIN login. A request started before it that comes back 401
+// carries the old session's answer, so it must not sign the new session out.
+let authEpoch = 0;
 async function api<T>(path: string, opts?: RequestInit): Promise<T> {
+  const epoch = authEpoch;
   // Network failure rejects the fetch itself; a 5xx means our Worker reached
   // the client but Deye was unreachable. Both surface as a thrown error so the
   // UI can show the offline banner. 4xx (e.g. login 401) passes through as JSON.
@@ -36,8 +40,10 @@ async function api<T>(path: string, opts?: RequestInit): Promise<T> {
   const r = await fetch(path, { credentials: "same-origin", signal: AbortSignal.timeout(12000), ...opts });
   if (r.status >= 500) throw new ApiError(r.status);
   // signed out (e.g. every session revoked) while the app was open → back to the PIN screen
-  if (r.status === 401 && path !== "/api/login") window.dispatchEvent(new Event(SIGNED_OUT));
-  return r.json() as Promise<T>;
+  if (r.status === 401 && path !== "/api/login" && epoch === authEpoch) window.dispatchEvent(new Event(SIGNED_OUT));
+  const body = (await r.json()) as T;
+  if (path === "/api/login" && r.ok && (body as { ok?: boolean }).ok) authEpoch++;
+  return body;
 }
 
 export const getSession = () => api<{ authed: boolean }>("/api/session");

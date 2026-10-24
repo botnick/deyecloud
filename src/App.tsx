@@ -297,7 +297,7 @@ export default function App() {
     return <Splash />;
   }
   if (!authed) {
-    return <PinGate onOk={() => { markAuthed(true); setAuthed(true); }} />;
+    return <PinGate onOk={() => { authGenRef.current++; markAuthed(true); setAuthed(true); }} />;
   }
 
   return (
