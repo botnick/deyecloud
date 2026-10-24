@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>โซลาร์มอนิเตอร์ — แอปดูระบบโซลาร์เซลล์ Deye แบบเรียลไทม์ ภาษาไทย</title>
+<meta name="description" content="แอปดูระบบโซลาร์เซลล์ Deye แบบเรียลไทม์ ภาษาไทย ผลิตไฟ · ใช้ไฟ · แบตเตอรี่ · ซื้อ-ขายไฟ ครบในแอปเดียว — ติดตั้งเป็นแอปบนมือถือ รันฟรีบน Cloudflare ทุน 0 บาท">
+<link rel="canonical" href="https://botnick.github.io/deyecloud/">
+<link rel="alternate" hreflang="th" href="https://botnick.github.io/deyecloud/">
+<link rel="alternate" hreflang="en" href="https://botnick.github.io/deyecloud/en/">
+<link rel="alternate" hreflang="x-default" href="https://botnick.github.io/deyecloud/">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#f6f5f1">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="โซลาร์มอนิเตอร์">
+<meta property="og:locale" content="th_TH">
+<meta property="og:title" content="โซลาร์มอนิเตอร์ — แอปดูระบบโซลาร์เซลล์ Deye แบบเรียลไทม์ ภาษาไทย">
+<meta property="og:description" content="แอปดูระบบโซลาร์เซลล์ Deye แบบเรียลไทม์ ภาษาไทย ผลิตไฟ · ใช้ไฟ · แบตเตอรี่ · ซื้อ-ขายไฟ ครบในแอปเดียว — ติดตั้งเป็นแอปบนมือถือ รันฟรีบน Cloudflare ทุน 0 บาท">
+<meta property="og:url" content="https://botnick.github.io/deyecloud/">
+<meta property="og:image" content="https://botnick.github.io/deyecloud/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="alternate" type="text/plain" title="llms.txt" href="https://botnick.github.io/deyecloud/llms.txt">
+<link rel="sitemap" type="application/xml" href="https://botnick.github.io/deyecloud/sitemap.xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700;800&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700;800&display=swap"></noscript>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","@id":"https://botnick.github.io/deyecloud/#app","name":"โซลาร์มอนิเตอร์ · Deye Solar Monitor","alternateName":["โซลาร์มอนิเตอร์","Deye Solar Monitor","deyecloud"],"description":"แอปดูระบบโซลาร์เซลล์ Deye แบบเรียลไทม์ ภาษาไทย ผลิตไฟ · ใช้ไฟ · แบตเตอรี่ · ซื้อ-ขายไฟ ครบในแอปเดียว — ติดตั้งเป็นแอปบนมือถือ รันฟรีบน Cloudflare ทุน 0 บาท","applicationCategory":"UtilitiesApplication","operatingSystem":"Web, Android, iOS (PWA)","inLanguage":"th","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"THB"},"softwareVersion":"1.0.0","dateModified":"2026-10-24T07:54:25+07:00","url":"https://botnick.github.io/deyecloud/","codeRepository":"https://github.com/botnick/deyecloud","downloadUrl":"https://github.com/botnick/deyecloud","screenshot":"https://botnick.github.io/deyecloud/og.jpg","featureList":["หน้าหลัก","แบตเตอรี่ตอนนี้","วันนี้","รายละเอียดเครื่อง","หลายสถานี","พยากรณ์ที่เรียนรู้จากผลจริง","อากาศ","สุขภาพแบตเตอรี่ (วัดจริง)","ย้อนหลัง + ภาพรวมทั้งปี","คำแนะนำอัตโนมัติ","เทียบ + ส่งออก","แจ้งเตือนออกนอกแอป","ไม่บันทึกค่าปลอม","แถบสถานะชัดเจน","ติดตั้งเป็นแอป (PWA)"],"author":{"@type":"Person","name":"botnick","url":"https://github.com/botnick"}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","inLanguage":"th","mainEntity":[{"@type":"Question","name":"โซลาร์มอนิเตอร์คืออะไร","acceptedAnswer":{"@type":"Answer","text":"แอปดูระบบโซลาร์เซลล์ที่ใช้อินเวอร์เตอร์ Deye แบบเรียลไทม์เป็นภาษาไทย ดึงข้อมูลจาก Deye Cloud Open API แล้วแสดงผลิตไฟ ใช้ไฟ แบตเตอรี่ และซื้อ-ขายไฟ พร้อมพยากรณ์และสรุปเงินที่ประหยัด ติดตั้งเป็นแอปบนมือถือได้"}},{"@type":"Question","name":"ต้องเสียเงินไหม","acceptedAnswer":{"@type":"Answer","text":"ไม่ต้อง รันบน Cloudflare Workers + D1 ในโควตาฟรี เก็บข้อมูลทุก 5 นาที (วันละ 288 ครั้ง) ต่ำกว่าลิมิตฟรี 100,000 ครั้งต่อวันมาก"}},{"@type":"Question","name":"ใช้กับอินเวอร์เตอร์รุ่นไหนได้บ้าง","acceptedAnswer":{"@type":"Answer","text":"ระบบที่ส่งข้อมูลขึ้น Deye Cloud ทั้ง on-grid, hybrid และ off-grid แอปปรับคำแนะนำตามชนิดระบบให้เอง ต้องมีบัญชีนักพัฒนาที่ developer.deyecloud.com"}},{"@type":"Question","name":"ต่างจากแอป Deye Cloud อย่างไร","acceptedAnswer":{"@type":"Answer","text":"ภาษาไทยทั้งแอป ตัวเลขใหญ่อ่านง่าย มีพยากรณ์ที่เรียนรู้จากบ้านคุณ สุขภาพแบตเตอรี่จากการวัดจริง สรุปเงินที่ประหยัดรายเดือน แจ้งเตือน Discord / Telegram และคนในบ้านดูได้ด้วย PIN โดยไม่ต้องรู้รหัสบัญชี Deye"}},{"@type":"Question","name":"ข้อมูลและรหัสผ่านปลอดภัยไหม","acceptedAnswer":{"@type":"Answer","text":"กุญแจและรหัสบัญชี Deye เก็บเป็นค่าลับฝั่งเซิร์ฟเวอร์ ไม่ส่งไปที่มือถือ เข้าแอปด้วย PIN หน้าแอปตั้งค่าไม่ให้ขึ้นในผลค้นหา ประวัติข้อมูลทั้งหมดเก็บในบัญชี Cloudflare ของคุณเอง · ถ้าตั้ง DEYE_RELAY_URL ไว้ คำขอที่ส่งไป Deye (รวมคำขอโทเคนที่มีอีเมลและรหัสผ่านแบบแฮช) จะผ่านเครื่อง relay นั้นด้วย จึงควรใช้ relay ของคุณเองหรือของคนที่ไว้ใจเท่านั้น ไม่ใช้ก็ลบบรรทัดนี้ได้"}}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","url":"https://botnick.github.io/deyecloud/","name":"โซลาร์มอนิเตอร์","inLanguage":"th"}</script>
+<style>
+:root {
+--paper: #f6f5f1; --surface: #fff; --ink: #17161a; --ink-2: #4f4c55; --ink-3: #66626c;
+--line: #e2dfd7; --line-2: #ecebe6; --accent: #ffcc00; --link: #7a0aa8;
+--pv: #f5a623; --home: #0d4add; --grid: #8b5cf6; --batt: #18a673;
+--font: "Sarabun", "Leelawadee UI", "Thonburi", "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+--mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 76px; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+body { margin: 0; font: 17px/1.7 var(--font); color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--link); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; border-radius: 6px; }
+code { overflow-wrap: anywhere; font: 0.86em/1.4 var(--mono); background: #eeece5; border-radius: 5px; padding: 0.12em 0.4em; }
+.wrap { width: min(1140px, 100% - 40px); margin-inline: auto; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: 16px; top: 12px; z-index: 20; background: var(--surface); padding: 8px 14px; border-radius: 8px; }
+.bar { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.bar-in { display: flex; align-items: center; gap: 20px; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; color: var(--ink); text-decoration: none; white-space: nowrap; }
+.bar nav { margin-left: auto; display: flex; align-items: center; gap: 22px; font-size: 15px; }
+.bar nav a { color: var(--ink-2); text-decoration: none; white-space: nowrap; }
+.bar nav a:hover { color: var(--ink); }
+.bar .gh { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+@media (max-width: 820px) { .hide-sm { display: none; } .bar nav { gap: 14px; } }
+@media (max-width: 400px) { .bar .gh span { display: none; } .brand span { font-size: 16px; } }
+.btn { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: 10px; border: 1px solid var(--ink); color: var(--ink); background: transparent; font-weight: 700; font-size: 16px; text-decoration: none; transition: background .15s, transform .15s; }
+.btn:hover { background: var(--surface); text-decoration: none; }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #1a1400; }
+.btn.primary:hover { background: #f5c400; }
+.btn svg { width: 18px; height: 18px; }
+.hero { padding: 64px 0 56px; border-bottom: 1px solid var(--line); }
+.hero-in { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 540px); gap: 56px; align-items: center; }
+.kicker { font: 13px/1.5 var(--mono); color: var(--ink-3); letter-spacing: .02em; margin: 0 0 18px; }
+.ph { display: inline-block; }
+.hero h1 { font-size: clamp(34px, 4.6vw, 54px); line-height: 1.22; letter-spacing: -.01em; font-weight: 800; margin: 0 0 18px; text-wrap: balance; }
+.lede { font-size: 19px; color: var(--ink-2); margin: 0 0 28px; max-width: 36em; }
+.lede p { margin: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.stack, .tech { list-style: none; padding: 0; margin: 32px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.stack a, .tech a { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); text-decoration: none; font-size: 14px; line-height: 1.3; transition: border-color .15s, transform .15s; }
+.stack a:hover, .tech a:hover { border-color: var(--ink-3); transform: translateY(-1px); }
+.stack img, .tech img { width: 20px; height: 20px; flex: none; }
+.stack em, .tech em { font: normal 12px/1 var(--mono); color: var(--ink-3); }
+.tech { margin: 8px 0 24px; }
+.stack { gap: 6px; }
+.stack a { font-size: 13px; padding: 4px 10px 4px 6px; }
+.stack img { width: 16px; height: 16px; }
+@media (max-width: 900px) { .hero { padding-top: 36px; } .hero-in { grid-template-columns: 1fr; gap: 36px; } .hero-shot { width: 100%; max-width: 520px; justify-self: center; } }
+.hs { position: relative; }
+.hs-stack { display: grid; border-radius: 22px; overflow: hidden; }
+.hs-img { transform: scale(1.03); grid-area: 1 / 1; opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility .35s; }
+.hs-tabs { display: flex; justify-content: center; gap: 6px; margin-top: 14px; }
+.hs-tabs label { cursor: pointer; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 14px; color: var(--ink-2); user-select: none; }
+.hs input:focus-visible ~ .hs-tabs { outline: 3px solid var(--link); outline-offset: 4px; border-radius: 999px; }
+section { padding: 80px 0; }
+section.band { background: var(--surface); border-block: 1px solid var(--line); }
+h2 { font-size: clamp(28px, 3.2vw, 38px); line-height: 1.25; font-weight: 800; letter-spacing: -.01em; margin: 0 0 32px; }
+.why { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); }
+.why > div { padding: 26px 28px 30px 0; border-bottom: 1px solid var(--line); }
+.why > div:not(:nth-child(3n+1)) { padding-left: 28px; border-left: 1px solid var(--line); }
+.why h3 { font-size: 19px; margin: 0 0 8px; }
+.why p { margin: 0; color: var(--ink-2); font-size: 16px; }
+@media (max-width: 860px) and (min-width: 600px) { .why { grid-template-columns: 1fr 1fr; } .why > div, .why > div:not(:nth-child(3n+1)) { padding: 22px 22px 22px 0; border-left: 0; } .why > div:nth-child(even) { padding-left: 22px; border-left: 1px solid var(--line); } }
+@media (max-width: 599px) { .why { grid-template-columns: 1fr; } .why > div, .why > div:not(:nth-child(3n+1)) { padding: 22px 0; border-left: 0; } }
+.phones { display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 20px 12px; margin: 0 -20px 24px; scrollbar-width: thin; }
+.phones figure { flex: 0 0 min(240px, 62vw); margin: 0; scroll-snap-align: start; }
+.phones figure:first-child { margin-left: auto; }
+.phones figure:last-child { margin-right: auto; }
+.phones img { -webkit-mask-image: linear-gradient(to bottom, #000 86%, transparent 99%); mask-image: linear-gradient(to bottom, #000 86%, transparent 99%); }
+.phones figcaption { font-size: 14px; color: var(--ink-3); text-align: center; margin-top: 4px; }
+.phones figcaption strong { display: block; color: var(--ink); font-size: 16px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; margin-top: 32px; align-items: start; }
+.cards figure, .chapter-shots figure { margin: 0; }
+.cards img, .chapter-shots img { border-radius: 16px; border: 1px solid var(--line-2); background: var(--surface); }
+.cards figcaption { font-size: 14px; color: var(--ink-3); margin-top: 8px; }
+.chapter { display: grid; grid-template-columns: 220px minmax(0, 1fr) minmax(0, 360px); gap: 40px; padding: 36px 0; border-top: 1px solid var(--line); }
+.chapter.no-shots { grid-template-columns: 220px minmax(0, 1fr); }
+.chapter header { position: sticky; top: 84px; align-self: start; }
+.chapter .num { font: 13px/1 var(--mono); color: var(--ink-3); display: block; margin-bottom: 10px; }
+.chapter h3 { font-size: 24px; line-height: 1.3; margin: 0; }
+.chapter-text ul { margin: 0; padding: 0; list-style: none; }
+.chapter-text li { padding: 0 0 16px 18px; position: relative; color: var(--ink-2); }
+.chapter-text li::before { content: ""; position: absolute; left: 0; top: .72em; width: 7px; height: 7px; border-radius: 2px; background: var(--accent); }
+.chapter-text li strong { color: var(--ink); }
+.chapter-shots { display: grid; gap: 16px; align-content: start; }
+@media (max-width: 1000px) { .chapter, .chapter.no-shots { grid-template-columns: 1fr; gap: 18px; } .chapter header { position: static; } .chapter-shots { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); } }
+.prose { max-width: 860px; }
+.prose.narrow { max-width: 720px; color: var(--ink-2); }
+.prose h2 { margin-top: 56px; }
+.prose > h2:first-child { margin-top: 0; }
+.prose h3 { font-size: 21px; margin: 36px 0 10px; }
+.prose h4 { font-size: 18px; margin: 28px 0 8px; }
+.prose h2, .prose h3, .prose h4 { position: relative; }
+.prose .anchor { position: absolute; left: -1.1em; color: var(--ink-3); text-decoration: none; opacity: 0; }
+.prose :is(h2, h3, h4):hover .anchor { opacity: 1; }
+.prose p, .prose ul, .prose ol { margin: 0 0 16px; }
+.prose li { margin-bottom: 6px; }
+.prose blockquote { margin: 0 0 18px; padding: 12px 18px; border-left: 3px solid var(--accent); background: #fbf8ea; border-radius: 0 10px 10px 0; color: var(--ink-2); }
+.prose blockquote p { margin: 0; }
+.prose pre { background: #1d1b21; color: #ece9f2; border-radius: 12px; padding: 18px 20px; overflow-x: auto; margin: 0 0 20px; }
+.prose pre code { background: none; padding: 0; font-size: 14px; line-height: 1.65; color: inherit; }
+.prose hr { border: 0; border-top: 1px solid var(--line); margin: 36px 0; }
+.prose img { border-radius: 12px; }
+.prose details { border: 1px solid var(--line); border-radius: 12px; padding: 0 18px; margin: 0 0 16px; background: var(--surface); }
+.prose details > summary { cursor: pointer; padding: 14px 0; font-weight: 700; }
+.table { overflow-x: auto; margin: 0 0 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.prose table { border-collapse: collapse; width: 100%; font-size: 15px; }
+.prose th, .prose td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line-2); }
+.prose th { background: #f9f8f4; font-weight: 700; white-space: nowrap; }
+.prose tr:last-child td { border-bottom: 0; }
+.req, .opt { display: inline-block; font-size: 13px; padding: 1px 8px; border-radius: 6px; white-space: nowrap; }
+.req { background: #fff1bf; color: #6b5200; }
+.opt { background: #efeee9; color: var(--ink-3); }
+.split { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 40px; }
+.split > h2 { position: sticky; top: 84px; align-self: start; font-size: clamp(24px, 2.6vw, 30px); margin: 0; }
+.split > .prose, .split > .faq { max-width: none; }
+@media (max-width: 1000px) { .split { grid-template-columns: minmax(0, 1fr); gap: 20px; } .split > h2 { position: static; } }
+.faq { max-width: 860px; border-top: 1px solid var(--line); }
+.faq details { border-bottom: 1px solid var(--line); }
+.faq summary { cursor: pointer; list-style: none; padding: 20px 40px 20px 0; position: relative; font-weight: 700; font-size: 18px; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: ""; position: absolute; right: 6px; top: 50%; width: 10px; height: 10px; border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3); transform: translateY(-70%) rotate(45deg); transition: transform .2s; }
+.faq details[open] summary::after { transform: translateY(-30%) rotate(-135deg); }
+.faq details p { margin: 0 0 20px; color: var(--ink-2); max-width: 46em; }
+.doc > * { min-width: 0; }
+.doc { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 56px; padding: 48px 0 80px; }
+.doc-side nav { position: sticky; top: 84px; max-height: calc(100vh - 100px); overflow: auto; font-size: 15px; }
+.side-h { font: 12px/1 var(--mono); color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 10px; }
+.doc-side ul { list-style: none; padding: 0; margin: 0 0 28px; }
+.doc-side li a { display: block; padding: 5px 10px; border-radius: 8px; color: var(--ink-2); text-decoration: none; }
+.doc-side li a:hover { background: #eceae3; color: var(--ink); }
+.doc-side li a[aria-current] { background: var(--ink); color: #fff; }
+.toc li a { font-size: 14px; padding: 4px 10px; }
+.doc-body h1 { font-size: clamp(30px, 3.6vw, 42px); line-height: 1.25; margin: 0 0 24px; }
+.crumbs { font-size: 14px; color: var(--ink-3); margin: 0 0 8px; }
+.doc-meta { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-3); }
+@media (max-width: 900px) { .doc { grid-template-columns: 1fr; gap: 24px; padding-top: 28px; } .doc-side nav { position: static; max-height: none; } .toc { display: none; } }
+.foot { border-top: 1px solid var(--line); padding: 40px 0 56px; font-size: 14px; color: var(--ink-3); }
+.foot-in { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 24px; }
+.foot strong { color: var(--ink); font-size: 15px; }
+.foot p { margin: 4px 0 0; }
+.foot ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.foot a { color: var(--ink-2); }
+.notfound { min-height: 80vh; display: grid; place-content: center; text-align: center; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+.prose td code, .prose th code { white-space: nowrap; overflow-wrap: normal; }
+.prose td:first-child { white-space: nowrap; }
+.prose td:first-child code { display: inline-block; margin: 1px 0; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">ข้ามไปเนื้อหา</a>
+<header class="bar">
+  <div class="wrap bar-in">
+    <a class="brand" href=""><img src="icon.svg" alt="" width="28" height="28"><span>โซลาร์มอนิเตอร์</span></a>
+    <nav aria-label="เมนูหลัก">
+      <a class="hide-sm" href="#ฟีเจอร์">ฟีเจอร์</a>
+      <a class="hide-sm" href="#ภาพหน้าจอ">ภาพหน้าจอ</a>
+      <a class="hide-sm" href="#ติดตั้ง-ฟรี">ติดตั้ง</a>
+      <a class="hide-sm" href="#คำถามที่พบบ่อย">คำถามที่พบบ่อย</a>
+      <a href="en/" hreflang="en" lang="en">English</a>
+      <a class="gh" href="https://github.com/botnick/deyecloud"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+
+<section class="hero">
+  <div class="wrap hero-in">
+    <div class="hero-text">
+      <p class="kicker">Deye Solar Monitor · v1.0.0 · อัปเดตล่าสุด 24 ตุลาคม 2569</p>
+      <h1><span class="ph">แอปดูระบบโซลาร์เซลล์</span> <span class="ph">Deye</span> <span class="ph">แบบเรียลไทม์</span> <span class="ph">ภาษาไทย</span></h1>
+      <p class="lede">ผลิตไฟ · ใช้ไฟ · แบตเตอรี่ · ซื้อ-ขายไฟ ครบในแอปเดียว — ติดตั้งเป็นแอปบนมือถือ รันฟรีบน Cloudflare ทุน 0 บาท</p>
+      <div class="actions">
+        <a class="btn primary" href="https://deploy.workers.cloudflare.com/?url=https://github.com/botnick/deyecloud">Deploy to Cloudflare</a>
+        <a class="btn" href="docs/deploy/">คู่มือติดตั้ง</a>
+      </div>
+      <ul class="stack"><li><a href="https://vite.dev"><img src="https://cdn.simpleicons.org/vite" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Vite</span><em>6</em></a></li><li><a href="https://react.dev"><img src="https://cdn.simpleicons.org/react" alt="" width="20" height="20" loading="lazy" decoding="async"><span>React</span><em>19</em></a></li><li><a href="https://www.typescriptlang.org"><img src="https://cdn.simpleicons.org/typescript" alt="" width="20" height="20" loading="lazy" decoding="async"><span>TypeScript</span><em>5</em></a></li><li><a href="https://tailwindcss.com"><img src="https://cdn.simpleicons.org/tailwindcss" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Tailwind CSS</span><em>4</em></a></li><li><a href="https://threejs.org"><img src="https://cdn.simpleicons.org/threedotjs" alt="" width="20" height="20" loading="lazy" decoding="async"><span>three.js</span><em>0.185</em></a></li><li><a href="https://hono.dev"><img src="https://cdn.simpleicons.org/hono" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Hono</span><em>4</em></a></li><li><a href="https://developers.cloudflare.com/workers/"><img src="https://cdn.simpleicons.org/cloudflareworkers" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Cloudflare Workers</span></a></li><li><a href="https://developers.cloudflare.com/d1/"><img src="https://cdn.simpleicons.org/cloudflare" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Cloudflare D1 · Cron · Static Assets</span></a></li><li><a href="https://vite-pwa-org.netlify.app"><img src="https://cdn.simpleicons.org/pwa" alt="" width="20" height="20" loading="lazy" decoding="async"><span>vite-plugin-pwa</span><em>0.21</em></a></li><li><a href="https://vitest.dev"><img src="https://cdn.simpleicons.org/vitest" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Vitest</span><em>4</em></a></li><li><a href="https://meteocons.com"><img src="https://cdn.jsdelivr.net/npm/@meteocons/svg/fill/clear-day.svg" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Meteocons</span></a></li></ul>
+    </div>
+    <div class="hero-shot"><style>#hs0:checked~.hs-stack .hs-0{opacity:1;visibility:visible}#hs0:checked~.hs-tabs label[for=hs0]{background:var(--ink);color:#fff}#hs1:checked~.hs-stack .hs-1{opacity:1;visibility:visible}#hs1:checked~.hs-tabs label[for=hs1]{background:var(--ink);color:#fff}#hs2:checked~.hs-stack .hs-2{opacity:1;visibility:visible}#hs2:checked~.hs-tabs label[for=hs2]{background:var(--ink);color:#fff}</style><div class="hs">
+    <input type="radio" name="hs" id="hs0" checked class="vh"><input type="radio" name="hs" id="hs1" class="vh"><input type="radio" name="hs" id="hs2" class="vh">
+    <div class="hs-stack"><img class="hs-img hs-0" src="img/hero-day-722.webp" srcset="img/hero-day-361.webp 361w, img/hero-day-722.webp 722w" sizes="(max-width:900px) 92vw, 540px" width="722" height="700" alt="กลางวัน" fetchpriority="high"><img class="hs-img hs-1" src="img/hero-golden-722.webp" srcset="img/hero-golden-361.webp 361w, img/hero-golden-722.webp 722w" sizes="(max-width:900px) 92vw, 540px" width="722" height="700" alt="แดดเย็น" loading="lazy" decoding="async"><img class="hs-img hs-2" src="img/hero-night-722.webp" srcset="img/hero-night-361.webp 361w, img/hero-night-722.webp 722w" sizes="(max-width:900px) 92vw, 540px" width="722" height="700" alt="กลางคืน" loading="lazy" decoding="async"></div>
+    <div class="hs-tabs" role="presentation"><label for="hs0">กลางวัน</label><label for="hs1">แดดเย็น</label><label for="hs2">กลางคืน</label></div>
+  </div>
+  <script>(()=>{const r=[...document.querySelectorAll('.hs input[name=hs]')],h=document.querySelector('.hs');if(r.length<2||matchMedia('(prefers-reduced-motion: reduce)').matches)return;let seen=true,t=setInterval(()=>{if(!seen||document.hidden)return;const i=r.findIndex(x=>x.checked);r[(i+1)%r.length].checked=true},4000);new IntersectionObserver(e=>{seen=e[0].isIntersecting}).observe(h);for(const ev of ['pointerdown','keydown','focusin','click','change'])h.addEventListener(ev,()=>clearInterval(t))})()</script></div>
+  </div>
+</section>
+
+<section class="band" id="ทำไมต้องใช้">
+  <div class="wrap">
+    <h2><span class="ph">ทำไมต้องใช้</span></h2>
+    <div class="why"><div><h3><span class="ph">ดูตามเวลาจริง</span> <span class="ph">อัปเดตทุกนาที</span></h3><p>บ้าน 3D ลากหมุนได้ เส้นไฟวิ่งจากแผงโซลาร์ แบตเตอรี่ และเสาไฟเข้าบ้านตามทิศทางจริง จาก <b>Deye Cloud Open API</b> รีเฟรชเองทุก 1 นาที</p></div><div><h3><span class="ph">เหมือนแอปจริง</span> <span class="ph">ใช้ได้ทุกวัย</span></h3><p>ดีไซน์แบบ iPhone (หัวข้อใหญ่ แถบเมนูกระจก แป้น PIN) ตัวเลขใหญ่ ทุกสีมีคำกำกับ ปุ่มใหญ่ (Universal Design)</p></div><div><h3><span class="ph">ฟรีจริง</span></h3><p>Cloudflare Workers + D1 free tier ล้วน ไม่มีค่าเซิร์ฟเวอร์รายเดือน ติดตั้งได้ในคลิกเดียว</p></div><div><h3><span class="ph">วิเคราะห์ให้เอง</span></h3><p>พยากรณ์การผลิตไฟที่เรียนรู้จากบ้านคุณ สุขภาพแบตเตอรี่ ภาพรวมทั้งปี และคำแนะนำจากตัวเลขจริง (ไม่ใช่ AI เดา)</p></div><div><h3><span class="ph">แจ้งเตือนเมื่อมีปัญหา</span></h3><p>อินเวอร์เตอร์ออฟไลน์ ไฟดับ แบตเตอรี่ต่ำ การแจ้งเตือนจาก Deye ส่งเข้า Discord / Telegram ได้</p></div><div><h3><span class="ph">ปลอดภัย</span></h3><p>กุญแจ Deye อยู่ฝั่งเซิร์ฟเวอร์เท่านั้น ผู้ใช้เข้าด้วย PIN ไม่ต้องรู้รหัสบัญชี Deye</p></div></div>
+  </div>
+</section>
+
+<section id="ภาพหน้าจอ">
+  <div class="wrap">
+    <h2><span class="ph">ภาพหน้าจอ</span></h2>
+    <div class="phones"><figure><img src="img/home-900.webp" srcset="img/home-450.webp 450w, img/home-900.webp 900w" sizes="(max-width:700px) 62vw, 240px" width="900" height="1707" alt="หน้าหลัก" loading="lazy" decoding="async"><figcaption><strong>หน้าหลัก</strong>สถานะ + ผังพลังงานตามเวลาจริง</figcaption></figure><figure><img src="img/today-900.webp" srcset="img/today-450.webp 450w, img/today-900.webp 900w" sizes="(max-width:700px) 62vw, 240px" width="900" height="1707" alt="วันนี้" loading="lazy" decoding="async"><figcaption><strong>วันนี้</strong>ผลิต / ใช้ / ซื้อ / ไฟย้อน</figcaption></figure><figure><img src="img/weather-900.webp" srcset="img/weather-450.webp 450w, img/weather-900.webp 900w" sizes="(max-width:700px) 62vw, 240px" width="900" height="1707" alt="อากาศ" loading="lazy" decoding="async"><figcaption><strong>อากาศ</strong>พยากรณ์ + ช่วงแดดดีสุด</figcaption></figure><figure><img src="img/history-900.webp" srcset="img/history-450.webp 450w, img/history-900.webp 900w" sizes="(max-width:700px) 62vw, 240px" width="900" height="1707" alt="ย้อนหลัง" loading="lazy" decoding="async"><figcaption><strong>ย้อนหลัง</strong>วัน / เดือน / ปี / ตลอด</figcaption></figure></div>
+    <div class="prose narrow"><p><strong>บ้าน 3D บนหน้าหลัก</strong></p>
+<ul>
+<li>ลากซ้าย-ขวาเพื่อหมุนรอบบ้าน ลากขึ้น-ลงเพื่อก้มหรือเงยมุมกล้อง</li>
+<li>เส้นไฟวิ่งตามสายจริง จากแผงโซลาร์ ผ่านอินเวอร์เตอร์ ไปยังบ้าน แบตเตอรี่ และเสาไฟ</li>
+<li>ป้ายตัวเลขอยู่ติดกับอุปกรณ์แต่ละชิ้น</li>
+<li>ท้องฟ้าและแสงเปลี่ยนตามเวลาจริงของบ้าน</li>
+</ul>
+</div>
+    <div class="cards"><figure><img src="img/card-daynight-746.webp" srcset="img/card-daynight-373.webp 373w, img/card-daynight-746.webp 746w" sizes="(max-width:700px) 62vw, 240px" width="746" height="522" alt="ใช้ไฟกลางวันกับกลางคืน" loading="lazy" decoding="async"><figcaption>ใช้ไฟกลางวัน กับ กลางคืน (เที่ยงถึงเที่ยง)</figcaption></figure><figure><img src="img/card-battery-now-746.webp" srcset="img/card-battery-now-373.webp 373w, img/card-battery-now-746.webp 746w" sizes="(max-width:700px) 62vw, 240px" width="746" height="488" alt="แบตเตอรี่ตอนนี้" loading="lazy" decoding="async"><figcaption>แบตเตอรี่ตอนนี้ · ใช้ได้ถึงกี่โมง</figcaption></figure><figure><img src="img/card-year-746.webp" srcset="img/card-year-373.webp 373w, img/card-year-746.webp 746w" sizes="(max-width:700px) 62vw, 240px" width="746" height="636" alt="ภาพรวมทั้งปี" loading="lazy" decoding="async"><figcaption>ภาพรวมทั้งปี + คาดการณ์การผลิตทั้งปี</figcaption></figure><figure><img src="img/card-battery-746.webp" srcset="img/card-battery-373.webp 373w, img/card-battery-746.webp 746w" sizes="(max-width:700px) 62vw, 240px" width="746" height="718" alt="สุขภาพแบตเตอรี่" loading="lazy" decoding="async"><figcaption>สุขภาพแบตเตอรี่ (วัดจริง)</figcaption></figure></div>
+  </div>
+</section>
+
+<section id="ฟีเจอร์">
+  <div class="wrap">
+    <h2><span class="ph">ฟีเจอร์</span></h2>
+    <article class="chapter">
+    <header><span class="num">01</span><h3 id="ดูระบบตามเวลาจริง"><span class="ph">ดูระบบตามเวลาจริง</span></h3></header>
+    <div class="chapter-text"><ul>
+<li><strong>หน้าหลัก</strong> — บ้าน 3D หมุนได้พร้อมเส้นไฟวิ่งตามทิศจริง, สถานะระบบ (ปกติ/แจ้งเตือน), ผลิตไฟวันนี้, เงินที่ประหยัดวันนี้ และ <strong>เดือนนี้ประหยัดแล้ว</strong> พร้อมตัวเลขคาดการณ์ทั้งเดือน</li>
+<li><strong>แบตเตอรี่ตอนนี้</strong> — กำลังชาร์จหรือจ่ายไฟเท่าไร และ <strong>เพราะอะไร</strong> เป็นประโยคสั้น ๆ, &quot;ใช้ได้ถึงกี่โมง&quot; / &quot;เต็มราวกี่โมง&quot; คิดจากความจุที่วัดจริงและจุดตัดที่เรียนรู้จากข้อมูลบ้านนี้ (ไม่ใช้ค่าบนฉลาก)</li>
+<li><strong>วันนี้</strong> — สรุปผลิต/ใช้/ซื้อ/ไฟย้อน, สัดส่วนพึ่งพาตัวเอง, การหมุนเวียนพลังงาน · สลับมุมมอง <strong>ทั้งวัน</strong> หรือ <strong>เที่ยงถึงเที่ยง</strong> (เห็นการใช้ไฟกลางวันกับกลางคืนแยกกัน)</li>
+<li><strong>รายละเอียดเครื่อง</strong> — ค่าต่อเฟส / PV string / BMS, <strong>การแจ้งเตือนจริงจากอินเวอร์เตอร์</strong>, ตรวจสุขภาพระบบ (สมดุลเฟส · ช่องแบตเตอรี่ · แรงดัน/ความถี่ · อุณหภูมิ — เงียบเมื่อปกติ), แนวโน้ม 1–90 วัน</li>
+<li><strong>หลายสถานี</strong> — บัญชีมีหลายระบบ มีปุ่มสลับระบบที่ด้านบนของจอให้อัตโนมัติ</li>
+</ul>
+</div>
+    <div class="chapter-shots"><figure><img src="img/saved-722.webp" srcset="img/saved-361.webp 361w, img/saved-722.webp 722w" sizes="(max-width:900px) 90vw, 360px" width="722" height="830" alt="ผลิตไฟวันนี้ ใช้ไฟ ซื้อไฟ และเงินที่ประหยัดวันนี้กับเดือนนี้" loading="lazy" decoding="async"></figure><figure><img src="img/selfuse-722.webp" srcset="img/selfuse-361.webp 361w, img/selfuse-722.webp 722w" sizes="(max-width:900px) 90vw, 360px" width="722" height="340" alt="สัดส่วนพึ่งพาตัวเองวันนี้" loading="lazy" decoding="async"></figure></div>
+  </article>
+<article class="chapter">
+    <header><span class="num">02</span><h3 id="วิเคราะห์และพยากรณ์"><span class="ph">วิเคราะห์และพยากรณ์</span></h3></header>
+    <div class="chapter-text"><ul>
+<li><strong>พยากรณ์ที่เรียนรู้จากผลจริง</strong> — ขนาดระบบสอบเทียบจากวันแดดดี + ค่าเมฆของบ้านนี้ปรับทุกวันจาก ค่าคาดการณ์เทียบกับค่าจริง (วันใหม่มีน้ำหนักมากกว่า ตามฤดูทัน) · การ์ดความแม่นยำของการพยากรณ์: คะแนน + แท่งผลิตจริงรายวันพร้อมขีดที่คาดไว้ และป้าย แม่น / ต่ำไป / สูงไป</li>
+<li><strong>อากาศ</strong> — พยากรณ์ TMD (หรือ Open-Meteo), เส้นทางดวงอาทิตย์ + ช่วงแดดดีสุด, ดัชนี UV, ราย ชม. + 7 วัน</li>
+<li><strong>สุขภาพแบตเตอรี่ (วัดจริง)</strong> — ความจุใช้ได้จริงจากช่วงคายประจุ, SOH เทียบพิกัด BMS, จำนวนรอบ, ใช้ลึกเฉลี่ย, แนวโน้ม 60 วัน</li>
+<li><strong>ย้อนหลัง + ภาพรวมทั้งปี</strong> — กราฟราย วัน/เดือน/ปี/ตลอด, สรุปรายเดือน (เงินที่ประหยัด, คาดการณ์ทั้งเดือน, ยอดผลิต / ใช้ / ซื้อ / แบตเตอรี่จ่ายไฟหรือไฟย้อน), เดือนดีสุด/แย่สุด, เทียบปีก่อน, คาดการณ์การผลิตทั้งปีตามแดดของพิกัดบ้าน</li>
+<li><strong>คำแนะนำอัตโนมัติ</strong> — คิดจากสมการสมดุลพลังงานของเลขจริง ปรับตามชนิดระบบ on-grid / hybrid / off-grid</li>
+<li><strong>เทียบ + ส่งออก</strong> — เทียบช่วงก่อนหน้าแบบเวลาเท่ากัน (วันนี้ vs เมื่อวานถึงเวลานี้) · ดาวน์โหลด CSV ทุก 5 นาที / รายวัน / รายเดือน</li>
+</ul>
+</div>
+    <div class="chapter-shots"><figure><img src="img/forecast-722.webp" srcset="img/forecast-361.webp 361w, img/forecast-722.webp 722w" sizes="(max-width:900px) 90vw, 360px" width="722" height="324" alt="คาดการณ์การผลิตไฟ วันนี้ พรุ่งนี้ มะรืนนี้" loading="lazy" decoding="async"></figure><figure><img src="img/accuracy-722.webp" srcset="img/accuracy-361.webp 361w, img/accuracy-722.webp 722w" sizes="(max-width:900px) 90vw, 360px" width="722" height="1160" alt="ความแม่นยำพยากรณ์ เทียบผลิตจริงกับที่คาดไว้รายวัน" loading="lazy" decoding="async"></figure><figure><img src="img/month-722.webp" srcset="img/month-361.webp 361w, img/month-722.webp 722w" sizes="(max-width:900px) 90vw, 360px" width="722" height="384" alt="สรุปเดือนนี้ เงินที่ประหยัด คาดทั้งเดือน และยอดผลิต ใช้ ซื้อ แบตจ่าย" loading="lazy" decoding="async"></figure></div>
+  </article>
+<article class="chapter no-shots">
+    <header><span class="num">03</span><h3 id="ทนทาน-ไม่ต้องเฝ้า"><span class="ph">ทนทาน</span> <span class="ph">ไม่ต้องเฝ้า</span></h3></header>
+    <div class="chapter-text"><ul>
+<li><strong>แจ้งเตือนออกนอกแอป</strong> (ไม่บังคับ) — Discord webhook / Telegram: อินเวอร์เตอร์ออฟไลน์, การแจ้งเตือนเกิดขึ้นหรือหายไป, ไฟดับ, แบตเตอรี่ต่ำ, ฟ้าโปร่งแต่ไม่ผลิตไฟ — ส่ง &quot;กลับมาปกติ&quot; ให้ด้วย · ออกแบบให้ <strong>ไม่แจ้งเตือนพร่ำเพรื่อ</strong> (ต้องยืนยันหลายรอบก่อนส่ง)</li>
+<li><strong>ไม่บันทึกค่าปลอม</strong> — ตัวส่งข้อมูลหลุด / Deye ส่งค่าค้าง ระบบรู้และไม่เก็บซ้ำ · กลับมาแล้ว <strong>เติมข้อมูลย้อนหลังให้เอง</strong></li>
+<li><strong>แถบสถานะชัดเจน</strong> — เชื่อมต่อ Deye ไม่ได้ ระบบหยุดบันทึกข้อมูล หรืออินเวอร์เตอร์ไม่ส่งข้อมูล แอปบอกสาเหตุให้เห็น · <code>/api/_health</code> ใช้กับ uptime monitor ได้</li>
+<li><strong>ติดตั้งเป็นแอป (PWA)</strong> — คำแนะนำติดตั้งปรับตามเครื่อง (Android / iPhone / Mac / อื่นๆ) · ใช้งาน offline ได้</li>
+</ul>
+</div>
+    
+  </article>
+  </div>
+</section>
+
+<section class="band" id="ติดตั้ง-ฟรี">
+  <div class="wrap split">
+    <h2><span class="ph">ติดตั้ง</span> <span class="ph">(ฟรี)</span></h2>
+    <div class="prose"><p><strong>ทางที่ 1 — คลิกเดียว:</strong> กดปุ่ม <strong>Deploy to Cloudflare</strong> ด้านบน แล้ว Cloudflare จะสร้าง repo และฐานข้อมูล D1 พร้อมถามค่าลับให้เอง เสร็จแล้วจะได้ลิงก์ <code>https://deyecloud.&lt;ชื่อคุณ&gt;.workers.dev</code> เปิดบนมือถือแล้วกด <strong>เพิ่มลงหน้าจอโฮม</strong></p>
+<p><strong>ทางที่ 2 — คำสั่งเดียว (ใช้ส่วนตัว):</strong></p>
+<pre><code class="language-bash">npx wrangler login        # ล็อกอิน Cloudflare ครั้งเดียว
+cp .dev.vars.example .dev.vars   # ใส่ DEYE_APP_SECRET, DEYE_PASSWORD, APP_PIN, TMD_TOKEN
+npm run setup             # สร้าง D1 + ตั้งค่าลับ + build + deploy ให้อัตโนมัติ
+</code></pre>
+<p>อัปเดตครั้งต่อไป <code>npm run deploy</code> · ดู log <code>npm run tail</code> · ตารางใน D1 สร้างเองตอนใช้งานครั้งแรก และระบบเก็บข้อมูลให้เองทุก 5 นาที — ดูรายละเอียดทั้งหมดได้ใน <a href="docs/deploy/"><code>DEPLOY.md</code></a></p>
+<details>
+<summary><b>รันบนเครื่องตัวเอง (สำหรับนักพัฒนา)</b></summary>
+
+<pre><code class="language-bash">npm install
+cp .dev.vars.example .dev.vars   # ใส่ค่าจริง
+npm run dev                       # เปิด http://localhost:5174  (มือถือใน LAN: http://&lt;ip&gt;:5174)
+</code></pre>
+<ul>
+<li>ใส่ PIN ที่ตั้งไว้เพื่อเข้า · <strong>ระบบตั้งเวลาเก็บข้อมูล (cron) ไม่ทำงานใน <code>vite dev</code></strong> ให้เปิด <code>GET /api/_poll</code> หนึ่งครั้งเพื่อดึงข้อมูลครั้งแรก (route <code>/api/_*</code> ต้องตั้ง <code>APP_PIN</code> และล็อกอินก่อน)</li>
+<li>ดูข้อมูลดิบจาก Deye <code>GET /api/_debug</code> · ทดสอบหน้าจอด้วยฉากจำลอง <code>?dev=1</code> หรือ <code>?sim=peak</code></li>
+</ul>
+<div class="table"><table>
+<thead>
+<tr>
+<th>คำสั่ง</th>
+<th>ทำอะไร</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>npm run dev</code></td>
+<td>dev server (port 5174) เสิร์ฟ Worker + หน้าเว็บ</td>
+</tr>
+<tr>
+<td><code>npm run build</code></td>
+<td>build ไปไว้ที่ <code>dist/</code></td>
+</tr>
+<tr>
+<td><code>npm run typecheck</code> · <code>npm test</code></td>
+<td>ตรวจ type · unit test (Vitest)</td>
+</tr>
+<tr>
+<td><code>npm run setup</code></td>
+<td>ตั้งค่า + deploy ครั้งแรกอัตโนมัติ</td>
+</tr>
+<tr>
+<td><code>npm run deploy</code></td>
+<td>build + deploy ขึ้น Cloudflare</td>
+</tr>
+<tr>
+<td><code>npm run db:create</code> / <code>db:init</code></td>
+<td>สร้าง / ตั้งตาราง D1 แบบ manual (ปกติ <code>setup</code> ทำให้แล้ว)</td>
+</tr>
+<tr>
+<td><code>npm run tail</code></td>
+<td>ดู log production</td>
+</tr>
+<tr>
+<td><code>node design/mockup.mjs</code></td>
+<td>ถ่ายภาพหน้าจอพร้อมกรอบมือถือ เก็บไว้ที่ <code>docs/shots/</code> (ใช้กับเครื่องที่ deploy แล้วได้ด้วย <code>BASE=… PIN=…</code>)</td>
+</tr>
+</tbody></table>
+</div></details></div>
+  </div>
+</section>
+
+<section id="ตั้งค่า">
+  <div class="wrap split">
+    <h2><span class="ph">ตั้งค่า</span></h2>
+    <div class="prose"><p>ตั้งน้อยที่สุด — <strong>สถานี พิกัด กำลังติดตั้ง สถานที่ ดึงจาก Deye เองแล้วเก็บไว้</strong> ไม่มีค่าส่วนตัวฝังในโค้ด · ค่าไฟ / ค่าขายไฟ / ทุนติดตั้ง / CO₂ ตั้งในแอป (ไปที่หน้าย้อนหลัง เลือกแท็บ &quot;ตลอด&quot; แล้วกดตั้งค่าการคำนวณ) ทุกเครื่องเห็นค่าเดียวกัน</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>ต้องตั้ง</th>
+<th>ที่มา</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>DEYE_APP_ID</code>, <code>DEYE_EMAIL</code></td>
+<td>จาก <a href="https://developer.deyecloud.com">developer.deyecloud.com</a> (ตั้งตอน deploy)</td>
+</tr>
+<tr>
+<td><code>DEYE_APP_SECRET</code>, <code>DEYE_PASSWORD</code></td>
+<td><strong>ค่าลับ</strong> — <code>.dev.vars</code> (เครื่องตัวเอง) / <code>wrangler secret</code> (production)</td>
+</tr>
+<tr>
+<td><code>APP_PIN</code></td>
+<td>PIN เข้าแอป · ไม่ตั้ง = ดูได้สาธารณะ แต่หน้าผู้ดูแล <code>/api/_*</code> จะปิด</td>
+</tr>
+</tbody></table>
+</div><details>
+<summary><b>ค่าเสริมทั้งหมด (ไม่ตั้งก็ใช้ได้)</b></summary>
+
+<div class="table"><table>
+<thead>
+<tr>
+<th>ตัวแปร</th>
+<th>ใช้ทำอะไร</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>DEYE_BASE_URL</code></td>
+<td>ค่าตั้งต้น EU (<code>eu1-developer…</code>) — เปลี่ยนเป็น us1 ถ้าบัญชีอยู่ US</td>
+</tr>
+<tr>
+<td><code>DEYE_STATION_ID</code> · <code>DEYE_COMPANY_ID</code></td>
+<td>ปักสถานีเจาะจง / company ของบัญชี</td>
+</tr>
+<tr>
+<td><code>TMD_TOKEN</code> · <code>TMD_BASE</code></td>
+<td>พยากรณ์อากาศกรมอุตุฯ (ไม่ตั้ง = ใช้ Open-Meteo)</td>
+</tr>
+<tr>
+<td><code>WEATHER_LAT</code> / <code>WEATHER_LON</code> / <code>WEATHER_PLACE</code></td>
+<td>ปรับพิกัดอากาศเอง</td>
+</tr>
+<tr>
+<td><code>ALERT_WEBHOOK_URL</code> · <code>TELEGRAM_BOT_TOKEN</code> + <code>TELEGRAM_CHAT_ID</code></td>
+<td>ช่องทางแจ้งเตือน</td>
+</tr>
+<tr>
+<td><code>ALERT_SOC_MIN</code> · <code>ALERT_REPEAT_MIN</code> · <code>ALERT_MUTE</code> · <code>ALERT_HEURISTICS</code></td>
+<td>เกณฑ์แบตเตอรี่ต่ำ · เตือนซ้ำทุกกี่นาที (360) · ปิดรายกติกา · ส่งคำแนะนำเชิงวิเคราะห์ออกนอกแอปด้วย</td>
+</tr>
+<tr>
+<td><code>GRID_NOMINAL_V</code> / <code>GRID_NOMINAL_HZ</code></td>
+<td>แรงดัน/ความถี่ปกติของระบบไฟฟ้า (เช่น 230/50) — ไม่ตั้ง = ไม่ตรวจเช็กค่าสัมบูรณ์ (จงใจไม่เดา)</td>
+</tr>
+<tr>
+<td><code>CONTACT_EMAIL</code></td>
+<td>อีเมลติดต่อที่แนบไปกับการค้นชื่อสถานที่ (OpenStreetMap ขอให้ระบุ)</td>
+</tr>
+<tr>
+<td><code>DEYE_RELAY_URL</code></td>
+<td>ทางอ้อมเมื่อ Deye บล็อกเครือข่าย Cloudflare — รัน <code>scripts/deye-relay.mjs</code> บนเครื่องอื่นแล้วใส่ที่อยู่ (ติดตั้งเองให้เปลี่ยนเป็นของคุณหรือลบออกจาก <code>wrangler.jsonc</code>) ดู <a href="docs/deploy/"><code>DEPLOY.md</code></a></td>
+</tr>
+</tbody></table>
+</div></details></div>
+  </div>
+</section>
+
+<section class="band" id="คำถามที่พบบ่อย">
+  <div class="wrap split">
+    <h2><span class="ph">คำถามที่พบบ่อย</span></h2>
+    <div class="faq"><details open><summary><span class="ph">โซลาร์มอนิเตอร์คืออะไร</span></summary><p>แอปดูระบบโซลาร์เซลล์ที่ใช้อินเวอร์เตอร์ Deye แบบเรียลไทม์เป็นภาษาไทย ดึงข้อมูลจาก Deye Cloud Open API แล้วแสดงผลิตไฟ ใช้ไฟ แบตเตอรี่ และซื้อ-ขายไฟ พร้อมพยากรณ์และสรุปเงินที่ประหยัด ติดตั้งเป็นแอปบนมือถือได้</p>
+</details><details><summary><span class="ph">ต้องเสียเงินไหม</span></summary><p>ไม่ต้อง รันบน Cloudflare Workers + D1 ในโควตาฟรี เก็บข้อมูลทุก 5 นาที (วันละ 288 ครั้ง) ต่ำกว่าลิมิตฟรี 100,000 ครั้งต่อวันมาก</p>
+</details><details><summary><span class="ph">ใช้กับอินเวอร์เตอร์รุ่นไหนได้บ้าง</span></summary><p>ระบบที่ส่งข้อมูลขึ้น Deye Cloud ทั้ง on-grid, hybrid และ off-grid แอปปรับคำแนะนำตามชนิดระบบให้เอง ต้องมีบัญชีนักพัฒนาที่ <a href="https://developer.deyecloud.com">developer.deyecloud.com</a></p>
+</details><details><summary><span class="ph">ต่างจากแอป</span> <span class="ph">Deye</span> <span class="ph">Cloud</span> <span class="ph">อย่างไร</span></summary><p>ภาษาไทยทั้งแอป ตัวเลขใหญ่อ่านง่าย มีพยากรณ์ที่เรียนรู้จากบ้านคุณ สุขภาพแบตเตอรี่จากการวัดจริง สรุปเงินที่ประหยัดรายเดือน แจ้งเตือน Discord / Telegram และคนในบ้านดูได้ด้วย PIN โดยไม่ต้องรู้รหัสบัญชี Deye</p>
+</details><details><summary><span class="ph">ข้อมูลและรหัสผ่านปลอดภัยไหม</span></summary><p>กุญแจและรหัสบัญชี Deye เก็บเป็นค่าลับฝั่งเซิร์ฟเวอร์ ไม่ส่งไปที่มือถือ เข้าแอปด้วย PIN หน้าแอปตั้งค่าไม่ให้ขึ้นในผลค้นหา ประวัติข้อมูลทั้งหมดเก็บในบัญชี Cloudflare ของคุณเอง · ถ้าตั้ง <code>DEYE_RELAY_URL</code> ไว้ คำขอที่ส่งไป Deye (รวมคำขอโทเคนที่มีอีเมลและรหัสผ่านแบบแฮช) จะผ่านเครื่อง relay นั้นด้วย จึงควรใช้ relay ของคุณเองหรือของคนที่ไว้ใจเท่านั้น ไม่ใช้ก็ลบบรรทัดนี้ได้</p>
+</details></div>
+  </div>
+</section>
+
+<section id="สถาปัตยกรรมโดยย่อ">
+  <div class="wrap split">
+    <h2><span class="ph">สถาปัตยกรรมโดยย่อ</span></h2>
+    <div class="prose"><pre><code>มือถือ (PWA) ─▶ Cloudflare Worker ─┬─▶ Deye Cloud Open API  (สด + ย้อนหลัง + อุปกรณ์ + alarm)
+  เข้าด้วย PIN    หน้าเว็บ + /api/*   ├─▶ D1 (SQLite)          (ประวัติ + cache + token)
+                  cron ทุก 5 นาที    └─▶ TMD / Open-Meteo     (อากาศ + UV ตามพิกัดสถานี)
+</code></pre>
+<p>ทุกอย่างอยู่ใน Worker เดียว · ค่าลับไม่ออกไปฝั่งมือถือ · ถ้า Deye บล็อกเครือข่าย Cloudflare จะอ้อมผ่าน relay ที่ตั้งไว้ (<code>DEYE_RELAY_URL</code>) · การรับแดด (ขึ้น-ตก, ช่วงแดดดี, ชั่วโมงแดดเต็ม) คำนวณจริงด้วย NOAA + Haurwitz · โควตาต่อรอบของ free tier ถูกคิดไว้ในโค้ด (cron วันละ 288 ครั้ง ห่างลิมิต 100,000 req/วันมาก)</p>
+<ul class="tech"><li><a href="https://vite.dev"><img src="https://cdn.simpleicons.org/vite" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Vite</span><em>6</em></a></li><li><a href="https://react.dev"><img src="https://cdn.simpleicons.org/react" alt="" width="20" height="20" loading="lazy" decoding="async"><span>React</span><em>19</em></a></li><li><a href="https://www.typescriptlang.org"><img src="https://cdn.simpleicons.org/typescript" alt="" width="20" height="20" loading="lazy" decoding="async"><span>TypeScript</span><em>5</em></a></li><li><a href="https://tailwindcss.com"><img src="https://cdn.simpleicons.org/tailwindcss" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Tailwind CSS</span><em>4</em></a></li><li><a href="https://threejs.org"><img src="https://cdn.simpleicons.org/threedotjs" alt="" width="20" height="20" loading="lazy" decoding="async"><span>three.js</span><em>0.185</em></a></li><li><a href="https://hono.dev"><img src="https://cdn.simpleicons.org/hono" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Hono</span><em>4</em></a></li><li><a href="https://developers.cloudflare.com/workers/"><img src="https://cdn.simpleicons.org/cloudflareworkers" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Cloudflare Workers</span></a></li><li><a href="https://developers.cloudflare.com/d1/"><img src="https://cdn.simpleicons.org/cloudflare" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Cloudflare D1 · Cron · Static Assets</span></a></li><li><a href="https://vite-pwa-org.netlify.app"><img src="https://cdn.simpleicons.org/pwa" alt="" width="20" height="20" loading="lazy" decoding="async"><span>vite-plugin-pwa</span><em>0.21</em></a></li><li><a href="https://vitest.dev"><img src="https://cdn.simpleicons.org/vitest" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Vitest</span><em>4</em></a></li><li><a href="https://meteocons.com"><img src="https://cdn.jsdelivr.net/npm/@meteocons/svg/fill/clear-day.svg" alt="" width="20" height="20" loading="lazy" decoding="async"><span>Meteocons</span></a></li></ul></div>
+  </div>
+</section>
+
+</main>
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div>
+      <strong>โซลาร์มอนิเตอร์ · Deye Solar Monitor</strong>
+      <p>อัปเดตล่าสุด <time datetime="2026-10-20T19:35:12+07:00">20 ตุลาคม 2569</time> · คอมมิต <a href="https://github.com/botnick/deyecloud/commit/c0317c340dfad156ec61ae00400b659a880f8b63"><code>c0317c3</code></a></p>
+    </div>
+    <ul>
+      <li><a href="">หน้าแรก</a></li>
+      <li><a href="docs/architecture/">สถาปัตยกรรม</a></li>
+      <li><a href="docs/deploy/">คู่มือติดตั้ง</a></li>
+      <li><a href="https://github.com/botnick/deyecloud">ซอร์สโค้ด</a></li>
+      <li><a href="en/">English</a></li>
+    </ul>
+  </div>
+</footer>
+</body>
+</html>
