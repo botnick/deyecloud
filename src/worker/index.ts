@@ -658,8 +658,8 @@ app.get("/api/_health", async (c) => {
   const healthy = Math.max(lastTs, lastPollOk) > 0 && now - Math.max(lastTs, lastPollOk) <= STALE_AFTER_S;
   const loginBad = !!login && login.fails > 0;
   // The route is public (uptime monitors); upstream error text can carry account or endpoint
-  // details, so only a signed-in caller gets it. Everyone else sees that an error happened.
-  const showErr = await isAuthed(c.req.raw, env).catch(() => false);
+  // details, so only an operator (configured PIN + valid session; no PIN = nobody) gets it.
+  const showErr = await isOperator(c.req.raw, env).catch(() => false);
   const errMsg = (m: string | null | undefined) => (m == null ? m : showErr ? m : "(เข้าสู่ระบบเพื่อดูรายละเอียด)");
   const payload = {
     // ok mirrors cronHealthy so uptime monitors can key on status code / `ok`.
