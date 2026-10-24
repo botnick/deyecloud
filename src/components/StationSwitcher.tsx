@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { Station } from "../lib/api";
 import { IconCheck } from "../lib/icons";
 import { haptic } from "../lib/haptics";
@@ -15,10 +16,34 @@ function HouseGlyph() {
 export function StationSwitcher({ stations, selectedId, onSelect, onClose }: {
   stations: Station[]; selectedId: number | null; onSelect: (id: number) => void; onClose: () => void;
 }) {
+  const sheet = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  // Keyboard: focus moves into the sheet (the current station), Tab stays inside it, Escape
+  // closes it, and focus goes back to whatever opened it.
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    const items = () => Array.from(sheet.current?.querySelectorAll<HTMLElement>("button") ?? []);
+    (items().find((b) => b.getAttribute("aria-current") === "true") ?? items()[0])?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); close.current(); return; }
+      if (e.key !== "Tab") return;
+      const list = items();
+      if (!list.length) return;
+      const first = list[0], last = list[list.length - 1];
+      const inside = sheet.current?.contains(document.activeElement);
+      if (e.shiftKey ? !inside || document.activeElement === first : !inside || document.activeElement === last) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("keydown", onKey); opener?.focus?.(); };
+  }, []);
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end" role="dialog" aria-modal="true" aria-label="เลือกสถานี">
-      <button aria-label="ปิด" onClick={onClose} className="absolute inset-0 bg-black/30" />
-      <div className="relative bg-canvas rounded-t-[28px] px-4 pt-3 pb-[calc(20px+env(safe-area-inset-bottom))] shadow-[0_-14px_44px_rgba(17,17,17,0.20)]"
+      <button aria-label="ปิด" tabIndex={-1} onClick={onClose} className="absolute inset-0 bg-black/30" />
+      <div ref={sheet} className="relative bg-canvas rounded-t-[28px] px-4 pt-3 pb-[calc(20px+env(safe-area-inset-bottom))] shadow-[0_-14px_44px_rgba(17,17,17,0.20)]"
         style={{ animation: "sheetup .32s cubic-bezier(.22,1,.36,1) both" }}>
         <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-line" />
         <h2 className="text-[20px] font-bold text-title px-2 mb-3">เลือกสถานี</h2>
