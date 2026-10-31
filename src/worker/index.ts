@@ -3,7 +3,7 @@
 // binding (configured by @cloudflare/vite-plugin).
 import { rememberGap, retryGap } from "./gaps";
 import { Hono } from "hono";
-import { getLatest, getHistory, listStations, getStationMeta, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, dayItem, isAuthHold, isAuthEnvelope, stationAlerts, type DeyeAlert, bkkDay, DeyeNonJsonError, type Env } from "./deye";
+import { getLatest, getHistory, listStations, getStationMeta, dayRange, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, dayItem, isAuthHold, isAuthEnvelope, stationAlerts, type DeyeAlert, bkkDay, DeyeNonJsonError, type Env } from "./deye";
 import { sunInfo } from "./sun";
 import { analyzeDevice } from "../lib/diagnostics";
 import { evaluateAlerts, notify, alertsConfigured, delivered } from "./alerts";
@@ -1007,10 +1007,9 @@ async function fetchHistFromDeye(env: Env, range: string, dateStr: string, sid?:
   let data: any;
   if (range === "day") {
     // frames (granularity 1) = the curve; day energy (granularity 2) = certified totals
-    const nextStr = new Date(ref.getTime() + 86400000).toISOString().slice(0, 10);
     const [res, tres] = await Promise.all([
       getHistory(env, 1, dateStr, dateStr, sid),
-      getHistory(env, 2, dateStr, nextStr, sid).catch(() => null),
+      getHistory(env, 2, ...dayRange(dateStr), sid).catch(() => null),
     ]);
     const points = (res.stationDataItems || []).filter((x: any) => x.timeStamp).map((x: any) => ({
       ts: x.timeStamp, gen_power: x.generationPower ?? 0, use_power: x.consumptionPower ?? 0,
@@ -1192,9 +1191,8 @@ app.post("/api/settings", async (c) => {
 app.get("/api/_debug", async (c) => c.json(await getLatest(c.env)));
 app.get("/api/_hist", async (c) => {
   const env = c.env;
-  const today = new Date().toISOString().slice(0, 10);
-  const tmr = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-  return c.json({ day: await getHistory(env, 2, today, tmr), frame: await getHistory(env, 1, today, today) });
+  const today = bkkDay();
+  return c.json({ day: await getHistory(env, 2, ...dayRange(today)), frame: await getHistory(env, 1, today, today) });
 });
 app.get("/api/_poll", async (c) => c.json(await pollAndStore(c.env)));
 
@@ -1276,11 +1274,10 @@ async function backfillRange(env: Env, from: string, to: string, maxDays = BACKF
 
   for (let ms = startMs; ms <= lastMs; ms += 86400000) {
     const day = new Date(ms).toISOString().slice(0, 10);
-    const next = new Date(ms + 86400000).toISOString().slice(0, 10);
     try {
       const [fres, tres] = await Promise.all([
         getHistory(env, 1, day, day, sid),
-        getHistory(env, 2, day, next, sid).catch((e: any) => ({ __rejected: e })), // keep the rejection, don't flatten it
+        getHistory(env, 2, ...dayRange(day), sid).catch((e: any) => ({ __rejected: e })), // keep the rejection, don't flatten it
       ]);
       // A Deye error envelope still returns HTTP 200 with no stationDataItems —
       // without this it would look like "0 frames, success" and hide the failure.
@@ -1465,8 +1462,7 @@ app.post("/api/_purge_day", async (c) => {
   const ms = exactDay(day);
   if (ms == null) return c.json({ ok: false, error: "day must be YYYY-MM-DD" }, 400);
   if (day >= bkkDay()) return c.json({ ok: false, error: "only past days" }, 400);
-  const next = new Date(ms + 86400000).toISOString().slice(0, 10);
-  const res = await getHistory(env, 2, day, next);
+  const res = await getHistory(env, 2, ...dayRange(day));
   const err = deyeFailed(res);
   if (err) return c.json({ ok: false, error: `deye: ${err}` }, 502);
   // Absence has to be PROVEN: an explicit success with a real items array whose

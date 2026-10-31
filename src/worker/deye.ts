@@ -44,6 +44,18 @@ export function bkkDay(offsetDays = 0): string {
   return new Date(Date.now() + 7 * 3600 * 1000 + offsetDays * 86400000).toISOString().slice(0, 10);
 }
 
+// Range for one day's energy (/station/history granularity=day). Deye wants endAt > startAt,
+// so a day is asked as [day, day+1] — but a range that crosses into the next month comes back
+// success with NO items (2026-10-31: [10-31, 11-01] gave total 0, so the month's last day never
+// got its totals). The last day of a month is asked as [day-1, day] instead; the end is
+// inclusive and dayItem() picks the item by date either way.
+export function dayRange(day: string): [string, string] {
+  const ms = Date.parse(day + "T00:00:00Z");
+  const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
+  const next = iso(ms + 86400000);
+  return next.slice(0, 7) === day.slice(0, 7) ? [day, next] : [iso(ms - 86400000), day];
+}
+
 async function sha256Hex(text: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -390,8 +402,8 @@ const n = (v: any) => Number(v) || 0;
 // treat "no totals" as unknown, never as zero (a zero day would be written to D1).
 async function getDayTotals(env: Env, stationId: string): Promise<any | null> {
   const today = bkkDay();
-  const tmr = bkkDay(1);
-  const res = await apiPost(env, "/station/history", { stationId: Number(stationId), granularity: 2, startAt: today, endAt: tmr });
+  const [startAt, endAt] = dayRange(today);
+  const res = await apiPost(env, "/station/history", { stationId: Number(stationId), granularity: 2, startAt, endAt });
   if (!res || res.success === false || (typeof res.status === "number" && res.status >= 400)) return null;
   return dayItem(res, today);
 }
