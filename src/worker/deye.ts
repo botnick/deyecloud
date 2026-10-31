@@ -45,10 +45,11 @@ export function bkkDay(offsetDays = 0): string {
 }
 
 // Range for one day's energy (/station/history granularity=day). Deye wants endAt > startAt,
-// so a day is asked as [day, day+1] — but a range that crosses into the next month comes back
-// success with NO items (2026-10-31: [10-31, 11-01] gave total 0, so the month's last day never
-// got its totals). The last day of a month is asked as [day-1, day] instead; the end is
-// inclusive and dayItem() picks the item by date either way.
+// so a day is asked as [day, day+1]. On the last day of a month that range reaches into the
+// next month; 31 Aug and 31 Oct 2026 never got their totals that way ([10-31, 11-01] came back
+// success with 0 items), though older cross-month ranges do answer, so it is not a rule. Asking
+// [day-1, day] keeps the range inside the month; the end is inclusive (31 Aug backfilled this
+// way) and dayItem() picks the item by date either way.
 export function dayRange(day: string): [string, string] {
   const ms = Date.parse(day + "T00:00:00Z");
   const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
