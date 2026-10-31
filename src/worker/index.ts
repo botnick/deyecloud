@@ -1454,14 +1454,19 @@ app.post("/api/_purge", async (c) => {
 // Drop a `daily` row that Deye itself has no record for — left behind by the old
 // backfill, which took the next day's totals when the asked-for day was empty.
 //   POST /api/_purge_day?day=YYYY-MM-DD[&confirm=1]   (dry run without confirm)
-// Refuses unless Deye answers successfully with the neighbouring day but no item for
-// this one, so a row Deye still vouches for (or hasn't published yet) is never removed.
+// Refuses unless the day is at least PURGE_MIN_AGE_DAYS old and Deye answers successfully
+// with the exact neighbouring day but no item for this one; a day Deye vouches for is never
+// removed, and a recent one is left for the retry since Deye can publish late.
+const PURGE_MIN_AGE_DAYS = 14;
 app.post("/api/_purge_day", async (c) => {
   const env = c.env;
   const day = c.req.query("day") || "";
   const ms = exactDay(day);
   if (ms == null) return c.json({ ok: false, error: "day must be YYYY-MM-DD" }, 400);
   if (day >= bkkDay()) return c.json({ ok: false, error: "only past days" }, 400);
+  // Deye can publish a day's totals late (2026-10-31 still had none the next morning), so a
+  // recent day is never judged absent: it waits for the gap retry / a later backfill.
+  if (day > bkkDay(-PURGE_MIN_AGE_DAYS)) return c.json({ ok: false, error: `only days at least ${PURGE_MIN_AGE_DAYS} days old (deye may still publish it)` }, 400);
   const res = await getHistory(env, 2, ...dayRange(day));
   const err = deyeFailed(res);
   if (err) return c.json({ ok: false, error: `deye: ${err}` }, 502);
@@ -1477,8 +1482,10 @@ app.post("/api/_purge_day", async (c) => {
   if (item) return c.json({ ok: false, error: "deye has totals for this day; use /api/_backfill instead", deye: item }, 409);
   // An empty list is not proof either: Deye answered success + [] for 2026-10-31 while that
   // day's totals were simply not published yet. Absence counts only when Deye returns the
-  // neighbouring day of the same range and leaves this one out.
-  if (!items.length) return c.json({ ok: false, error: "deye returned no days around this one (may be delayed); nothing deleted" }, 409);
+  // exact neighbouring day of the asked range and leaves this one out.
+  const [a, b] = dayRange(day);
+  const neighbour = a === day ? b : a;
+  if (!dayItem(res, neighbour)) return c.json({ ok: false, error: `deye did not return the neighbouring day ${neighbour}; nothing deleted` }, 409);
   const row = await env.DB.prepare("SELECT * FROM daily WHERE day=?").bind(day).first();
   if (!row) return c.json({ ok: true, day, deleted: null, note: "no row" });
   if (c.req.query("confirm") !== "1") return c.json({ ok: true, dryRun: true, day, wouldDelete: row });

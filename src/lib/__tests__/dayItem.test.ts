@@ -81,6 +81,19 @@ describe("POST /api/_purge_day", () => {
     expect(f.db.prepare("SELECT COUNT(*) c FROM meta WHERE k IN ('totals_cache','hist_v3_month_2026-10-01')").get().c).toBe(2);
   });
 
+  it("needs the exact neighbouring day, not just any item", async () => {
+    const f = await fixture([item(2026, 9, 15, 17)]);
+    expect((await f.post("?day=2026-10-03&confirm=1")).status).toBe(409);
+    expect(f.db.prepare("SELECT COUNT(*) c FROM daily").get().c).toBe(2);
+  });
+
+  it("never judges a recent day (Deye can publish late)", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-10-10T00:00:00+07:00"));
+    const f = await fixture([item(2026, 10, 4, 17)]);
+    expect((await f.post("?day=2026-10-03&confirm=1")).status).toBe(400);
+    expect(f.db.prepare("SELECT COUNT(*) c FROM daily").get().c).toBe(2);
+  });
+
   it("rejects bad or non-past days and anonymous callers", async () => {
     const f = await fixture([]);
     expect((await f.post("?day=2026-02-31")).status).toBe(400);
