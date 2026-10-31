@@ -73,6 +73,14 @@ describe("POST /api/_purge_day", () => {
     expect(f.db.prepare("SELECT COUNT(*) c FROM daily").get().c).toBe(2);
   });
 
+  it("an empty answer is not proof of absence (Deye can publish a day late)", async () => {
+    const f = await fixture([]);
+    const r = await f.post("?day=2026-10-03&confirm=1");
+    expect(r.status).toBe(409);
+    expect(f.db.prepare("SELECT COUNT(*) c FROM daily").get().c).toBe(2);
+    expect(f.db.prepare("SELECT COUNT(*) c FROM meta WHERE k IN ('totals_cache','hist_v3_month_2026-10-01')").get().c).toBe(2);
+  });
+
   it("rejects bad or non-past days and anonymous callers", async () => {
     const f = await fixture([]);
     expect((await f.post("?day=2026-02-31")).status).toBe(400);

@@ -1454,8 +1454,8 @@ app.post("/api/_purge", async (c) => {
 // Drop a `daily` row that Deye itself has no record for — left behind by the old
 // backfill, which took the next day's totals when the asked-for day was empty.
 //   POST /api/_purge_day?day=YYYY-MM-DD[&confirm=1]   (dry run without confirm)
-// Refuses unless Deye answers successfully with no item for that day, so a row
-// Deye still vouches for can never be removed this way.
+// Refuses unless Deye answers successfully with the neighbouring day but no item for
+// this one, so a row Deye still vouches for (or hasn't published yet) is never removed.
 app.post("/api/_purge_day", async (c) => {
   const env = c.env;
   const day = c.req.query("day") || "";
@@ -1475,6 +1475,10 @@ app.post("/api/_purge_day", async (c) => {
   if (!items || !items.every(dated)) return c.json({ ok: false, error: "deye answer not understood; nothing deleted" }, 502);
   const item = dayItem(res, day);
   if (item) return c.json({ ok: false, error: "deye has totals for this day; use /api/_backfill instead", deye: item }, 409);
+  // An empty list is not proof either: Deye answered success + [] for 2026-10-31 while that
+  // day's totals were simply not published yet. Absence counts only when Deye returns the
+  // neighbouring day of the same range and leaves this one out.
+  if (!items.length) return c.json({ ok: false, error: "deye returned no days around this one (may be delayed); nothing deleted" }, 409);
   const row = await env.DB.prepare("SELECT * FROM daily WHERE day=?").bind(day).first();
   if (!row) return c.json({ ok: true, day, deleted: null, note: "no row" });
   if (c.req.query("confirm") !== "1") return c.json({ ok: true, dryRun: true, day, wouldDelete: row });
