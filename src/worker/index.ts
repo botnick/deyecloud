@@ -2,6 +2,7 @@
 // D1, realtime polling on a cron schedule. The SPA is served via the ASSETS
 // binding (configured by @cloudflare/vite-plugin).
 import { rememberGap, retryGap } from "./gaps";
+import { settleYesterday } from "./settle";
 import { Hono } from "hono";
 import { getLatest, getHistory, listStations, getStationMeta, dayRange, listDevices, deviceLatest, deviceMeasurePoints, loginStatus, getStationId, dayItem, isAuthHold, isAuthEnvelope, stationAlerts, type DeyeAlert, bkkDay, DeyeNonJsonError, type Env } from "./deye";
 import { sunInfo } from "./sun";
@@ -288,6 +289,9 @@ async function pollAndStore(env: Env) {
   } else {
     const healFrom = Math.floor(Date.parse(bkkDayOf(Date.now() - (SELF_HEAL_MAX_DAYS - 1) * 86400000) + "T00:00:00+07:00") / 1000);
     await retryGap(env.DB, ts, (from, to) => backfillRange(env, from, to, SELF_HEAL_MAX_DAYS), healFrom).catch((e) => console.error("gap retry failed", e));
+    // Yesterday's final totals (and its last samples) from Deye, hourly until they settle.
+    await settleYesterday(env.DB, ts, async (d) => !!(await backfillRange(env, d, d, SELF_HEAL_MAX_DAYS)).detail?.[0]?.totals)
+      .catch((e) => console.error("settle yesterday failed", e));
   }
 
   // Full inverter telemetry — heavy JSON, captured ~every 15 min. Gate on elapsed
