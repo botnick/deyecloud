@@ -1,0 +1,702 @@
+<!-- README.md (https://github.com/botnick/deyecloud/blob/main/README.md) -->
+
+<p align="center">
+  <img src="public/icon.svg" alt="" width="96" height="96">
+</p>
+
+<h1 align="center">โซลาร์มอนิเตอร์ · Deye Solar Monitor</h1>
+
+<p align="center">
+  <b>แอปดูระบบโซลาร์เซลล์ Deye แบบเรียลไทม์ ภาษาไทย</b><br>
+  ผลิตไฟ · ใช้ไฟ · แบตเตอรี่ · ซื้อ-ขายไฟ ครบในแอปเดียว — ติดตั้งเป็นแอปบนมือถือ รันฟรีบน Cloudflare ทุน <b>0 บาท</b>
+</p>
+
+<p align="center">
+  <a href="https://github.com/botnick/deyecloud/actions/workflows/ci.yml"><img src="https://github.com/botnick/deyecloud/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/Cloudflare-Workers%20%2B%20D1-F38020?logo=cloudflare&logoColor=white" alt="Cloudflare Workers + D1">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React 19">
+  <img src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white" alt="PWA">
+  <img src="https://img.shields.io/badge/lang-Thai%20%F0%9F%87%B9%F0%9F%87%AD-A20DDD" alt="Thai">
+</p>
+
+<p align="center">
+  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/botnick/deyecloud"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare"></a>
+</p>
+
+<p align="center">
+  <a href="https://botnick.github.io/deyecloud/"><b>เว็บไซต์</b></a> ·
+  <a href="#ภาพหน้าจอ">ภาพหน้าจอ</a> ·
+  <a href="#ฟีเจอร์">ฟีเจอร์</a> ·
+  <a href="#ติดตั้ง-ฟรี">ติดตั้ง</a> ·
+  <a href="#ตั้งค่า">ตั้งค่า</a> ·
+  <a href="./ARCHITECTURE.md">สถาปัตยกรรม</a> ·
+  <a href="./DEPLOY.md">คู่มือ deploy</a> ·
+  <a href="#english">English</a>
+</p>
+
+<p align="center"><img src="docs/shots/banner.png?v=20261020" alt="ภาพหน้าจอแอปโซลาร์มอนิเตอร์ 4 หน้า: หน้าหลัก วันนี้ อากาศ ย้อนหลัง" width="880"></p>
+
+---
+
+## ทำไมต้องใช้
+
+<table>
+  <tr>
+    <td width="33%" valign="top"><h3>⚡ ดูตามเวลาจริง อัปเดตทุกนาที</h3>บ้าน 3D ลากหมุนได้ เส้นไฟวิ่งจากแผงโซลาร์ แบตเตอรี่ และเสาไฟเข้าบ้านตามทิศทางจริง จาก <b>Deye Cloud Open API</b> รีเฟรชเองทุก 1 นาที</td>
+    <td width="33%" valign="top"><h3>📱 เหมือนแอปจริง ใช้ได้ทุกวัย</h3>ดีไซน์แบบ iPhone (หัวข้อใหญ่ แถบเมนูกระจก แป้น PIN) ตัวเลขใหญ่ ทุกสีมีคำกำกับ ปุ่มใหญ่ (Universal Design)</td>
+    <td width="33%" valign="top"><h3>💸 ฟรีจริง</h3>Cloudflare Workers + D1 free tier ล้วน ไม่มีค่าเซิร์ฟเวอร์รายเดือน ติดตั้งได้ในคลิกเดียว</td>
+  </tr>
+  <tr>
+    <td valign="top"><h3>🧠 วิเคราะห์ให้เอง</h3>พยากรณ์การผลิตไฟที่เรียนรู้จากบ้านคุณ สุขภาพแบตเตอรี่ ภาพรวมทั้งปี และคำแนะนำจากตัวเลขจริง (ไม่ใช่ AI เดา)</td>
+    <td valign="top"><h3>🔔 แจ้งเตือนเมื่อมีปัญหา</h3>อินเวอร์เตอร์ออฟไลน์ ไฟดับ แบตเตอรี่ต่ำ การแจ้งเตือนจาก Deye ส่งเข้า Discord / Telegram ได้</td>
+    <td valign="top"><h3>🔒 ปลอดภัย</h3>กุญแจ Deye อยู่ฝั่งเซิร์ฟเวอร์เท่านั้น ผู้ใช้เข้าด้วย PIN ไม่ต้องรู้รหัสบัญชี Deye</td>
+  </tr>
+</table>
+
+---
+
+## ภาพหน้าจอ
+
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="docs/shots/home.png?v=20261020" alt="หน้าหลัก" width="200"><br><b>หน้าหลัก</b><br><sub>สถานะ + ผังพลังงานตามเวลาจริง</sub></td>
+    <td align="center" width="25%"><img src="docs/shots/today.png?v=20261020" alt="วันนี้" width="200"><br><b>วันนี้</b><br><sub>ผลิต / ใช้ / ซื้อ / ไฟย้อน</sub></td>
+    <td align="center" width="25%"><img src="docs/shots/weather.png?v=20261020" alt="อากาศ" width="200"><br><b>อากาศ</b><br><sub>พยากรณ์ + ช่วงแดดดีสุด</sub></td>
+    <td align="center" width="25%"><img src="docs/shots/history.png?v=20261020" alt="ย้อนหลัง" width="200"><br><b>ย้อนหลัง</b><br><sub>วัน / เดือน / ปี / ตลอด</sub></td>
+  </tr>
+</table>
+
+**บ้าน 3D บนหน้าหลัก**
+
+- ลากซ้าย-ขวาเพื่อหมุนรอบบ้าน ลากขึ้น-ลงเพื่อก้มหรือเงยมุมกล้อง
+- เส้นไฟวิ่งตามสายจริง จากแผงโซลาร์ ผ่านอินเวอร์เตอร์ ไปยังบ้าน แบตเตอรี่ และเสาไฟ
+- ป้ายตัวเลขอยู่ติดกับอุปกรณ์แต่ละชิ้น
+- ท้องฟ้าและแสงเปลี่ยนตามเวลาจริงของบ้าน
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/shots/hero-day.png?v=20261020" alt="กลางวัน" width="240"><br><sub>กลางวัน · ผลิตเต็ม + ไฟย้อน</sub></td>
+    <td align="center"><img src="docs/shots/hero-golden.png?v=20261020" alt="แดดเย็น" width="240"><br><sub>แดดเย็น · ชาร์จแบตเตอรี่</sub></td>
+    <td align="center"><img src="docs/shots/hero-night.png?v=20261020" alt="กลางคืน" width="240"><br><sub>กลางคืน · ไฟในบ้านเปิด แบตเตอรี่จ่ายไฟ</sub></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><img src="docs/shots/card-daynight.png?v=20261014" alt="ใช้ไฟกลางวันกับกลางคืน" width="300"><br><sub>ใช้ไฟกลางวัน กับ กลางคืน (เที่ยงถึงเที่ยง)</sub></td>
+    <td align="center"><img src="docs/shots/card-battery-now.png?v=20261020" alt="แบตเตอรี่ตอนนี้" width="240"><br><sub>แบตเตอรี่ตอนนี้ · ใช้ได้ถึงกี่โมง</sub></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><img src="docs/shots/card-year.png?v=20261020" alt="ภาพรวมทั้งปี" width="300"><br><sub>ภาพรวมทั้งปี + คาดการณ์การผลิตทั้งปี</sub></td>
+    <td align="center"><img src="docs/shots/card-battery.png?v=20261020" alt="สุขภาพแบตเตอรี่" width="240"><br><sub>สุขภาพแบตเตอรี่ (วัดจริง)</sub></td>
+  </tr>
+</table>
+
+---
+
+## ฟีเจอร์
+
+### ดูระบบตามเวลาจริง
+- **หน้าหลัก** — บ้าน 3D หมุนได้พร้อมเส้นไฟวิ่งตามทิศจริง, สถานะระบบ (ปกติ/แจ้งเตือน), ผลิตไฟวันนี้, เงินที่ประหยัดวันนี้ และ **เดือนนี้ประหยัดแล้ว** พร้อมตัวเลขคาดการณ์ทั้งเดือน
+- **แบตเตอรี่ตอนนี้** — กำลังชาร์จหรือจ่ายไฟเท่าไร และ **เพราะอะไร** เป็นประโยคสั้น ๆ, "ใช้ได้ถึงกี่โมง" / "เต็มราวกี่โมง" คิดจากความจุที่วัดจริงและจุดตัดที่เรียนรู้จากข้อมูลบ้านนี้ (ไม่ใช้ค่าบนฉลาก)
+- **วันนี้** — สรุปผลิต/ใช้/ซื้อ/ไฟย้อน, สัดส่วนพึ่งพาตัวเอง, การหมุนเวียนพลังงาน · สลับมุมมอง **ทั้งวัน** หรือ **เที่ยงถึงเที่ยง** (เห็นการใช้ไฟกลางวันกับกลางคืนแยกกัน)
+- **รายละเอียดเครื่อง** — ค่าต่อเฟส / PV string / BMS, **การแจ้งเตือนจริงจากอินเวอร์เตอร์**, ตรวจสุขภาพระบบ (สมดุลเฟส · ช่องแบตเตอรี่ · แรงดัน/ความถี่ · อุณหภูมิ — เงียบเมื่อปกติ), แนวโน้ม 1–90 วัน
+- **หลายสถานี** — บัญชีมีหลายระบบ มีปุ่มสลับระบบที่ด้านบนของจอให้อัตโนมัติ
+
+<p>
+  <img src="docs/shots/saved.png?v=20261020" alt="ผลิตไฟวันนี้ ใช้ไฟ ซื้อไฟ และเงินที่ประหยัดวันนี้กับเดือนนี้" width="300">
+  <img src="docs/shots/selfuse.png?v=20261020" alt="สัดส่วนพึ่งพาตัวเองวันนี้" width="300">
+</p>
+
+### วิเคราะห์และพยากรณ์
+- **พยากรณ์ที่เรียนรู้จากผลจริง** — ขนาดระบบสอบเทียบจากวันแดดดี + ค่าเมฆของบ้านนี้ปรับทุกวันจาก ค่าคาดการณ์เทียบกับค่าจริง (วันใหม่มีน้ำหนักมากกว่า ตามฤดูทัน) · การ์ดความแม่นยำของการพยากรณ์: คะแนน + แท่งผลิตจริงรายวันพร้อมขีดที่คาดไว้ และป้าย แม่น / ต่ำไป / สูงไป
+- **อากาศ** — พยากรณ์ TMD (หรือ Open-Meteo), เส้นทางดวงอาทิตย์ + ช่วงแดดดีสุด, ดัชนี UV, ราย ชม. + 7 วัน
+- **สุขภาพแบตเตอรี่ (วัดจริง)** — ความจุใช้ได้จริงจากช่วงคายประจุ, SOH เทียบพิกัด BMS, จำนวนรอบ, ใช้ลึกเฉลี่ย, แนวโน้ม 60 วัน
+- **ย้อนหลัง + ภาพรวมทั้งปี** — กราฟราย วัน/เดือน/ปี/ตลอด, สรุปรายเดือน (เงินที่ประหยัด, คาดการณ์ทั้งเดือน, ยอดผลิต / ใช้ / ซื้อ / แบตเตอรี่จ่ายไฟหรือไฟย้อน), เดือนดีสุด/แย่สุด, เทียบปีก่อน, คาดการณ์การผลิตทั้งปีตามแดดของพิกัดบ้าน
+- **คำแนะนำอัตโนมัติ** — คิดจากสมการสมดุลพลังงานของเลขจริง ปรับตามชนิดระบบ on-grid / hybrid / off-grid
+- **เทียบ + ส่งออก** — เทียบช่วงก่อนหน้าแบบเวลาเท่ากัน (วันนี้ vs เมื่อวานถึงเวลานี้) · ดาวน์โหลด CSV ทุก 5 นาที / รายวัน / รายเดือน
+
+<p>
+  <img src="docs/shots/forecast.png?v=20261020" alt="คาดการณ์การผลิตไฟ วันนี้ พรุ่งนี้ มะรืนนี้" width="300">
+  <img src="docs/shots/accuracy.png?v=20261020" alt="ความแม่นยำพยากรณ์ เทียบผลิตจริงกับที่คาดไว้รายวัน" width="300">
+  <img src="docs/shots/month.png?v=20261020" alt="สรุปเดือนนี้ เงินที่ประหยัด คาดทั้งเดือน และยอดผลิต ใช้ ซื้อ แบตจ่าย" width="300">
+</p>
+
+### ทนทาน ไม่ต้องเฝ้า
+- **แจ้งเตือนออกนอกแอป** (ไม่บังคับ) — Discord webhook / Telegram: อินเวอร์เตอร์ออฟไลน์, การแจ้งเตือนเกิดขึ้นหรือหายไป, ไฟดับ, แบตเตอรี่ต่ำ, ฟ้าโปร่งแต่ไม่ผลิตไฟ — ส่ง "กลับมาปกติ" ให้ด้วย · ออกแบบให้ **ไม่แจ้งเตือนพร่ำเพรื่อ** (ต้องยืนยันหลายรอบก่อนส่ง)
+- **ไม่บันทึกค่าปลอม** — ตัวส่งข้อมูลหลุด / Deye ส่งค่าค้าง ระบบรู้และไม่เก็บซ้ำ · กลับมาแล้ว **เติมข้อมูลย้อนหลังให้เอง**
+- **แถบสถานะชัดเจน** — เชื่อมต่อ Deye ไม่ได้ ระบบหยุดบันทึกข้อมูล หรืออินเวอร์เตอร์ไม่ส่งข้อมูล แอปบอกสาเหตุให้เห็น · `/api/_health` ใช้กับ uptime monitor ได้
+- **ติดตั้งเป็นแอป (PWA)** — คำแนะนำติดตั้งปรับตามเครื่อง (Android / iPhone / Mac / อื่นๆ) · ใช้งาน offline ได้
+
+---
+
+## ติดตั้ง (ฟรี)
+
+**ทางที่ 1 — คลิกเดียว:** กดปุ่ม **Deploy to Cloudflare** ด้านบน แล้ว Cloudflare จะสร้าง repo และฐานข้อมูล D1 พร้อมถามค่าลับให้เอง เสร็จแล้วจะได้ลิงก์ `https://deyecloud.<ชื่อคุณ>.workers.dev` เปิดบนมือถือแล้วกด **เพิ่มลงหน้าจอโฮม**
+
+**ทางที่ 2 — คำสั่งเดียว (ใช้ส่วนตัว):**
+
+```bash
+npx wrangler login        # ล็อกอิน Cloudflare ครั้งเดียว
+cp .dev.vars.example .dev.vars   # ใส่ DEYE_APP_SECRET, DEYE_PASSWORD, APP_PIN, TMD_TOKEN
+npm run setup             # สร้าง D1 + ตั้งค่าลับ + build + deploy ให้อัตโนมัติ
+```
+
+อัปเดตครั้งต่อไป `npm run deploy` · ดู log `npm run tail` · ตารางใน D1 สร้างเองตอนใช้งานครั้งแรก และระบบเก็บข้อมูลให้เองทุก 5 นาที — ดูรายละเอียดทั้งหมดได้ใน [`DEPLOY.md`](./DEPLOY.md)
+
+<details>
+<summary><b>รันบนเครื่องตัวเอง (สำหรับนักพัฒนา)</b></summary>
+
+```bash
+npm install
+cp .dev.vars.example .dev.vars   # ใส่ค่าจริง
+npm run dev                       # เปิด http://localhost:5174  (มือถือใน LAN: http://<ip>:5174)
+```
+
+- ใส่ PIN ที่ตั้งไว้เพื่อเข้า · **ระบบตั้งเวลาเก็บข้อมูล (cron) ไม่ทำงานใน `vite dev`** ให้เปิด `GET /api/_poll` หนึ่งครั้งเพื่อดึงข้อมูลครั้งแรก (route `/api/_*` ต้องตั้ง `APP_PIN` และล็อกอินก่อน)
+- ดูข้อมูลดิบจาก Deye `GET /api/_debug` · ทดสอบหน้าจอด้วยฉากจำลอง `?dev=1` หรือ `?sim=peak`
+
+| คำสั่ง | ทำอะไร |
+|---|---|
+| `npm run dev` | dev server (port 5174) เสิร์ฟ Worker + หน้าเว็บ |
+| `npm run build` | build ไปไว้ที่ `dist/` |
+| `npm run typecheck` · `npm test` | ตรวจ type · unit test (Vitest) |
+| `npm run setup` | ตั้งค่า + deploy ครั้งแรกอัตโนมัติ |
+| `npm run deploy` | build + deploy ขึ้น Cloudflare |
+| `npm run db:create` / `db:init` | สร้าง / ตั้งตาราง D1 แบบ manual (ปกติ `setup` ทำให้แล้ว) |
+| `npm run tail` | ดู log production |
+| `node design/mockup.mjs` | ถ่ายภาพหน้าจอพร้อมกรอบมือถือ เก็บไว้ที่ `docs/shots/` (ใช้กับเครื่องที่ deploy แล้วได้ด้วย `BASE=… PIN=…`) |
+
+</details>
+
+---
+
+## ตั้งค่า
+
+ตั้งน้อยที่สุด — **สถานี พิกัด กำลังติดตั้ง สถานที่ ดึงจาก Deye เองแล้วเก็บไว้** ไม่มีค่าส่วนตัวฝังในโค้ด · ค่าไฟ / ค่าขายไฟ / ทุนติดตั้ง / CO₂ ตั้งในแอป (ไปที่หน้าย้อนหลัง เลือกแท็บ "ตลอด" แล้วกดตั้งค่าการคำนวณ) ทุกเครื่องเห็นค่าเดียวกัน
+
+| ต้องตั้ง | ที่มา |
+|---|---|
+| `DEYE_APP_ID`, `DEYE_EMAIL` | จาก [developer.deyecloud.com](https://developer.deyecloud.com) (ตั้งตอน deploy) |
+| `DEYE_APP_SECRET`, `DEYE_PASSWORD` | **ค่าลับ** — `.dev.vars` (เครื่องตัวเอง) / `wrangler secret` (production) |
+| `APP_PIN` | PIN เข้าแอป · ไม่ตั้ง = ดูได้สาธารณะ แต่หน้าผู้ดูแล `/api/_*` จะปิด |
+
+<details>
+<summary><b>ค่าเสริมทั้งหมด (ไม่ตั้งก็ใช้ได้)</b></summary>
+
+| ตัวแปร | ใช้ทำอะไร |
+|---|---|
+| `DEYE_BASE_URL` | ค่าตั้งต้น EU (`eu1-developer…`) — เปลี่ยนเป็น us1 ถ้าบัญชีอยู่ US |
+| `DEYE_STATION_ID` · `DEYE_COMPANY_ID` | ปักสถานีเจาะจง / company ของบัญชี |
+| `TMD_TOKEN` · `TMD_BASE` | พยากรณ์อากาศกรมอุตุฯ (ไม่ตั้ง = ใช้ Open-Meteo) |
+| `WEATHER_LAT` / `WEATHER_LON` / `WEATHER_PLACE` | ปรับพิกัดอากาศเอง |
+| `ALERT_WEBHOOK_URL` · `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | ช่องทางแจ้งเตือน |
+| `ALERT_SOC_MIN` · `ALERT_REPEAT_MIN` · `ALERT_MUTE` · `ALERT_HEURISTICS` | เกณฑ์แบตเตอรี่ต่ำ · เตือนซ้ำทุกกี่นาที (360) · ปิดรายกติกา · ส่งคำแนะนำเชิงวิเคราะห์ออกนอกแอปด้วย |
+| `GRID_NOMINAL_V` / `GRID_NOMINAL_HZ` | แรงดัน/ความถี่ปกติของระบบไฟฟ้า (เช่น 230/50) — ไม่ตั้ง = ไม่ตรวจเช็กค่าสัมบูรณ์ (จงใจไม่เดา) |
+| `CONTACT_EMAIL` | อีเมลติดต่อที่แนบไปกับการค้นชื่อสถานที่ (OpenStreetMap ขอให้ระบุ) |
+| `DEYE_RELAY_URL` | ทางอ้อมเมื่อ Deye บล็อกเครือข่าย Cloudflare — รัน `scripts/deye-relay.mjs` บนเครื่องอื่นแล้วใส่ที่อยู่ (ติดตั้งเองให้เปลี่ยนเป็นของคุณหรือลบออกจาก `wrangler.jsonc`) ดู [`DEPLOY.md`](./DEPLOY.md) |
+
+</details>
+
+---
+
+## คำถามที่พบบ่อย
+
+### โซลาร์มอนิเตอร์คืออะไร
+แอปดูระบบโซลาร์เซลล์ที่ใช้อินเวอร์เตอร์ Deye แบบเรียลไทม์เป็นภาษาไทย ดึงข้อมูลจาก Deye Cloud Open API แล้วแสดงผลิตไฟ ใช้ไฟ แบตเตอรี่ และซื้อ-ขายไฟ พร้อมพยากรณ์และสรุปเงินที่ประหยัด ติดตั้งเป็นแอปบนมือถือได้
+
+### ต้องเสียเงินไหม
+ไม่ต้อง รันบน Cloudflare Workers + D1 ในโควตาฟรี เก็บข้อมูลทุก 5 นาที (วันละ 288 ครั้ง) ต่ำกว่าลิมิตฟรี 100,000 ครั้งต่อวันมาก
+
+### ใช้กับอินเวอร์เตอร์รุ่นไหนได้บ้าง
+ระบบที่ส่งข้อมูลขึ้น Deye Cloud ทั้ง on-grid, hybrid และ off-grid แอปปรับคำแนะนำตามชนิดระบบให้เอง ต้องมีบัญชีนักพัฒนาที่ [developer.deyecloud.com](https://developer.deyecloud.com)
+
+### ต่างจากแอป Deye Cloud อย่างไร
+ภาษาไทยทั้งแอป ตัวเลขใหญ่อ่านง่าย มีพยากรณ์ที่เรียนรู้จากบ้านคุณ สุขภาพแบตเตอรี่จากการวัดจริง สรุปเงินที่ประหยัดรายเดือน แจ้งเตือน Discord / Telegram และคนในบ้านดูได้ด้วย PIN โดยไม่ต้องรู้รหัสบัญชี Deye
+
+### ข้อมูลและรหัสผ่านปลอดภัยไหม
+กุญแจและรหัสบัญชี Deye เก็บเป็นค่าลับฝั่งเซิร์ฟเวอร์ ไม่ส่งไปที่มือถือ เข้าแอปด้วย PIN หน้าแอปตั้งค่าไม่ให้ขึ้นในผลค้นหา ประวัติข้อมูลทั้งหมดเก็บในบัญชี Cloudflare ของคุณเอง · ถ้าตั้ง `DEYE_RELAY_URL` ไว้ คำขอที่ส่งไป Deye (รวมคำขอโทเคนที่มีอีเมลและรหัสผ่านแบบแฮช) จะผ่านเครื่อง relay นั้นด้วย จึงควรใช้ relay ของคุณเองหรือของคนที่ไว้ใจเท่านั้น ไม่ใช้ก็ลบบรรทัดนี้ได้
+
+---
+
+## สถาปัตยกรรมโดยย่อ
+
+```
+มือถือ (PWA) ─▶ Cloudflare Worker ─┬─▶ Deye Cloud Open API  (สด + ย้อนหลัง + อุปกรณ์ + alarm)
+  เข้าด้วย PIN    หน้าเว็บ + /api/*   ├─▶ D1 (SQLite)          (ประวัติ + cache + token)
+                  cron ทุก 5 นาที    └─▶ TMD / Open-Meteo     (อากาศ + UV ตามพิกัดสถานี)
+```
+
+ทุกอย่างอยู่ใน Worker เดียว · ค่าลับไม่ออกไปฝั่งมือถือ · ถ้า Deye บล็อกเครือข่าย Cloudflare จะอ้อมผ่าน relay ที่ตั้งไว้ (`DEYE_RELAY_URL`) · การรับแดด (ขึ้น-ตก, ช่วงแดดดี, ชั่วโมงแดดเต็ม) คำนวณจริงด้วย NOAA + Haurwitz · โควตาต่อรอบของ free tier ถูกคิดไว้ในโค้ด (cron วันละ 288 ครั้ง ห่างลิมิต 100,000 req/วันมาก)
+
+<p class="tech">
+  <a href="https://vite.dev"><img src="https://cdn.simpleicons.org/vite" width="32" height="32" alt="Vite" title="Vite"></a>
+  <a href="https://react.dev"><img src="https://cdn.simpleicons.org/react" width="32" height="32" alt="React" title="React"></a>
+  <a href="https://www.typescriptlang.org"><img src="https://cdn.simpleicons.org/typescript" width="32" height="32" alt="TypeScript" title="TypeScript"></a>
+  <a href="https://tailwindcss.com"><img src="https://cdn.simpleicons.org/tailwindcss" width="32" height="32" alt="Tailwind CSS" title="Tailwind CSS"></a>
+  <a href="https://threejs.org"><img src="https://cdn.simpleicons.org/threedotjs" width="32" height="32" alt="three.js" title="three.js"></a>
+  <a href="https://hono.dev"><img src="https://cdn.simpleicons.org/hono" width="32" height="32" alt="Hono" title="Hono"></a>
+  <a href="https://developers.cloudflare.com/workers/"><img src="https://cdn.simpleicons.org/cloudflareworkers" width="32" height="32" alt="Cloudflare Workers" title="Cloudflare Workers"></a>
+  <a href="https://developers.cloudflare.com/d1/"><img src="https://cdn.simpleicons.org/cloudflare" width="32" height="32" alt="Cloudflare D1 · Cron · Static Assets" title="Cloudflare D1 · Cron · Static Assets"></a>
+  <a href="https://vite-pwa-org.netlify.app"><img src="https://cdn.simpleicons.org/pwa" width="32" height="32" alt="vite-plugin-pwa" title="vite-plugin-pwa"></a>
+  <a href="https://vitest.dev"><img src="https://cdn.simpleicons.org/vitest" width="32" height="32" alt="Vitest" title="Vitest"></a>
+  <a href="https://meteocons.com"><img src="https://cdn.jsdelivr.net/npm/@meteocons/svg/fill/clear-day.svg" width="32" height="32" alt="Meteocons" title="Meteocons"></a>
+</p>
+
+---
+
+## English
+
+**Deye Solar Monitor** is a free, self-hosted real-time dashboard for **Deye solar inverters**, built on the official **Deye Cloud Open API**. It shows PV production, home load, battery state and grid import/export live, adds a production forecast that learns from your own roof, measured battery health, monthly savings, CSV export and Discord/Telegram alerts, and installs on a phone as a PWA. It runs entirely on the **Cloudflare Workers + D1 free tier** (no monthly cost). The app interface is Thai.
+
+### Live view
+- **Home** — a rotatable 3D house with power flowing in the real direction between panels, battery, grid and home; system status; today's production and savings, plus savings so far this month with a whole-month estimate
+- **Battery now** — charging or discharging, the reason in one sentence, and when it will run out or be full, from measured capacity and the cut-off learned from this house
+- **Today** — produced, used, bought and exported, self-sufficiency and energy flow, as a whole day or noon-to-noon (daytime and night-time use apart)
+- **Device detail** — per-phase, PV string and BMS values, real inverter alarms, a quiet-when-normal health check, trends over 1–90 days
+- **Several stations** — a switcher appears when the account has more than one system
+
+### Analysis and forecast
+- **A forecast that learns** — system size calibrated from clear days, cloud factors re-learned daily from forecast vs actual (recent days weigh more, so it follows the season); an accuracy card with a score and each day's production bar with a tick at the forecast, labelled on target / too low / too high
+- **Weather** — Thai Meteorological Department forecast (or Open-Meteo), sun path and best sun window, UV index, hourly and 7-day
+- **Measured battery health** — usable capacity from real discharges, SOH against the BMS rating, cycles, average depth, 60-day trend
+- **History and year overview** — day / month / year / all-time charts, a month summary (savings, whole-month estimate, produced / used / bought / battery or exported), best and worst months, year-on-year, a whole-year estimate from the site's sunlight
+- **Recommendations** — derived from the energy balance of measured values, adjusted for on-grid, hybrid or off-grid
+- **Compare and export** — against the previous period at the same time of day; CSV every 5 minutes, daily or monthly
+
+### Hands-off reliability
+- **Alerts** (optional) — Discord webhook or Telegram: inverter offline, alarm raised or cleared, grid loss, low battery, clear sky but no production, plus "back to normal"; confirmed over several polls before sending
+- **No fake values** — a dropped logger or stuck Deye values are detected and not stored; gaps are backfilled automatically when data returns
+- **Clear status** — cannot reach Deye, collection stopped or inverter silent, each explained in the app; `/api/_health` for uptime monitors
+- **Installable PWA** — install hints per device (Android, iPhone, Mac, others), works offline
+
+### Install
+- **Supports:** any Deye system on Deye Cloud — on-grid, hybrid, off-grid
+- **Needs:** a Deye developer account ([developer.deyecloud.com](https://developer.deyecloud.com)) for an App ID and App Secret
+- **One click:** the *Deploy to Cloudflare* button above; Cloudflare creates the repo and the D1 database and asks for the secrets
+- **One command:** `npx wrangler login`, `cp .dev.vars.example .dev.vars`, then `npm run setup` — see [DEPLOY.md](./DEPLOY.md)
+
+### FAQ
+
+#### What is Deye Solar Monitor?
+A free, self-hosted web app that shows a Deye solar system live — production, home load, battery and grid — using the official Deye Cloud Open API, with a forecast that learns from your own roof, measured battery health, savings and alerts. It installs on a phone as a PWA.
+
+#### Does it cost anything?
+No. It runs on the free tier of Cloudflare Workers and D1. It polls every 5 minutes (288 requests a day), far below the free limit of 100,000 a day.
+
+#### Which inverters does it support?
+Any system that reports to Deye Cloud — on-grid, hybrid or off-grid. You need a developer account at developer.deyecloud.com for an App ID and App Secret.
+
+#### Is the interface in English?
+The app interface is Thai, built for Thai households with large numbers and labelled colours. The code, API and setup work the same anywhere Deye Cloud is available.
+
+#### Are my Deye credentials safe?
+Deye keys and the account password are server-side secrets only and never reach the phone. People sign in with a PIN, the app is marked noindex, and all stored history lives in your own Cloudflare account. If `DEYE_RELAY_URL` is set, outgoing Deye requests (including the token request with the email and password hash) pass through that relay, so only use a relay you run or trust, or remove the setting.
+
+---
+
+<p align="center">
+  สร้างด้วย ❤️ บน <b>Cloudflare Workers</b> ·
+  <a href="./ARCHITECTURE.md">ARCHITECTURE.md</a> ·
+  <a href="./DEPLOY.md">DEPLOY.md</a>
+</p>
+
+
+---
+
+<!-- ARCHITECTURE.md (https://github.com/botnick/deyecloud/blob/main/ARCHITECTURE.md) -->
+
+# สถาปัตยกรรม — โซลาร์มอนิเตอร์ (Deye Solar Monitor)
+
+> **English:** architecture of Deye Solar Monitor — a real-time Deye inverter dashboard on Cloudflare Workers + D1: Worker routes, cron polling of the Deye Cloud Open API, data model, forecast and battery models. [Website](https://botnick.github.io/deyecloud/en/)
+
+PWA ดูข้อมูลระบบโซลาร์เซลล์แบบเรียลไทม์ ภาษาไทย สำหรับผู้สูงอายุ
+รันบน **Cloudflare Workers ฟรี 100% ($0 free plan)**
+
+---
+
+## 1. Stack
+
+| Layer | Tech |
+|---|---|
+| Build | **Vite 6** + `@cloudflare/vite-plugin` (dev + build + deploy รวบเดียว) |
+| UI | **React 19 + TypeScript** |
+| 3D | **three.js** — บ้าน 3D บนหน้าหลัก (`src/three/`, lazy chunk แยก) |
+| Styling | **Tailwind CSS v4** (`@tailwindcss/vite`, theme เป็น `@theme` ใน `src/index.css`) + design tokens รวมที่ `src/lib/ui.ts` |
+| Weather icons | **Meteocons** (`@meteocons/svg`, MIT) — animated SVG จริงตามหลัก meteorology, bundle ลง assets แล้ว precache (ใช้ offline ได้) |
+| Offline / PWA | **vite-plugin-pwa** (Workbox generateSW; `globPatterns` รวม svg/webp/woff จึง precache ครบ ใช้ offline ได้จริง) + `InstallPrompt` (แถบ "เพิ่มลงหน้าจอโฮม" ปรับตาม device: Android/Chrome one-tap, iOS/iPad/macOS Safari, Firefox) |
+| API / Worker | **Hono 4** บน Cloudflare Workers |
+| Database | **Cloudflare D1** (SQLite) — เก็บ history + cache + token |
+| Cron | **Cloudflare Cron Triggers** (poll ทุก 5 นาที) |
+| Static hosting | **Workers Static Assets** (binding `ASSETS`, SPA fallback, `run_worker_first` สำหรับ `/api/*`) |
+| Tests / CI | **Vitest** (`src/lib/__tests__`) · GitHub Actions `ci.yml` = typecheck + test + build |
+
+ทุกอย่างอยู่ใน Worker เดียว: เสิร์ฟ SPA + `/api/*` + cron + D1
+
+---
+
+## 2. Data flow
+
+```
+            ┌─────────────────────── Browser (PWA) ───────────────────────┐
+            │  React SPA  ──fetch /api/*──►  (cookie: PIN HMAC)            │
+            └───────────────────────────────┬─────────────────────────────┘
+                                             │
+                              ┌──────────────▼──────────────┐
+                              │   Cloudflare Worker (Hono)   │
+                              │  assets + /api/* + scheduled │
+                              └───┬───────────┬───────────┬──┘
+                                  │           │           │
+                   ┌──────────────▼──┐   ┌────▼─────┐   ┌─▼───────────────┐
+                   │ Deye Open API   │   │   D1     │   │ TMD NWP (อุตุฯ)  │
+                   │ developer.deye  │   │ history  │   │ + Open-Meteo     │
+                   │ cloud.com/v1.0  │   │ cache    │   │ (fallback)       │
+                   └─────────────────┘   └──────────┘   └──────────────────┘
+```
+
+ถ้า Deye ตอบหน้า 403 ของ CloudFront (บล็อกเครือข่าย Workers) และตั้ง `DEYE_RELAY_URL` ไว้ ระบบจะส่งคำขอเดิมซ้ำผ่าน relay (`scripts/deye-relay.mjs` บนเครื่องอื่น) แล้วใช้ relay ต่อ 15 นาทีก่อนลองตรงอีก (ดู §3)
+
+---
+
+## 3. แหล่งข้อมูล (data sources)
+
+### Deye — primary = **Open API** (`https://eu1-developer.deyecloud.com/v1.0`)
+- Token: `POST /account/token?appId=` ด้วย `appSecret + email + sha256(password) + companyId` ได้ token อายุ ~60 วัน, **renew อัตโนมัติ** (cache ใน D1 `meta`, ขอใหม่เมื่อเหลือ <1 วัน)
+- Realtime: `POST /station/latest` ได้ค่ากำลังไฟ (generationPower, consumptionPower, wirePower, batteryPower, batterySOC) แล้วนำค่าตามเวลาจริงของอินเวอร์เตอร์ตัวแรกมาทับจาก `POST /device/latest` (TotalSolarPower, TotalConsumptionPower, TotalGridPower, BatteryPower, SOC) ให้ตรงกับแอป Deye
+- พลังงานรายวัน: `POST /station/history` granularity=2 (day) ได้ generationValue, consumptionValue, purchaseValue, gridValue, chargeValue, dischargeValue
+- กราฟ: `POST /station/history` granularity=1 (frame, 5 นาที 288 จุด)
+- Device detail: `POST /station/device` (รายการเครื่อง) + `POST /device/latest` (measure point ทั้งหมด: PV string, เฟส AC, BMS) · `/device/measurePoints` ใช้เฉพาะ `/api/_dev`
+- Alarm: `POST /station/alertList` (ดู §7b)
+
+> **Latest = latest + day-history ประกอบกัน** เพราะ Open API แยกค่า realtime กับพลังงานรายวันคนละ endpoint
+> `selfSufficiency` คำนวณเอง = `(1 − purchaseValue / consumptionValue) × 100` (พึ่งพาตัวเอง = ไฟที่ใช้โดยไม่ซื้อ)
+> **Open API เท่านั้น** — ไม่มี fallback ภายในอื่น (เอา session-token internal API ออกแล้ว)
+> **ค่าค้าง (frozen)**: เมื่อตัวส่งข้อมูลหลุดแล้ว Deye ส่งค่าเดิมซ้ำ หาก `observedAt` (เวลาของแหล่งที่เก่าสุด) เก่ากว่า `STALE_AFTER_S` = cron ไม่บันทึก sample/daily, จด `frozen_since` ไว้ (`src/lib/freeze.ts`)
+> **Relay** (`DEYE_RELAY_URL`, ไม่บังคับ): ตั้งแต่ 15 ต.ค. 2026 CloudFront ของ Deye ตอบ 403 HTML กับเครือข่าย Workers · `deyeFetch` เรียกตรงก่อน ถ้าเจอ 403 ที่ไม่ใช่ JSON จึงส่งซ้ำผ่าน relay พร้อม header `x-relay-key = sha256("deye-relay:" + DEYE_APP_SECRET)` · relay (`scripts/deye-relay.mjs`, Node, พอร์ต 47812) ส่งต่อเฉพาะ `/account/token` `/station/*` `/device/*` ไม่ log body · ความล้มเหลวของ relay เองไม่นับเป็น login fail
+
+### Weather — primary = **TMD NWP** (กรมอุตุฯ) / fallback = Open-Meteo
+- พิกัด **ดึงจาก station เอง** (locationLat/Lng) — ไม่ hardcode
+- แปลงค่าสภาพอากาศ cond 1–12 เป็นไอคอน Meteocons (clear-day/clear-night/partly/overcast/rain/storm ฯลฯ แยกกลางวัน-กลางคืน) + คำไทย + คำนวณ "พลังงานแสง" จาก swdown (`src/lib/wxicon.tsx`)
+- **ดัชนี UV** ดึงจาก Open-Meteo `uv_index` (TMD ไม่มี field นี้) ผ่าน `fetchUV()` — แสดงค่า + ระดับ/สีตามมาตรฐาน WHO
+
+---
+
+## 4. Dynamic — ไม่ hardcode อะไรเลย
+- **Station**: `listStations()` ค้นจาก API แล้วให้ `getStationMeta()` เลือกตัวแรก + cache ใน D1. ไม่มี stationId คาไว้ในโค้ด (ปักเจาะจงได้ด้วย env `DEYE_STATION_ID`)
+- **พิกัดอากาศ / ชื่อ / กำลังติดตั้ง**: มาจาก station ที่ค้นเจอ (override ได้ด้วย `WEATHER_LAT`/`LON`/`PLACE`)
+- **ค่าบัญชี / ติดต่อ / endpoint เป็น env ล้วน**: `DEYE_APP_ID`/`DEYE_EMAIL` ตั้งต่อ Worker (ไม่ commit), `DEYE_COMPANY_ID`/`CONTACT_EMAIL`/`DEYE_BASE_URL`/`TMD_BASE`/`DEYE_RELAY_URL` ปรับได้
+- **ค่าไฟ / ค่าขายไฟ / ทุนติดตั้ง / CO₂**: ผู้ใช้ตั้งในแอป (แท็บ "ตลอด" ส่วน `SettingsCard`) ระบบส่งไปที่ `POST /api/settings` เก็บใน D1 `meta.settings` ทุกเครื่องเห็นค่าเดียวกัน (cache ใน localStorage ด้วย) · ไม่ตั้ง = ค่าเริ่มต้นใน `src/lib/config.ts` (4.4 ฿/หน่วย · ขายไฟ 0 · CO₂ 0.5 กก./หน่วย)
+- **หลายสถานี (multi-station) — ทำแล้ว**: `/api/stations` คืน array; `/api/latest|device|history` รับ `?station=` param (cache แยก key ต่อสถานี). UI มี **ตัวสลับสถานี** (`StationSwitcher` — bottom sheet) ที่ด้านบนของจอ แสดงเฉพาะเมื่อมีมากกว่า 1 สถานี, จำค่าที่เลือก. สถานีเดียว = ไม่ส่ง param พฤติกรรมเหมือนเดิมทุกอย่าง (อากาศยังอิงพิกัดสถานีหลัก เพราะ Open API `/station/list` ไม่ส่งพิกัดรายสถานี)
+
+---
+
+## 5. API routes (Hono — `src/worker/index.ts`)
+
+| Route | ใช้ |
+|---|---|
+| `POST /api/login` | ตรวจเช็ก PIN แล้วตั้ง cookie HMAC (อายุ 1 ปี) · กรอกผิดถี่เกินไปตอบ 429 + `Retry-After` |
+| `GET /api/session` | ตรวจเช็กการยืนยันตัวตน (auth) |
+| `GET /api/station` / `GET /api/stations` | station ที่เลือก / ทั้งหมด |
+| `GET /api/latest` | realtime + พลังงานวันนี้ + สถานะเตือน (cache D1 6 นาที, cron อุ่นให้ทุกรอบ) · **503 `{offline:true}`** ถ้าเชื่อม Deye ไม่ได้ · รับ `?station=` |
+| `GET /api/device` | ค่าเครื่อง (เฟส/PV/BMS) + availability + การแจ้งเตือนจากอินเวอร์เตอร์ (cache D1 6 นาที, cron อุ่นให้) · รับ `?station=` |
+| `GET /api/weather` | TMD/Open-Meteo + UV + ดวงอาทิตย์ (cache 30 นาทีเมื่อได้ TMD, 5 นาทีเมื่อใช้ Open-Meteo) |
+| `GET /api/history?range=day\|month\|year&date=` | กราฟย้อนหลัง (สถานีหลัก: D1 ก่อน, ช่วงปัจจุบันของเดือน/ปีเติมจาก Deye เบื้องหลัง · ถ้าไม่มีใน D1 หรือเป็นสถานีอื่นจะดึงจาก Deye) · รับ `?station=` |
+| `GET /api/totals` | ยอดสะสมตลอด + รายปี, `genTotal`, peak (95th pct 60 วัน), kWp ที่สอบเทียบ, ค่าเมฆที่เรียนรู้, PSH รายเดือน (cache 30 นาที) |
+| `GET /api/forecast/accuracy?days=` | คาดพรุ่งนี้ (จาก `forecast_log`) vs `daily.gen` ของวันที่จบแล้ว — คะแนน 100−WAPE (Σ|คลาด| ÷ Σจริง), bias, MAE + แถว · วันที่ตัวอย่างช่วงกลางวัน (06–18 น.) ไม่ถึง 115/144 ไม่นับและไม่ใช้เรียนรู้ (`incomplete`) |
+| `GET /api/battery/health?days=` | ความจุใช้ได้จริงจากช่วงคายประจุ (samples), SOH = ÷ (Ah × V ที่วัดกลาง SOC), รอบ, DoD · cache 6 ชม. |
+| `GET /api/device/history?sn=&days=&keys=` | แนวโน้มค่าเครื่องจาก `device_samples` (bucket ≤240 จุด/คีย์, memo 10 นาที) |
+| `GET /api/export?range=day\|month\|year\|all&date=` | CSV จาก D1 ของสถานีหลัก (BOM, attachment) — สำหรับสคริปต์ · ปุ่มในแอปสร้าง CSV ฝั่ง client จากข้อมูลที่แสดงอยู่ (ทุกสถานี) |
+| `GET /api/settings` / `POST /api/settings` | ค่าไฟ, ค่าขายไฟ, ทุนติดตั้ง, ค่า CO₂ (whitelist `rate`/`sellRate`/`systemCost`/`co2Factor`, ตัวเลข ≥0, `null` = กลับค่าเริ่มต้น) |
+| `GET /api/_health` | **public** (ก่อน auth gate) — `ok:false` + **503** เมื่อทั้ง sample ล่าสุดและ poll ที่สำเร็จล่าสุด (`last_poll_ok`) เก่ากว่า `STALE_AFTER_S` (2 รอบ cron + 120 วิ = 12 นาที) · `inverterFrozenSince` · `lastPollError` · `deyeLogin` (fails/hold) · จำนวนแถว samples/daily/device_samples |
+| `POST /api/_backfill?from=&to=` | **operator** — เติมข้อมูลจาก Deye history (json_each 1 statement/วัน, cap วัน/ครั้งคำนวณจากงบ D1+fetch, หยุดเมื่อ auth พัง, `nextFrom/retryFrom`) |
+| `POST /api/_purge?from=&to=[&confirm=1]` | **operator** — ลบ `samples`/`device_samples` ช่วงเวลา (unix วินาที, ≤31 วัน) ที่บันทึกตอนตัวส่งข้อมูลหลุด · ไม่มี `confirm` = dry run · ไม่แตะ `daily` |
+| `POST /api/_purge_day?day=[&confirm=1]` | **operator** — ลบแถว `daily` ของวันที่ผ่านมาแล้ว เฉพาะเมื่อ Deye ตอบสำเร็จว่าไม่มีข้อมูลวันนั้น (ทุก item ต้องเป็นวันที่จริง) · ถ้า Deye ยังมียอดตอบ 409 · ล้าง cache ที่เกี่ยว |
+| `POST /api/_logout_all` | **operator** — เพิ่ม `meta.auth_epoch` ทำให้ทุก session (รวมของตัวเอง) ต้องใส่ PIN ใหม่ · isolate อื่นรู้ภายใน ~1 นาที |
+| `POST /api/_alert_test` | **operator** — ส่งข้อความทดสอบทุกช่องทาง (`ok` เฉพาะเมื่อได้ 2xx) |
+
+middleware ทำงานตามลำดับ: `ensureSchema`, auth gate (`/api/*` ยกเว้น login/session/_health), แล้ว **operator gate** (`/api/_*` ต้องมี `APP_PIN` ตั้งไว้ + login — ไม่ตั้ง PIN = ดูได้แต่เขียน/ดู raw ไม่ได้) · debug: `/api/_poll` (poll ทันที) `/api/_debug` (latest ดิบ) `/api/_hist` (history ดิบวันนี้) `/api/_dev` (อินเวอร์เตอร์ + measurePoints) · `onError` ส่งข้อความเต็มเฉพาะ operator · route อื่นนอก `/api/*` = SPA จาก assets พร้อม `X-Robots-Tag: noindex, nofollow` · ถ้าได้ 401 ระหว่างใช้งาน แอปจะกลับไปหน้าใส่ PIN
+
+**ความทนทาน (resilience):**
+- **token**: หาจาก memory ก่อน ไม่มีจึงดู D1 แล้วจึง login · login เป็น single-flight และมี **พักแบบทวีคูณตั้งแต่ 60 วินาทีถึง 6 ชั่วโมง** หลังล้มเหลว (6 ชม.ทันทีถ้า Deye บอกเหลือ ≤2 attempt) · error ทั่วไป ≥400 จะ re-login เฉพาะเมื่อ token อายุ ≥10 นาที · token ใหม่ที่ถูกปฏิเสธซ้ำนับเป็น fail · ล้าง fail เมื่อ API call สำเร็จจริง
+- **memo 30 วิ** สำหรับ `/device/latest` `/station/device` `/station/list` `/station/alertList` — cron 1 รอบเรียก inverter ครั้งเดียว
+- `/station/latest` ส่ง power ที่ top-level (ต้องอ่านให้ถูก ไม่เช่นนั้นจะขึ้น offline ผิด) · ถ้าเชื่อมต่อไม่ได้ frontend แสดงแถบ "เชื่อมต่อระบบไม่ได้" + คงข้อมูลล่าสุด + ลองใหม่ทุก 20s
+- cron **ไม่บันทึกค่า 0** ตอน Deye ล่ม · ถ้า day-totals ล้มเหลว จะเก็บ sample แต่**ไม่**ทับ `daily` (`Latest.totalsOk`) · scheduled catch เก็บ `last_poll_error` · **self-heal**: กลับมาแล้วถ้าพบช่วงข้อมูลขาดเกิน STALE จะเรียก `backfillRange` เติมวันล่าสุด (cap คำนวณจากงบของ tick)
+- **PIN**: จองสิทธิ์ตรวจแบบ CAS ก่อนเทียบ (`meta.pin_guard = fails|nextAllowed`) ให้ลอง 3 ครั้งแรกโดยไม่หน่วง แล้วเริ่มหน่วง 5 วิ ×2 ≤15 นาที; คำขอที่ถูกปฏิเสธไม่แตะ state · cookie ดู §7
+
+---
+
+## 6. D1 schema (auto-migrate แบบ versioned — `schema_v` ใน `meta`, รันเองตอน request แรก ไม่ต้องสั่ง migration)
+- `meta(k,v)` — Deye token (`deye_token` +`_exp`,`_at`), login guard (`deye_login_fails/_fail_at/_fail_msg`), station cache (`station_meta2`, `inv_sn_<station>`), cache (`latest_cache`, `device_cache`, `weather_cache3`, `totals_cache`, `hist_v3_*`, `batt_health_*`), `schema_v`, `last_prune`, `last_telemetry`, `last_poll_ok`, `last_poll_error`, `frozen_since`, `pin_guard`, `auth_epoch`, `alert_state`, `settings`, `batt_chan_seen_<sn>` (ช่องแบตที่เคยมีกระแส)
+- `samples(ts, gen_power, use_power, grid_power, batt_power, soc, *_today, gen_total)` — snapshot ทุก 5 นาที (SOC ไม่รู้ = NULL ไม่ใช่ 0) · **prune >90 วัน** (`SAMPLES_RETENTION_DAYS`, วันละครั้ง) — backfill/self-heal เขียนด้วย DO NOTHING (แถวจาก cron ชนะ) · backfill ย้อนได้ไม่เกินช่วงนี้
+- `device_samples(sn, ts, data)` — measure point ทั้งหมดของทุก inverter ทุก ~15 นาที · **prune >180 วัน** (`DEVICE_RETENTION_DAYS`) — อ่านโดย `/api/device/history` และ `/api/battery/health` (แรงดันกลาง SOC)
+- `daily(day, gen, use, buy, sell, charge, discharge, peak_power, peak_ts)` — สรุปรายวัน เก็บถาวร · peak ขยับขึ้นเท่านั้น
+- `forecast_log(day, predicted, cond, psh, cap_kw, made_at)` (schema v3) — "คาดพรุ่งนี้" ตัวสุดท้ายของแต่ละวัน เขียนทับทุก tick; ประเมินเทียบ `daily.gen` เมื่อวันจบ ใช้วัดความแม่นยำและเรียนรู้ค่าเมฆ
+
+**โมเดลพยากรณ์** (`forecastModel`, memo 30 นาที): kWh ≈ kWp × PSH × sky[cond]
+- kWp สอบเทียบ (`lib/calib.ts`): `daily.gen ÷ PSH` ของ 60 วันล่าสุด ใช้ median ของควอร์ไทล์บน หารด้วย 0.80 (`CALIB_CLEAR_FACTOR` = sky ของฟ้าแจ่มใส) · ต้องมี ≥7 วันที่ผลิตไฟ (`CALIB_MIN_DAYS`) ถ้าไม่ถึงจะเป็น 0 แล้วใช้กำลังติดตั้ง/peak แทน
+- ค่าเมฆ (`lib/skylearn.ts`): จาก `forecast_log` 120 วันล่าสุด ratio = จริง ÷ (kWp × PSH) ต่อ cond แล้วหา median ถ่วงน้ำหนัก (น้ำหนักลดครึ่งทุก `SKY_HALF_LIFE_DAYS` = 14 วัน) ผสม prior ด้วยน้ำหนัก `SKY_PRIOR_WEIGHT` = 1.5: `(W·median + 1.5·prior) ÷ (W + 1.5)` · ratio ตัดที่ 1.2 · ผลจำกัด 0.05–1 · cond ที่ไม่เคยเจอใช้ prior (`DEFAULT_SKY` ใน `lib/forecast.ts`)
+- ความแม่นยำ (`accuracySummary`): คะแนน = 100 − WAPE, bias, MAE · ไม่นับวันที่ sample ช่วง 06–18 น. ไม่ถึง 115/144
+
+---
+
+## 7. Auth
+กรอก PIN ถูกต้องจะได้ cookie `deye_auth` = `iat.epoch.HMAC-SHA256(APP_PIN, "deye-monitor-v3:"+iat+"."+epoch)` (HttpOnly, SameSite=Lax, Secure เฉพาะ https, อายุ 1 ปีนับจาก iat, เทียบ constant-time). `epoch` ต้องตรงกับ `meta.auth_epoch` (cache ต่อ isolate 60 วิ, อ่านไม่ได้เกินนั้น = ปฏิเสธ) · เรียก `POST /api/_logout_all` เพื่อเพิ่ม epoch ทุกเครื่องจะหลุดโดยไม่ต้องเปลี่ยน PIN · เปลี่ยน `APP_PIN` = หลุดทั้งหมดเช่นกัน · cookie รูปแบบเก่าใช้ไม่ได้. ล็อกอินมี brute-force guard (ดู §5).
+ไม่มี PIN = หน้าแอปเปิด public แต่ route ผู้ดูแล `/api/_*` ปิด (ยกเว้น `_health`). secret ฝั่ง Deye อยู่ใน Worker เท่านั้น — ผู้ใช้ไม่ต้อง login บัญชี Deye
+
+## 7b. สถานะ / แจ้งเตือน (แยก 3 เรื่อง ไม่ปนกัน)
+- **availability** (`dev.availability`) — เครื่องส่งข้อมูลอยู่ไหม: `deviceState/connectStatus` + อายุ `collectionTime` ตัดสินเป็น online/offline/unknown (unknown = ไม่เดา) · ฝั่งแอป `StaleBanner` เป็นเจ้าของเรื่องนี้
+- **ALARM** — Deye's own alarm log: `POST /station/alertList` (unix **วินาที**, หน้าต่าง ≤180 วัน, paged) เก็บใน `dev.alarms{active,recent}` · `Latest.warningStatus="ALARM"`
+- **ATTENTION** — heuristics ของเราจาก measure point (`src/lib/diagnostics.ts` เฉพาะ tone `warn`) เก็บใน `warningReasons` — ป้ายบอกชัดว่า "วิเคราะห์จากค่าที่วัดได้" ไม่ใช่การแจ้งเตือนจาก Deye
+- **outbound alerts** (`src/worker/alerts.ts`) — ประเมินท้าย `pollAndStore` จากข้อมูลที่มีอยู่แล้ว (ไม่เรียก Deye เพิ่ม) + จาก scheduled catch (poll_failed) · state 1 แถวใน `meta.alert_state` · **commit สถานะ "ส่งแล้ว" เฉพาะเมื่อมีช่องทางตอบ 2xx** ไม่งั้นลองใหม่รอบถัดไป · กติกาทุกข้อ "เงียบเมื่อไม่มีข้อมูล"
+  - `offline` / `poll_failed` ติดกัน 3 รอบ · `no_production` 4 รอบ (PV < 2% ของขนาดระบบ ในช่วงแดดแรงตัดหัวท้าย 1 ชม. และอากาศ cond ≤2 เท่านั้น — เมฆหยุดนับ ไม่รีเซ็ต) · `grid_out` แรงดันทุกเฟส < 50 V ขณะมีการใช้ไฟ · `soc_low` (ต้องตั้ง `ALERT_SOC_MIN`) · `deye:<id>` ต่อการแจ้งเตือนจากอินเวอร์เตอร์ที่ยังไม่หาย · `attention:*` เฉพาะ `ALERT_HEURISTICS=1`
+  - เตือนซ้ำทุก `ALERT_REPEAT_MIN` (360) · หายแล้วส่ง "กลับมาปกติ" · `ALERT_MUTE` ปิดรายกติกา/กลุ่ม (`deye:`, `attention`) และลืม state โดยไม่ส่งข้อความ
+
+---
+
+## 8. ทำไม $0 (Cloudflare free plan)
+
+| Resource | Free limit | ใช้จริง |
+|---|---|---|
+| Workers requests | 100,000/วัน | cron 288 + ผู้ใช้ไม่กี่คน ต่ำกว่า limit มาก |
+| Workers Static Assets | ฟรี ไม่จำกัด | เสิร์ฟ SPA |
+| D1 | 500 MB/ฐาน (5 GB รวม), 5M rows read + 100k write/วัน | samples ~288 + device_samples ~96 แถว/วัน/เครื่อง · prune 90/180 วัน |
+| Cron Triggers | ฟรี | ทุก 5 นาที |
+| TMD / Open-Meteo / Nominatim | ฟรี | cache 30 นาที (TMD limit 60 req/min) · ชื่อสถานที่ cache ถาวร |
+
+จึงไม่มีทางเกิน free tier
+
+---
+
+## 9. โครงสร้างโปรเจกต์
+```
+wrangler.jsonc          main=worker, assets, D1, cron, vars
+vite.config.ts          react + tailwind + cloudflare + pwa
+scripts/setup.mjs       one-command setup (D1 + secrets + deploy)
+scripts/deye-relay.mjs  relay สำรองตอน Deye บล็อก Workers (Node, รันบนเครื่องอื่น)
+schema.sql              schema แบบ manual สำหรับ `npm run db:init` (ไม่มี `forecast_log` — ปกติไม่ต้องใช้ Worker สร้างครบเอง)
+design/                 สคริปต์ถ่ายภาพหน้าจอ (mockup.mjs ฯลฯ) + ฉากบ้าน 3D ต้นแบบ
+site/                   เว็บไซต์โปรเจกต์ (GitHub Pages ผ่าน pages.yml)
+src/
+  main.tsx App.tsx index.css
+  lib/      api.ts (ApiError + ?station=, ได้ 401 จะกลับหน้า PIN) format.ts weather.ts analysis.ts device.ts freeze.ts (ตรวจค่าค้าง)
+            diagnostics.ts (สุขภาพเครื่อง — config-or-silent) forecast.ts (PSH จาก sun) useCapacity.ts (kWp หรือ peakPower)
+            economics.ts (savings signed + savingsLabel, co2Of(settings)) settings.ts (rate/sellRate/systemCost/co2Factor)
+            calib.ts (kWp จากวันแดดดี) skylearn.ts (ค่าเมฆเรียนรู้ + accuracy) battery.ts (SOH/รอบ/DoD + จุดตัดที่เรียนรู้ + batteryCard/ETA) season.ts (ปี/ฤดู/คาดทั้งปี) peak.ts
+            config.ts (ค่าเริ่มต้น) ui.ts (glass/plate tokens) icons.tsx wxicon.tsx (Meteocons) haptics.ts scenarios.ts brand.ts usePoll.ts
+            __tests__/ (Vitest)
+  components/ Splash PinGate Header BottomNav StationSwitcher PullToRefresh DevPanel InstallPrompt
+              HomeView TodayView WeatherView HistoryView (compare + CSV) LifetimeView DeviceView (ประวัติการแจ้งเตือน + DeviceTrends)
+              HouseScene (บ้าน 3D) BatteryNow (แบตตอนนี้ + ใช้ได้ถึงกี่โมง) BatteryHealth WeatherHero
+              ForecastAccuracy (คะแนน + แท่งผลิตจริงพร้อมขีดที่คาด) SettingsCard YearInsights MetricSection Collapsible InfoTip
+              FlowDiagram ProductionRing PowerProfile SunPath SelfConsumption
+              AnalysisCard InsightList Tile AnimatedNumber Chart
+  three/    house.ts (โมเดลบ้านจาก primitive + ตำแหน่งอุปกรณ์ + เส้นทางสายไฟ) view.ts (renderer, OrbitControls, เส้นไฟวิ่ง, หยุดทำงานเมื่อไม่อยู่ในมุมมอง)
+            — โหลดแบบ lazy chunk แยก (~140 KB gz); ภาพนิ่ง public/hero/house-*.webp จาก design/house/scene.html แสดงระหว่างโหลด/ไม่มี WebGL
+  worker/
+    index.ts  Hono app + /api/* + auth (PIN/epoch) + cron (poll, frozen check, self-heal, telemetry, cache warm, forecast log, alerts) + weather (+UV) + D1 schema/prune + backfill/purge + export
+    deye.ts   Deye client (Open API only) + station discovery + token lifecycle/hold + memo + alertList + relay fallback (Env config)
+    alerts.ts กติกาแจ้งเตือน + ช่องทาง (webhook/telegram) + state
+    battChannels.ts  จำช่องแบตเตอรี่ที่เคยมีกระแสไฟ (ใช้กับตรวจสุขภาพ + SOH)
+    sun.ts    NOAA sunrise + Haurwitz clear-sky (การรับแดดคำนวณจริง)
+```
+
+---
+
+## 10. Deploy ($0)
+
+**คำสั่งเดียว** (CLI): ใส่ secret ใน `.dev.vars` แล้วรัน `npx wrangler login` ตามด้วย `npm run setup` (`scripts/setup.mjs` สร้าง D1 + เขียน id ลง wrangler.jsonc + `secret bulk` + build + deploy). อัปเดต: `npm run deploy`.
+
+**One-click**: ปุ่ม *Deploy to Cloudflare* ใน README (`deploy.workers.cloudflare.com/?url=<repo>`) — CF อ่าน wrangler.jsonc provision D1 + ถาม secret จาก `.dev.vars.example`. ต้องเปิด repo เป็น **public** ก่อน (และลบ `.dev.vars` ออกจาก history).
+
+table สร้างเองตอน request แรก. cron เริ่มอัตโนมัติ. เปิดบนมือถือแล้วเลือก Add to Home Screen จะได้แอป PWA ที่ใช้ offline ได้. รายละเอียดเต็มใน `DEPLOY.md`
+
+---
+
+## 11. UI / Design system (ออกแบบทิศทางเดียว — เน้นผู้สูงอายุ)
+
+ธีม **Solurna**: Primary **เหลือง #FFCC00** (ปุ่ม) + Secondary **ม่วง #A20DDD** (nav active) บนพื้น **"sunrise wash"** gradient. พื้นผิวเป็น **iOS glass-lite**: `.glass-card`/`.glass-sm` (กระจกฝ้า, recipe ใน `index.css`) + **`.metric-plate`** (พื้นทึบ รองกราฟ + ตัวเลขใหญ่ ให้คมชัดสำหรับผู้สูงอายุ). token รวมที่ `src/lib/ui.ts` (`card`/`cardP`/`cardSm`/`plate`/`plateP`/`h2…`) — แก้ที่เดียวเปลี่ยนทั้งแอป. เคารพ `prefers-reduced-motion` + fallback เป็นพื้นทึบเมื่อ blur ไม่ได้.
+
+**สีพลังงาน (เอกภาพทั้งแอป):** โซลาร์ `#f5a623` · บ้าน `#0d4add` · กริด `#8b5cf6` · แบต `#18a673`. หน้าอากาศมี **SunPath (golden hour)** — ท้องฟ้าไล่สี + แสงเรืองดวงอาทิตย์ + ไฮไลต์ช่วงแดดดีสุด, และแถบ offline "เชื่อมต่อระบบไม่ได้" เมื่อดึงข้อมูลไม่ได้.
+
+**เน้นผู้สูงอายุ:**
+- nav **4 ปุ่ม** (หน้าหลัก / วันนี้ / อากาศ / ย้อนหลัง) — หน้า "เครื่อง" (technical) ซ่อนหลังปุ่ม "รายละเอียด" บน Home (มีปุ่มย้อนกลับ)
+- **status banner ใหญ่มีคำ+ไอคอน** บนสุดของ Home ดูได้ใน 1 วินาทีว่า "ปกติ" หรือ "มีปัญหา"
+- ตัวเลขใหญ่ ตัวอักษร ≥14px คอนทราสต์สูง ภาษาไทยง่าย ปุ่มหลักแตะง่าย ไม่มี emoji
+- **การ์ดคำแนะนำ** (`AnalysisCard`/`InsightList`) วิเคราะห์จากเลขจริงตามสมการสมดุลพลังงาน (`src/lib/analysis.ts`) — ปรับตามชนิดระบบ on/hybrid/off-grid, ไม่ใช้ AI/สุ่ม
+
+**ภาพ/แอนิเมชัน:** hero หน้าหลัก = **บ้าน 3D (three.js) สร้างจาก primitive ในโค้ด** ลากหมุน/ก้มเงยได้ ไม่หมุนเอง, เส้นไฟวิ่งตามสายจริงตามทิศพลังงาน, ป้ายค่าเกาะอุปกรณ์, แสงกลางวัน/ค่ำตามเวลาจริงของบ้าน; weather = หน้า immersive ม่วง night-sky + ดาว + Meteocons; energy FlowDiagram เส้นวิ่ง. ทุก animation เคารพ `prefers-reduced-motion`.
+
+---
+
+## 12. ข้อตกลงในโค้ด (conventions — อย่าเผลอแก้)
+
+- คำว่า **"ไฟย้อน"** ตั้งใจใช้ (ไฟย้อนกลับเข้ากริด) — **อย่าเปลี่ยนเป็น "ขายไฟ"**
+- คีย์ข้อมูลหน้า "เครื่อง" (Device) จาก Deye เป็น **ภาษาอังกฤษ** (`GridVoltageL1`, `LoadPhasePowerA` …) แปลเป็นไทยที่ `src/lib/device.ts`
+- หน้า "เครื่อง" เข้าผ่านปุ่ม "รายละเอียด" บน Home ไม่ใช่แท็บที่ 5
+- การคำนวณทุกอย่างเป็น **ค่าจริง** จาก API / สูตรดาราศาสตร์ — ไม่ใส่ค่าสมมติ
+- **"ไม่ hardcode" ≠ "เดาจากข้อมูลที่กำลังตรวจ"** — เกณฑ์ที่ได้จากค่าที่มันเองต้องตัดสิน (เช่น เดา nominal จากแรงดันที่วัด) จะซ่อนความผิดปกติแบบทั้งระบบ จึงให้ **ตั้งค่า** และ **เงียบเมื่อไม่ตั้ง** เสมอ (`GRID_NOMINAL_*`)
+- ขีดจำกัดต่อ invocation (D1 query / subrequest) ต้อง **คำนวณ** ในโค้ด (`BACKFILL_MAX_DAYS`, `SELF_HEAL_MAX_DAYS`) ไม่ใช่ตัวเลขลอย
+- ทุก batch คิดว่า "แต่ละ statement = 1 query" · ห้าม batch หลายร้อย statement — ใช้ `json_each` 1 statement
+- ข้อมูลที่ Deye ให้ไม่ได้ = **unknown** ไม่ใช่ 0 (`Latest.totalsOk`, `availability.unknown`, `alarms undefined`)
+
+
+---
+
+<!-- DEPLOY.md (https://github.com/botnick/deyecloud/blob/main/DEPLOY.md) -->
+
+# คู่มือติดตั้ง — โซลาร์มอนิเตอร์ (Deye Solar Monitor)
+
+> **English:** step-by-step deployment of Deye Solar Monitor to Cloudflare Workers + D1 (free plan): one-click button or `npm run setup`, Deye API secrets, PIN, D1 database. [Website](https://botnick.github.io/deyecloud/en/)
+
+คู่มือ deploy แบบละเอียด ตั้งแต่เริ่มต้นจนแอปพร้อมใช้งานออนไลน์ บน **Cloudflare Workers** (ฟรีแพลน **$0**)
+แอปทั้งหมด (หน้าเว็บ + API + cron + ฐานข้อมูล) อยู่ใน **Worker เดียว** — ตั้งค่าน้อย คำสั่งเดียวจบ
+
+> รีบใช้งาน? ข้ามไป [⚡ Quick start](#-quick-start-5-ขั้น) ได้เลย · อยากเข้าใจว่าค่าแต่ละตัวเอามาจากไหน อ่าน [🔑 ต้องเตรียมอะไรบ้าง](#-ต้องเตรียมอะไรบ้าง-แหล่งข้อมูล)
+
+---
+
+## 🧰 ต้องมีอะไรในเครื่องก่อน
+
+| สิ่งที่ต้องมี | เอาจากไหน | ตรวจเช็กว่ามีแล้ว |
+|---|---|---|
+| **Node.js** ≥ 22 (มากับ `npm`) | <https://nodejs.org> (เลือก LTS) | `node -v` |
+| **บัญชี Cloudflare** (ฟรี) | <https://dash.cloudflare.com/sign-up> | login ได้ |
+| **บัญชี Deye Cloud** + สิทธิ์ **Open API** | ดูหัวข้อถัดไป | มี App ID/Secret |
+
+> Windows ใช้ได้ทั้ง PowerShell / Git Bash · macOS / Linux ใช้ terminal ปกติ
+
+---
+
+## 🔑 ต้องเตรียมอะไรบ้าง (แหล่งข้อมูล)
+
+ค่าที่ต้องกรอกลงไฟล์ `.dev.vars` — **เอามาจากไหน เอามายังไง** สรุปตรงนี้:
+
+| ตัวแปร | จำเป็น? | เอามาจากไหน / ยังไง |
+|---|---|---|
+| `DEYE_APP_ID` | ✅ | พอร์ทัลนักพัฒนา Deye ที่ <https://developer.deyecloud.com> สมัครหรือเข้าสู่ระบบ จากนั้นขอสิทธิ์ **Open API** แล้วสร้าง App จะได้ **App ID** |
+| `DEYE_APP_SECRET` | ✅ | ที่เดียวกับ App ID — คู่กัน (กดดู/คัดลอก **App Secret** ของ App นั้น) |
+| `DEYE_EMAIL` | ✅ | **อีเมลที่ใช้ล็อกอินแอป Deye Cloud** (แอปมือถือ/เว็บที่ดูโซลาร์ปกติ) |
+| `DEYE_PASSWORD` | ✅ | **รหัสผ่านบัญชี Deye Cloud** เดียวกับอีเมลข้างบน (โค้ดแปลงเป็น sha256 ให้เอง ไม่ส่ง plain) |
+| `APP_PIN` | ⬜ | **คุณตั้งเอง** — PIN ล็อกแอป (เช่น 2580) · ไม่ตั้ง = เปิดสาธารณะใครเปิดก็ดูได้ |
+| `GRID_NOMINAL_V` / `GRID_NOMINAL_HZ` | ⬜ | แรงดัน/ความถี่ปกติของระบบไฟฟ้าของคุณ (ไทย 1 เฟส = `230` / `50`) ใช้เป็นเกณฑ์ตรวจสุขภาพอินเวอร์เตอร์ · **ไม่ใส่ = ปิดเฉพาะการตรวจเช็กค่าสัมบูรณ์** (การตรวจเช็กสมดุลเฟสยังทำงาน) (ระบบจงใจไม่เดาจากค่าที่วัดได้ เพราะไฟตกทั้งระบบจะกลายเป็น "ปกติ") |
+| `ALERT_WEBHOOK_URL` | ⬜ | **แจ้งเตือนเข้า Discord** — สร้าง Webhook ในห้อง Discord (ไปที่ Edit Channel เลือก Integrations แล้วเลือก Webhooks) แล้ววาง URL · ระบบจะเตือนเมื่อ: อินเวอร์เตอร์ออฟไลน์ / ดึง Deye ไม่ได้ติดกัน 3 รอบ / ฟ้าโปร่งช่วงแดดแรงแต่ผลิต ≈0 / ไฟดับ / แบตเตอรี่ต่ำ / การแจ้งเตือนจากอินเวอร์เตอร์ (Deye) · และส่ง "กลับมาปกติ" เมื่อหาย · ทดสอบ: `POST /api/_alert_test` (ต้องล็อกอิน PIN) |
+| `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | ⬜ | แจ้งเตือนเข้า Telegram (ใช้คู่กับหรือแทน webhook) |
+| `ALERT_SOC_MIN` | ⬜ | เตือนเมื่อแบตเตอรี่ต่ำกว่า % นี้ (ไม่ตั้ง = ไม่เตือนแบตเตอรี่ต่ำ) · `ALERT_REPEAT_MIN` = เตือนซ้ำทุกกี่นาทีถ้ายังไม่หาย (ค่าเริ่มต้น 360) |
+| `ALERT_HEURISTICS` / `ALERT_MUTE` | ⬜ | ผลวิเคราะห์ (เฟสไม่สมดุล / ช่องแบตเตอรี่ ฯลฯ) เป็น "คำแนะนำ" **ไม่ส่งออกเป็นแจ้งเตือน** เว้นแต่ตั้ง `ALERT_HEURISTICS=1` · `ALERT_MUTE=offline,no_production` ปิดกติกาเป็นรายตัว (คีย์: offline · poll_failed · no_production · grid_out · soc_low · deye: · attention) |
+| `TMD_TOKEN` | ⬜ | โทเคนพยากรณ์อากาศกรมอุตุฯ ขอได้ที่ <https://data.tmd.go.th/nwpapi> · **ไม่ใส่ก็ได้** ระบบจะใช้ Open-Meteo แทนอัตโนมัติ |
+
+ค่าที่มี **ค่าตั้งต้นให้แล้ว** (แก้เฉพาะถ้าจำเป็น) — อยู่ในไฟล์ `wrangler.jsonc` ส่วน `vars`:
+
+| ตัวแปร | ค่าตั้งต้น | แก้เมื่อ |
+|---|---|---|
+| `DEYE_BASE_URL` | `https://eu1-developer.deyecloud.com/v1.0` | **บัญชีอยู่โซน US** ให้เปลี่ยนเป็น `https://us1-developer.deyecloud.com/v1.0` |
+| `TMD_BASE` | `https://data.tmd.go.th/nwpapi/v1/forecast/location` | ปกติไม่ต้องแตะ |
+| `DEYE_RELAY_URL` | ที่อยู่ relay ของผู้ดูแล repo นี้ | **ติดตั้งเอง ให้เปลี่ยนเป็น relay ของคุณหรือลบบรรทัดนี้** — ใช้เฉพาะตอน Deye บล็อก Workers (ดูหัวข้อแก้ปัญหา) |
+
+ค่า **optional อื่น ๆ** (ไม่ใส่ก็ทำงาน — ตั้งเป็น secret หรือใน `vars` ก็ได้):
+
+| ตัวแปร | ทำอะไร |
+|---|---|
+| `DEYE_COMPANY_ID` | ปกติ `"0"` (โค้ด default ให้แล้ว) · บัญชีองค์กรบางอันต้องใส่เลขของตัวเอง |
+| `DEYE_STATION_ID` | ปักสถานีเจาะจง (แทนเลือกสถานีแรกอัตโนมัติ) — ใส่ตอนมีหลายสถานีแล้วอยากล็อกตัวหลัก |
+| `WEATHER_LAT` / `WEATHER_LON` / `WEATHER_PLACE` | บังคับพิกัด/ชื่อเมืองของอากาศเอง (ปกติดึงจากสถานี Deye ให้อัตโนมัติ) |
+| `CONTACT_EMAIL` | อีเมลติดต่อที่แนบไปตอนค้นชื่อสถานที่จาก OpenStreetMap (ไม่ใส่ = ใช้ลิงก์ repo แทน) |
+
+> 💡 ค่าไฟ / ค่าขายไฟ / ทุนติดตั้ง / ค่า CO₂ ตั้งในแอป (ไปที่แท็บ "ย้อนหลัง" เลือก "ตลอด" แล้วกดตั้งค่าการคำนวณ) เก็บใน D1 ทุกเครื่องเห็นค่าเดียวกัน · ไม่ตั้ง = ใช้ค่าเริ่มต้นใน `src/lib/config.ts` (ค่าไฟ 4.4 บาท/หน่วย · ขายไฟ 0 · CO₂ 0.5 กก./หน่วย)
+
+---
+
+## ⚡ Quick start (5 ขั้น)
+
+```bash
+# 1) ติดตั้ง dependencies
+npm install
+
+# 2) ล็อกอิน Cloudflare (เปิดเบราว์เซอร์ครั้งเดียว)
+npx wrangler login
+
+# 3) สร้างไฟล์ค่าลับจากตัวอย่าง แล้วเปิดแก้ใส่ค่าจริง
+cp .dev.vars.example .dev.vars
+#    เปิด .dev.vars ใส่: DEYE_APP_ID, DEYE_EMAIL, DEYE_APP_SECRET,
+#    DEYE_PASSWORD, APP_PIN, TMD_TOKEN (ดูตารางด้านบนว่าเอาจากไหน)
+
+# 4) ตั้งค่า + deploy อัตโนมัติคำสั่งเดียว
+npm run setup
+
+# 5) เปิด URL ที่ได้บนมือถือ แล้วเลือก "เพิ่มลงหน้าจอโฮม" เพื่อใช้เป็นแอป PWA
+```
+
+ได้ URL หน้าตา `https://deyecloud.<subdomain>.workers.dev` 🎉
+
+### `npm run setup` ทำอะไรให้บ้าง
+
+1. ตรวจเช็กว่าล็อกอิน Cloudflare แล้ว (ถ้ายัง จะบอกให้รัน `wrangler login`)
+2. สร้างฐานข้อมูล **D1** ชื่อ `deye-monitor` (ถ้ายังไม่มี) แล้วเขียน `database_id` ลง `wrangler.jsonc` ให้เอง
+3. อ่านค่าจาก `.dev.vars` แล้วตั้งเป็น **secret** บน Worker ด้วย `wrangler secret bulk` (ไม่โชว์ค่าออกมา)
+4. `npm run build` แล้ว `wrangler deploy --keep-vars` (ต้องมี `--keep-vars` ไม่งั้น Text vars ที่ตั้งบน dashboard จะถูกลบ — เก็บค่าสำคัญเป็น Secret จะปลอดภัยกว่า)
+
+> 🔒 ตารางใน D1 สร้างเองอัตโนมัติเมื่อมี request แรก — ไม่ต้องรัน migration เอง
+> 🔒 ไฟล์ `.dev.vars` มีรหัสจริง **ห้าม commit** (อยู่ใน `.gitignore` แล้ว)
+
+---
+
+## 🔄 อัปเดต / ดู log / คำสั่งที่ใช้บ่อย
+
+```bash
+npm run deploy            # build + deploy เวอร์ชันใหม่ขึ้น Cloudflare
+npm run tail              # ดู log ตามเวลาจริงจาก production (ตรวจเช็กว่าระบบเก็บข้อมูลและ API ทำงานไหม)
+npm run dev               # รันในเครื่อง เปิด http://localhost:5174  (มือถือใน LAN: http://<ip>:5174)
+npx wrangler whoami       # ตรวจเช็กว่าล็อกอิน Cloudflare บัญชีไหนอยู่
+npx wrangler d1 execute deye-monitor --remote --command "SELECT COUNT(*) FROM samples"  # ตรวจข้อมูลใน D1
+```
+
+> เปลี่ยน secret ทีหลัง: `npx wrangler secret put DEYE_PASSWORD` (พิมพ์ค่าใหม่) — แล้ว `npm run deploy`
+
+---
+
+## 🆘 แก้ปัญหาที่เจอบ่อย
+
+| อาการ | สาเหตุ / วิธีแก้ |
+|---|---|
+| `Deye token failed` ตอน setup/รัน | App ID/Secret ผิด **หรือ** บัญชีอยู่คนละโซน ให้เปลี่ยน `DEYE_BASE_URL` เป็น `us1-...` (ดูหัวข้อค่าตั้งต้น) |
+| แอปขึ้นเลข 0 / แถบ "เชื่อมต่อระบบไม่ได้" | token หมดอายุ/โดน rate-limit ชั่วคราว (ทดสอบบ่อยเกินไป) ระบบกู้คืนเอง รอสักครู่ · ดู `npm run tail` ประกอบ |
+| `getOrgUser url error` / เรียก token บ่อยเด้ง | เรียก `/account/token` ถี่เกินจน Deye limit — **หยุดสักพักแล้วลองใหม่** (token cache อยู่ ~60 วัน ไม่ต้องขอบ่อย) |
+| ไม่เจอสถานี / ข้อมูลว่าง | บัญชี Deye นั้นไม่มีสถานีผูกอยู่ หรือใช้ Open API กับบัญชีผิด · ลองใส่ `DEYE_STATION_ID` ให้ชัด |
+| อากาศไม่ขึ้น | ไม่ใส่ `TMD_TOKEN` ไม่เป็นไร (ใช้ Open-Meteo) · ถ้าใส่แล้วยังไม่ขึ้น ตรวจเช็ก token ที่ data.tmd.go.th |
+| cron ไม่เขียนข้อมูลตอน dev | **cron ไม่ทำงานใน `vite dev`** เป็นปกติ ให้เปิด `GET /api/_poll` 1 ครั้งเพื่อดึงข้อมูลครั้งแรก (ต้อง login PIN ก่อน) |
+| แอปขึ้นแถบเหลือง "ระบบเก็บข้อมูลหยุด" | เปิด `/api/_health` (ไม่ต้อง PIN) — ดู `lastPollError` และ `deyeLogin` · ถ้า `deyeLogin.ok=false` = รหัส/secret Deye ผิด ให้แก้ secret แล้วรอ `holdUntil` หรือ deploy ใหม่ (isolate ใหม่จะลอง login เมื่อ hold หมด) · ระบบเติมข้อมูลช่วงที่หายให้เองเมื่อกลับมา (ย้อนหลังได้ 2 วัน/รอบ) — เก่ากว่านั้น `POST /api/_backfill?from=YYYY-MM-DD` (ครั้งละไม่เกิน 10 วัน ย้อนได้ไม่เกิน 90 วัน · ทำต่อจาก `nextFrom` ที่ตอบกลับ) |
+| ใส่ PIN แล้วบอก "ลองผิดหลายครั้ง — รออีก N วินาที" | มีการเดา PIN (หรือพิมพ์ผิดเกิน 3 ครั้ง) ให้รอตามที่บอก (สูงสุด 15 นาที) · ใส่ถูกครั้งเดียวจะรีเซ็ต |
+| `/api/_poll` `/api/_backfill` ตอบ 403 | ต้องตั้ง `APP_PIN` และ login ก่อน — route ผู้ดูแลไม่เปิดสาธารณะแม้ไม่ตั้ง PIN |
+| การ์ด "ตรวจสุขภาพ" บอกช่องแบตเตอรี่ไม่จ่ายกระแสหลังย้ายสาย/ถอดแบตเตอรี่ | ระบบจำโครงสร้างช่องแบตเตอรี่ที่เคยมีกระแส (ถาวรต่อเครื่อง) — เปลี่ยนสายจริงให้รีเซ็ต: `wrangler d1 execute deye-monitor --remote --command "DELETE FROM meta WHERE k LIKE 'batt_chan_seen_%'"` แล้วระบบเรียนรู้ใหม่ใน ~15 นาที |
+| `_health` ขึ้น `HTTP 403 non-JSON (… cloudfront …)` ทั้งที่แอป Deye ปกติ | Deye บล็อกเครือข่าย Cloudflare Workers ทั้งหมด (เจอ 15 ต.ค. 2026) ให้รัน `node scripts/deye-relay.mjs` บนเครื่องที่เปิดตลอดและ Deye ไม่บล็อก (อ่าน `DEYE_APP_SECRET` จาก env หรือ `.dev.vars` · พอร์ต `PORT` ค่าตั้งต้น 47812) เปิดเป็น HTTPS แล้วใส่ URL ใน `DEYE_RELAY_URL` (`wrangler.jsonc`) · Worker ยังเรียก Deye ตรงก่อน โดนบล็อกค่อยอ้อมผ่าน relay (แล้วใช้ relay ต่อ 15 นาทีก่อนลองตรงอีก) · relay รับเฉพาะ `/account/token` `/station/*` `/device/*` และต้องมีกุญแจที่คิดจาก App Secret (ไม่มีค่าลับใหม่) · เช็คว่า relay ทำงาน: `GET /healthz` |
+| แจ้งเตือนไม่มา | `POST /api/_alert_test` (login แล้ว) ต้องได้ `ok:true` · ถ้า `delivered.webhook` ไม่ใช่ 2xx ตรวจเช็ก URL webhook · ออฟไลน์ / ดึง Deye ไม่ได้ ต้องเกิดติดกัน 3 รอบ (15 นาที) · ไม่ผลิตไฟ 4 รอบ (20 นาที) ก่อนเตือน |
+| อยากให้ทุกเครื่องใส่ PIN ใหม่ (เช่น มือถือหาย) โดยไม่เปลี่ยน PIN | `POST /api/_logout_all` (login แล้ว) — เครื่องอื่นหลุดภายใน ~1 นาที · เปลี่ยน `APP_PIN` ก็ทำให้ทุกเครื่องหลุดเช่นกัน |
+| ย้อนหลังมีวันที่ยอดซ้ำกับวันถัดไป (ข้อมูลจาก backfill รุ่นเก่า) | `POST /api/_purge_day?day=YYYY-MM-DD` ดูก่อน (ไม่ลบ) แล้วเติม `&confirm=1` เพื่อลบ — ลบได้เฉพาะเมื่อ Deye ยืนยันว่าไม่มีข้อมูลวันนั้น · ค่าที่บันทึกตอนตัวส่งข้อมูลหลุด ลบด้วย `POST /api/_purge?from=&to=` (unix วินาที, ≤31 วัน, `&confirm=1`) |
+
+---
+
+## 🌐 ทางเลือก: ปุ่ม "Deploy to Cloudflare" (one-click)
+
+ใน `README.md` มีปุ่ม **Deploy to Cloudflare** — Cloudflare จะ fork repo + provision D1 + ถาม secret จาก `.dev.vars.example` ให้กรอกผ่านหน้าเว็บ แล้ว deploy ให้เอง
+ใช้ได้เมื่อ repo เป็น **public** (และต้องลบ `.dev.vars` ออกจาก git history ก่อน) — เหมาะกับคนที่ไม่อยากแตะ CLI
+
+---
+
+## ⚙️ ค่าที่ตั้งไว้ในระบบ (`wrangler.jsonc`)
+
+- Worker `name`: **`deyecloud`** · D1 database: `deye-monitor` · cron: ทุก 5 นาที (`*/5 * * * *`)
+- เสิร์ฟหน้าเว็บผ่าน **Workers Static Assets** ที่ URL `https://deyecloud.<subdomain>.workers.dev`
+- `vars` ที่ commit มีแค่ `DEYE_BASE_URL` + `TMD_BASE` + `DEYE_RELAY_URL` (ทางอ้อมตอน Deye บล็อก ลบได้) — ค่าบัญชี/ค่าลับตั้งต่อ Worker (ไม่อยู่ในโค้ด)
+- GitHub Actions: `ci.yml` ตรวจ typecheck + test + build ทุก push/PR (ไม่ deploy) · `pages.yml` เผยแพร่เว็บไซต์โปรเจกต์ใน `site/` ขึ้น GitHub Pages
+
+## 💸 ทำไม $0 (Cloudflare free plan)
+
+ทุกอย่างรันใน Worker เดียวบนฟรีแพลน — cron 288 ครั้ง/วัน + ผู้ใช้ไม่กี่คน << ลิมิต 100k req/วัน · D1 ~288 แถว/วัน (+ ค่าเครื่อง ~96 แถว/วัน) และลบของเก่าเอง << 500 MB · Cron Triggers / Static Assets / Open-Meteo ฟรี จึง**ไม่มีทางเกินโควตา** (รายละเอียดสถาปัตยกรรมใน [`ARCHITECTURE.md`](./ARCHITECTURE.md))
+
+---
+
+## หมายเหตุ
+
+- ถ้าเชื่อม Deye ไม่ได้ชั่วคราว แอปขึ้นแถบ "เชื่อมต่อระบบไม่ได้" + คงข้อมูลล่าสุด + ลองใหม่อัตโนมัติ
+- บัญชีที่มีหลายสถานี: มีปุ่มสลับสถานีที่ด้านบนของจอให้อัตโนมัติ
+- ตัวเลขผังพลังงาน (โซลาร์ ใช้ไฟ การไฟฟ้า แบตเตอรี่) อ่านจากอินเวอร์เตอร์ ให้ตรงกับแอป Deye · ยอดพลังงานรายวันมาจาก station
+- เมื่อรูปแบบ cookie ของ PIN เปลี่ยน (ล่าสุด ต.ค. 2026) ทุกเครื่องต้องใส่ PIN ใหม่ 1 ครั้ง · ล็อกอินแล้วอยู่ได้ 1 ปี
+- ต่อ uptime monitor (เช่น UptimeRobot/Better Stack) ที่ `GET /api/_health` — ตอบ 503 เมื่อระบบเก็บข้อมูลหยุด

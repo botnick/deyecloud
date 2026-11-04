@@ -1,0 +1,23 @@
+# โซลาร์มอนิเตอร์ · Deye Solar Monitor
+
+> Deye Solar Monitor is a free, self-hosted real-time dashboard for Deye solar inverters, built on the official Deye Cloud Open API. It shows PV production, home load, battery state and grid import/export live, adds a production forecast that learns from your own roof, measured battery health, monthly savings, CSV export and Discord/Telegram alerts, and installs on a phone as a PWA. It runs entirely on the Cloudflare Workers + D1 free tier (no monthly cost). The app interface is Thai.
+
+แอปดูระบบโซลาร์เซลล์ Deye แบบเรียลไทม์ ภาษาไทย. ผลิตไฟ · ใช้ไฟ · แบตเตอรี่ · ซื้อ-ขายไฟ ครบในแอปเดียว — ติดตั้งเป็นแอปบนมือถือ รันฟรีบน Cloudflare ทุน 0 บาท
+
+## Pages
+
+- [Home (Thai)](https://botnick.github.io/deyecloud/): features, screenshots, install, settings, FAQ
+- [Home (English)](https://botnick.github.io/deyecloud/en/): English overview and FAQ
+- [สถาปัตยกรรม](https://botnick.github.io/deyecloud/docs/architecture/): ARCHITECTURE.md
+- [คู่มือติดตั้ง](https://botnick.github.io/deyecloud/docs/deploy/): DEPLOY.md
+
+## Source
+
+- [Repository](https://github.com/botnick/deyecloud)
+- [README.md](https://github.com/botnick/deyecloud/blob/main/README.md)
+- [ARCHITECTURE.md](https://github.com/botnick/deyecloud/blob/main/ARCHITECTURE.md)
+- [DEPLOY.md](https://github.com/botnick/deyecloud/blob/main/DEPLOY.md)
+
+## Optional
+
+- [Full text of all docs](https://botnick.github.io/deyecloud/llms-full.txt)
