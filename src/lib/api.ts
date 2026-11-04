@@ -13,7 +13,7 @@ export interface Latest {
   selfSufficiency: number; updatedAt: number; error?: string;
 }
 
-export interface WeatherDay { time: string; tc_max: number; tc_min: number; cond: number; rain: number; rh?: number; swdown?: number | null; }
+export interface WeatherDay { time: string; tc_max: number; tc_min: number; cond: number; rain: number; rh?: number; swdown?: number | null; rad?: number | null; }
 export interface WeatherHour { time: string; tc: number; cond: number; rain: number; }
 export interface SunInfo { rise: string; set: string; noon: string; peakStart: string; peakEnd: string; dayHours: number; psh: number; noonGhi: number; noonElev: number; arc: number[]; }
 export interface Weather {

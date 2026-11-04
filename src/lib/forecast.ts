@@ -19,6 +19,14 @@ export const DEFAULT_SKY: Record<number, number> = {
   5: 0.30, 6: 0.22, 7: 0.15, 8: 0.18,   // ฝนเล็ก→หนัก / ฟ้าคะนอง
 };
 export type SkyMap = Record<number, number>;
+
+// Radiation path (preferred when the day has it): Open-Meteo's forecast of the day's shortwave
+// radiation sum `rad` (MJ/m²) carries the cloud forecast as an amount, not a 12-step code, so
+//   energy ≈ capKw × (rad / 3.6 = forecast sun-hours) × pr
+// pr is the site's yield per kWp per forecast sun-hour, learned from logged days (skylearn
+// learnRadPr); this is the prior. Backtest Aug–Nov 2026 on this site (38 judged days, capKw 9.0):
+// score 72 → 80 %, MAE 10.4 → 7.3 kWh/day versus the cond model (sunny days were 40–60 % low).
+export const RAD_PR_PRIOR = 0.85;
 export const skyFactor = (cond: number, sky: SkyMap = DEFAULT_SKY) => sky[cond] ?? DEFAULT_SKY[cond] ?? 0.5;
 
 // Installed kWp if known, else derived from the highest PV watts ever produced.
@@ -28,8 +36,11 @@ export function effectiveCapacityKw(capacity?: number | null, peakPowerW?: numbe
   return 0;
 }
 
-export function forecastDayKwh(day: WeatherDay, pshClear: number, capKw: number, sky: SkyMap = DEFAULT_SKY): number {
-  if (!capKw || !pshClear) return 0;
+export function forecastDayKwh(day: WeatherDay, pshClear: number, capKw: number, sky: SkyMap = DEFAULT_SKY, pr: number | null = RAD_PR_PRIOR): number {
+  if (!capKw) return 0;
+  const rad = Number(day.rad);
+  if (pr && pr > 0 && Number.isFinite(rad) && rad > 0) return capKw * (rad / 3.6) * pr;
+  if (!pshClear) return 0;
   return capKw * pshClear * skyFactor(day.cond, sky);
 }
 
@@ -53,8 +64,8 @@ export function clearSkyPsh(weather: Weather | null): number {
   return p && p > 0 ? p : 0;
 }
 
-export function forecast(weather: Weather | null, capKw: number, sky: SkyMap = DEFAULT_SKY): ForecastItem[] {
+export function forecast(weather: Weather | null, capKw: number, sky: SkyMap = DEFAULT_SKY, pr: number | null = RAD_PR_PRIOR): ForecastItem[] {
   const psh = clearSkyPsh(weather);
   if (!weather || !capKw || !psh) return [];
-  return (weather.daily || []).map((d) => ({ time: d.time, kwh: forecastDayKwh(d, psh, capKw, sky) }));
+  return (weather.daily || []).map((d) => ({ time: d.time, kwh: forecastDayKwh(d, psh, capKw, sky, pr) }));
 }

@@ -46,7 +46,7 @@ export function WeatherView({ weather, capacity, isPrimary = true }: { weather: 
     );
   }
   const w = weather;
-  const fc = forecast(w, effCap, model.sky); // expected kWh per available day (today included)
+  const fc = forecast(w, effCap, model.sky, model.pr); // expected kWh per available day (today included)
   const sun = w.sun;
 
   // Sun elevation at any clock time, interpolated from the sunrise→sunset arc, so

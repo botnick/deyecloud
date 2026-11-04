@@ -50,3 +50,25 @@ describe("accuracySummary", () => {
     expect(accuracySummary([{ day: "a", predicted: 10, actual: 0 }]).score).toBeNull();
   });
 });
+
+describe("learnRadPr", () => {
+  it("no usable days: the prior", async () => {
+    const { learnRadPr } = await import("../skylearn");
+    expect(learnRadPr([], 0.85)).toEqual({ pr: 0.85, days: 0 });
+    expect(learnRadPr([{ actual: 30, expected: 0 }, { actual: NaN, expected: 40 }], 0.85)).toEqual({ pr: 0.85, days: 0 });
+  });
+  it("ratio of weighted sums, shrunk toward the prior", async () => {
+    const { learnRadPr, PR_PRIOR_WEIGHT } = await import("../skylearn");
+    const obs = [{ actual: 50, expected: 50 }, { actual: 10, expected: 20 }]; // Σa/Σe = 60/70, not mean(1, .5) = .75
+    const W = 2, r = 60 / 70;
+    expect(learnRadPr(obs, 0.85, PR_PRIOR_WEIGHT, 0).pr).toBeCloseTo((W * r + PR_PRIOR_WEIGHT * 0.85) / (W + PR_PRIOR_WEIGHT), 9);
+  });
+  it("recent days weigh more, and the result stays bounded", async () => {
+    const { learnRadPr } = await import("../skylearn");
+    const old = Array.from({ length: 20 }, () => ({ actual: 20, expected: 40, ageDays: 90 }));
+    const recent = Array.from({ length: 20 }, () => ({ actual: 40, expected: 40, ageDays: 1 }));
+    expect(learnRadPr([...old, ...recent], 0.85).pr).toBeGreaterThan(0.9);
+    expect(learnRadPr(Array.from({ length: 50 }, () => ({ actual: 100, expected: 10 })), 0.85).pr).toBe(1.2);
+    expect(learnRadPr(Array.from({ length: 50 }, () => ({ actual: 0, expected: 40 })), 0.85).pr).toBe(0.3);
+  });
+});

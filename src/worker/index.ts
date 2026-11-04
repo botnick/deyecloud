@@ -11,10 +11,10 @@ import { evaluateAlerts, notify, alertsConfigured, delivered } from "./alerts";
 import { pickPeak } from "../lib/peak";
 import { calibKwFrom } from "../lib/calib";
 import { observedChannelActivity, activeChannels } from "./battChannels";
-import { learnSky, accuracySummary } from "../lib/skylearn";
+import { learnSky, learnRadPr, accuracySummary } from "../lib/skylearn";
 import { batteryHealth, sohIdentity } from "../lib/battery";
 import { isFrozenReading } from "../lib/freeze";
-import { forecastDayKwh, DEFAULT_SKY } from "../lib/forecast";
+import { forecastDayKwh, DEFAULT_SKY, RAD_PR_PRIOR } from "../lib/forecast";
 
 // --- External endpoints + defaults — centralized, not scattered as inline literals.
 //     Per-account/site values (email, coords) come from env; stable public API
@@ -37,7 +37,7 @@ const SCHEMA = [
   `DROP INDEX IF EXISTS idx_samples_ts`,
   // day-ahead forecast log: the 'พรุ่งนี้คาดผลิต' figure as last shown on day-1,
   // evaluated against daily.gen once the day completes (accuracy + sky learning)
-  `CREATE TABLE IF NOT EXISTS forecast_log (day TEXT PRIMARY KEY, predicted REAL, cond INTEGER, psh REAL, cap_kw REAL, made_at INTEGER)`,
+  `CREATE TABLE IF NOT EXISTS forecast_log (day TEXT PRIMARY KEY, predicted REAL, cond INTEGER, psh REAL, cap_kw REAL, made_at INTEGER, rad REAL)`,
 ];
 // Widen tables created before the long-term redesign (idempotent — a duplicate
 // column just throws and is ignored, so first-run-with-new-SCHEMA is a no-op too).
@@ -49,8 +49,9 @@ const MIGRATE = [
   `ALTER TABLE samples ADD COLUMN gen_total REAL`,
   `ALTER TABLE daily ADD COLUMN peak_power REAL`,
   `ALTER TABLE daily ADD COLUMN peak_ts INTEGER`,
+  `ALTER TABLE forecast_log ADD COLUMN rad REAL`, // forecast radiation sum (MJ/m²) behind the logged figure
 ];
-const SCHEMA_V = 3;
+const SCHEMA_V = 4;
 let schemaReady = false;
 async function ensureSchema(env: Env) {
   if (schemaReady) return;
@@ -327,9 +328,10 @@ async function pollAndStore(env: Env) {
       if (fm.capKw > 0 && tmr && sm && sm.lat != null && sm.lng != null) {
         const tday = bkkDay(1);
         const psh = sunInfo(Number(sm.lat), Number(sm.lng), 420, Date.parse(tday + "T05:00:00Z")).psh;
-        const predicted = forecastDayKwh(tmr, psh, fm.capKw, fm.sky);
-        await env.DB.prepare("INSERT INTO forecast_log (day, predicted, cond, psh, cap_kw, made_at) VALUES (?,?,?,?,?,?) ON CONFLICT(day) DO UPDATE SET predicted=excluded.predicted, cond=excluded.cond, psh=excluded.psh, cap_kw=excluded.cap_kw, made_at=excluded.made_at")
-          .bind(tday, Math.round(predicted * 100) / 100, Number(tmr.cond) || 0, psh, fm.capKw, ts).run();
+        const predicted = forecastDayKwh(tmr, psh, fm.capKw, fm.sky, fm.pr);
+        const rad = Number(tmr.rad) > 0 ? Number(tmr.rad) : null;
+        await env.DB.prepare("INSERT INTO forecast_log (day, predicted, cond, psh, cap_kw, made_at, rad) VALUES (?,?,?,?,?,?,?) ON CONFLICT(day) DO UPDATE SET predicted=excluded.predicted, cond=excluded.cond, psh=excluded.psh, cap_kw=excluded.cap_kw, made_at=excluded.made_at, rad=excluded.rad")
+          .bind(tday, Math.round(predicted * 100) / 100, Number(tmr.cond) || 0, psh, fm.capKw, ts, rad).run();
       }
     } catch (e) { console.warn("forecast log skipped", (e as Error).message); }
     // Outbound alerts — evaluated on what this tick already has (no extra Deye call).
@@ -523,6 +525,13 @@ async function getWeather(env: Env): Promise<any> {
   }
   if (!data) data = { error: "weather unavailable" };
   if (data && data.temp != null && data.uv == null) data.uv = await fetchUV(lat, lng).catch(() => null);
+  // The production forecast runs on Open-Meteo's daily radiation sum (lib/forecast.ts); TMD's
+  // daily has no comparable field, so it is merged onto the days by date. Missing = the day
+  // falls back to the cond model.
+  if (data && Array.isArray(data.daily) && data.daily.some((d: any) => d.rad == null)) {
+    const rad = await fetchRad(lat, lng).catch(() => null);
+    if (rad) for (const d of data.daily) if (d.rad == null && rad[String(d.time).slice(0, 10)] != null) d.rad = rad[String(d.time).slice(0, 10)];
+  }
   if (data && data.temp != null) data.sun = sunInfo(Number(lat), Number(lng));
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('weather_cache3',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(JSON.stringify({ _at: Date.now(), data })).run();
   return data;
@@ -573,6 +582,7 @@ async function fetchOpenMeteo(env: Env, lat: string, lng: string, place: string)
     time: t, tc_max: D.temperature_2m_max[i], tc_min: D.temperature_2m_min[i],
     cond: wmoToCond(D.weather_code[i]), rain: D.precipitation_sum[i],
     swdown: D.shortwave_radiation_sum ? Math.round((D.shortwave_radiation_sum[i] || 0) * 11.57) : null,
+    rad: D.shortwave_radiation_sum && Number(D.shortwave_radiation_sum[i]) > 0 ? Number(D.shortwave_radiation_sum[i]) : null,
   }));
   return {
     source: "open-meteo", place: place || "พื้นที่ของคุณ",
@@ -580,6 +590,15 @@ async function fetchOpenMeteo(env: Env, lat: string, lng: string, place: string)
     wind: c.wind_speed_10m != null ? Math.round(c.wind_speed_10m) : null,
     uv: c.uv_index != null ? Math.round(c.uv_index) : null, hourly, daily,
   };
+}
+async function fetchRad(lat: string, lng: string): Promise<Record<string, number> | null> {
+  const url = `${OPEN_METEO_URL}?latitude=${lat}&longitude=${lng}&daily=shortwave_radiation_sum&timezone=Asia%2FBangkok&forecast_days=7`;
+  const j: any = await fetch(url, { signal: AbortSignal.timeout(15000) }).then((r) => r.json());
+  const D = j.daily || {};
+  if (!Array.isArray(D.time) || !Array.isArray(D.shortwave_radiation_sum)) return null;
+  const out: Record<string, number> = {};
+  D.time.forEach((t: string, i: number) => { const v = Number(D.shortwave_radiation_sum[i]); if (v > 0) out[String(t).slice(0, 10)] = v; });
+  return out;
 }
 // TMD has no UV field — pull the live UV index from Open-Meteo (free, no key).
 async function fetchUV(lat: string, lng: string): Promise<number | null> {
@@ -768,7 +787,7 @@ app.get("/api/export", async (c) => {
 // ---- forecast model: calibrated capacity + site-learned sky factors ----
 // One place both the app (/api/totals) and the cron's day-ahead log read from, so
 // what gets evaluated is exactly what was shown. Memoised per isolate 30 min.
-let memModel: { at: number; m: { capKw: number; calibDays: number; sky: Record<number, number>; skyDays: number } } | null = null;
+let memModel: { at: number; m: { capKw: number; calibDays: number; sky: Record<number, number>; skyDays: number; pr: number; prDays: number } } | null = null;
 // 06:00–17:59 = 144 five-minute samples; require 80 % of them
 const DAYLIGHT_COVER_MIN = 115;
 async function evaluatedForecastRows(env: Env, days: number) {
@@ -781,7 +800,7 @@ async function evaluatedForecastRows(env: Env, days: number) {
   const since = Math.floor(Date.parse(cutoff + "T00:00:00+07:00") / 1000);
   const retainedFrom = bkkDayOf(Date.now() - (SAMPLES_RETENTION_DAYS - 1) * 86400000);
   const { results } = await env.DB.prepare(
-    `SELECT f.day, f.predicted, f.cond, f.psh, f.cap_kw, d.gen AS actual, COALESCE(c.n, 0) AS cover
+    `SELECT f.day, f.predicted, f.cond, f.psh, f.cap_kw, f.rad, d.gen AS actual, COALESCE(c.n, 0) AS cover
        FROM forecast_log f
        LEFT JOIN daily d ON d.day = f.day
        LEFT JOIN (SELECT date(ts + 25200, 'unixepoch') AS day, COUNT(*) AS n FROM samples
@@ -793,7 +812,7 @@ async function evaluatedForecastRows(env: Env, days: number) {
     // their recorded total (the pre-coverage behaviour) instead of silently dropping out of learning
     const judgeable = String(r.day) >= retainedFrom;
     const complete = !judgeable || Number(r.cover) >= DAYLIGHT_COVER_MIN;
-    return { day: String(r.day), predicted: Number(r.predicted), cond: Number(r.cond), psh: Number(r.psh), cap_kw: Number(r.cap_kw),
+    return { day: String(r.day), predicted: Number(r.predicted), cond: Number(r.cond), psh: Number(r.psh), cap_kw: Number(r.cap_kw), rad: r.rad == null ? null : Number(r.rad),
       actual: complete && r.actual != null ? Number(r.actual) : null, incomplete: !complete };
   });
 }
@@ -806,7 +825,7 @@ async function forecastModel(env: Env) {
   try {
     const r = (await env.DB.prepare("SELECT v FROM meta WHERE k='forecast_model'").first()) as { v: string } | null;
     const p = r ? JSON.parse(r.v) : null;
-    if (p && p.day === today && Date.now() - p.at < 6 * 3600 * 1000 && p.m) {
+    if (p && p.day === today && Date.now() - p.at < 6 * 3600 * 1000 && p.m && p.m.pr != null) {
       memModel = { at: Date.now(), m: p.m };
       return memModel.m;
     }
@@ -821,7 +840,7 @@ async function forecastModel(env: Env) {
       capKw = c.kw; calibDays = c.days;
     }
   } catch (e) { console.warn("calibration skipped", (e as Error).message); }
-  let sky: Record<number, number> = { ...DEFAULT_SKY }, skyDays = 0;
+  let sky: Record<number, number> = { ...DEFAULT_SKY }, skyDays = 0, pr = RAD_PR_PRIOR, prDays = 0;
   try {
     // ratio = actual / (capKw_at_the_time × psh): the sky's share of clear yield
     const rows = await evaluatedForecastRows(env, 120);
@@ -830,8 +849,14 @@ async function forecastModel(env: Env) {
         ageDays: (Date.now() - Date.parse(r.day + "T12:00:00+07:00")) / 86400000 }));
     const l = learnSky(obs);
     sky = l.sky; skyDays = l.days;
+    // radiation path: actual vs capKw_at_the_time × forecast sun-hours, on days logged with rad
+    const ro = rows.filter((r) => r.actual != null && r.actual > 0.5 && r.cap_kw > 0 && r.rad != null && r.rad > 0)
+      .map((r) => ({ actual: Number(r.actual), expected: Number(r.cap_kw) * Number(r.rad) / 3.6,
+        ageDays: (Date.now() - Date.parse(r.day + "T12:00:00+07:00")) / 86400000 }));
+    const lp = learnRadPr(ro, RAD_PR_PRIOR);
+    pr = lp.pr; prDays = lp.days;
   } catch (e) { console.warn("sky learning skipped", (e as Error).message); }
-  memModel = { at: Date.now(), m: { capKw, calibDays, sky, skyDays } };
+  memModel = { at: Date.now(), m: { capKw, calibDays, sky, skyDays, pr, prDays } };
   await env.DB.prepare("INSERT INTO meta (k,v) VALUES ('forecast_model',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
     .bind(JSON.stringify({ at: memModel.at, day: today, m: memModel.m })).run().catch(() => {});
   return memModel.m;
@@ -1160,6 +1185,7 @@ app.get("/api/totals", async (c) => {
     peakPower: peakW, // W — robust recent peak (95th pct, 60 d) ≈ real array size; see robustPeakW
     calibKw: fm.capKw, calibDays: fm.calibDays, // measured clear-sky-equivalent kWp (0 = insufficient history)
     sky: fm.sky, skyDays: fm.skyDays,           // site-learned sky factors (+ evaluated days behind them)
+    pr: fm.pr, prDays: fm.prDays,               // radiation-path yield factor (lib/forecast.ts) + days behind it
     pshByMonth: await pshByMonth(env),          // astronomical seasonality at the station (Jan..Dec)
     years: yrs,
   };

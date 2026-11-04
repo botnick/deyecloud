@@ -46,3 +46,24 @@ describe("forecast", () => {
     expect(f[0].kwh).toBeGreaterThan(f[1].kwh); // clear beats storm
   });
 });
+
+describe("radiation path", () => {
+  it("uses the day's forecast radiation sum when present: capKw × rad/3.6 × pr", async () => {
+    const { forecastDayKwh, RAD_PR_PRIOR } = await import("../forecast");
+    const day = { time: "2026-11-02", cond: 3, rad: 20.89 } as any;
+    expect(forecastDayKwh(day, 5.5, 9, undefined, 0.85)).toBeCloseTo(9 * (20.89 / 3.6) * 0.85, 6);
+    expect(forecastDayKwh(day, 5.5, 9)).toBeCloseTo(9 * (20.89 / 3.6) * RAD_PR_PRIOR, 6); // default pr
+  });
+  it("falls back to the cond model without radiation (or with pr disabled)", async () => {
+    const { forecastDayKwh, skyFactor } = await import("../forecast");
+    for (const rad of [undefined, null, 0, -1, NaN]) {
+      expect(forecastDayKwh({ time: "x", cond: 3, rad } as any, 5.5, 9)).toBeCloseTo(9 * 5.5 * skyFactor(3), 6);
+    }
+    expect(forecastDayKwh({ time: "x", cond: 3, rad: 20 } as any, 5.5, 9, undefined, null)).toBeCloseTo(9 * 5.5 * skyFactor(3), 6);
+  });
+  it("radiation path still works when clear-sky PSH is unknown; nothing without capacity", async () => {
+    const { forecastDayKwh } = await import("../forecast");
+    expect(forecastDayKwh({ time: "x", cond: 1, rad: 18 } as any, 0, 9, undefined, 0.8)).toBeCloseTo(9 * 5 * 0.8, 6);
+    expect(forecastDayKwh({ time: "x", cond: 1, rad: 18 } as any, 5.5, 0)).toBe(0);
+  });
+});

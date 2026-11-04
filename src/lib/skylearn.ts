@@ -46,6 +46,24 @@ export function learnSky(obs: SkyObs[], prior: Record<number, number> = DEFAULT_
   return { sky, samples, days };
 }
 
+// Radiation-path factor pr (see forecast.ts): kWh ≈ capKw × rad/3.6 × pr. One number for the site,
+// estimated as a ratio of weighted sums Σw·actual / Σw·(capKw × rad/3.6) (big days count more than
+// near-empty ones, which a mean of ratios would not), shrunk toward the prior with pseudo-count K
+// and with the same 14-day half-life as the sky factors. Bounded to [0.3, 1.2].
+export const PR_PRIOR_WEIGHT = 3;
+export interface RadObs { actual: number; expected: number; ageDays?: number; }
+export function learnRadPr(obs: RadObs[], prior: number, k = PR_PRIOR_WEIGHT, halfLife = SKY_HALF_LIFE_DAYS): { pr: number; days: number } {
+  let W = 0, num = 0, den = 0, days = 0;
+  for (const o of obs) {
+    if (!(Number.isFinite(o.actual) && o.actual >= 0 && Number.isFinite(o.expected) && o.expected > 0)) continue;
+    const age = Number.isFinite(o.ageDays) ? Math.max(0, o.ageDays!) : 0;
+    const w = halfLife > 0 ? Math.pow(0.5, age / halfLife) : 1;
+    W += w; num += w * o.actual; den += w * o.expected; days++;
+  }
+  if (!days || den <= 0) return { pr: prior, days: 0 };
+  return { pr: Math.max(0.3, Math.min(1.2, (W * (num / den) + k * prior) / (W + k))), days };
+}
+
 // Headline accuracy over evaluated days: 100 − WAPE score, signed bias and MAE.
 export interface AccRow { day: string; predicted: number; actual: number; }
 export interface Accuracy { n: number; score: number | null; bias: number | null; mae: number | null; }

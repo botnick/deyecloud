@@ -60,7 +60,7 @@ export function HomeView({ latest, weather, capacity, isPrimary = true, stationN
     return { saved, days, dayOfMonth: d, proj };
   })();
   // tomorrow's expected production (shown only when capacity is known here)
-  const tomorrow = effCap ? forecast(weather, effCap, model.sky)[1] : undefined;
+  const tomorrow = effCap ? forecast(weather, effCap, model.sky, model.pr)[1] : undefined;
 
   return (
     <>
