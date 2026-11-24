@@ -47,8 +47,42 @@ const pinTo = (el: HTMLDivElement, k: FlowKey, p: Pin, w: number, h: number) => 
   const len = Math.max(18, UP[k] ? y - rail : rail - y);
   el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
   el.style.setProperty("--len", `${len.toFixed(0)}px`);
-  el.classList.toggle("flip", x > w * 0.62);
+  el.dataset.x = x.toFixed(1); el.dataset.w = String(w);
   const op = p.behind ? "0.55" : "1"; if (el.style.opacity !== op) el.style.opacity = op;
+};
+// The two readings on a rail are laid out together so their text never overlaps: each sits beside
+// its own leader (right of it, or left when that fits better), and if they still collide they are
+// pushed apart inside the card. Leader ends stay on the devices; only the text moves.
+const EDGE = 6, GAP = 10, OFF = 7;
+export type Box = { x: number; w: number }; // leader x and text width, card px
+export function railLayout(a: Box | null, b: Box | null, cardW: number): [number | null, number | null] {
+  const fit = (l: number, w: number) => l >= EDGE && l + w <= cardW - EDGE;
+  const sides = (bx: Box) => [bx.x + OFF, bx.x - OFF - bx.w]; // right of leader, left of leader
+  const pick = (bx: Box, prefer: 0 | 1) => { const c = sides(bx); return fit(c[prefer], bx.w) ? c[prefer] : fit(c[1 - prefer], bx.w) ? c[1 - prefer] : Math.max(EDGE, Math.min(cardW - EDGE - bx.w, c[prefer])); };
+  if (!a || !b) { const o = a ?? b; if (!o) return [null, null]; const l = pick(o, 0); return a ? [l, null] : [null, l]; }
+  const swap = a.x > b.x, L = swap ? b : a, R = swap ? a : b;
+  let lL = pick(L, 0), lR = pick(R, 0);
+  if (lL + L.w + GAP > lR) lL = pick(L, 1); // left one moves to the left of its leader
+  if (lL + L.w + GAP > lR) { // still colliding: push apart, staying inside the card
+    const need = lL + L.w + GAP - lR;
+    const toLeft = Math.min(need, Math.max(0, lL - EDGE)); lL -= toLeft;
+    lR += Math.min(need - toLeft, Math.max(0, cardW - EDGE - R.w - lR));
+  }
+  return swap ? [lR, lL] : [lL, lR];
+}
+const layoutRails = (chips: Partial<Record<FlowKey, HTMLDivElement | null>>) => {
+  for (const [ka, kb] of [["pv", "grid"], ["home", "batt"]] as [FlowKey, FlowKey][]) {
+    const els = [chips[ka], chips[kb]].map((el) => (el && el.dataset.x ? el : null));
+    const lbls = els.map((el) => el?.querySelector<HTMLElement>(".hs-lbl") ?? null);
+    const boxes = els.map((el, i) => (el && lbls[i] ? { x: +el.dataset.x!, w: lbls[i]!.offsetWidth } : null));
+    const cardW = +(els[0]?.dataset.w || els[1]?.dataset.w || 0); if (!cardW) continue;
+    const out = railLayout(boxes[0], boxes[1], cardW);
+    out.forEach((left, i) => {
+      const lb = lbls[i], bx = boxes[i]; if (!lb || !bx || left == null) return;
+      const dx = (left - bx.x).toFixed(1); if (lb.style.left !== `${dx}px`) lb.style.left = `${dx}px`;
+      lb.classList.toggle("flip", left + bx.w / 2 < bx.x);
+    });
+  }
 };
 
 export function HouseScene({ latest, weather, title, force }: { latest: Latest; weather: Weather | null; title?: string; force?: { phase?: SkyPhase } }) {
@@ -101,6 +135,7 @@ export function HouseScene({ latest, weather, title, force }: { latest: Latest; 
           onLabels: (pos, w, h) => {
             pins.current = { pos, w, h };
             for (const k of Object.keys(pos) as FlowKey[]) { const el = chips.current[k]; if (el) pinTo(el, k, pos[k], w, h); }
+            layoutRails(chips.current);
           },
           // GPU reset (low memory, driver crash): drop the 3D view, show the picture again
           onContextLost: () => {
@@ -124,9 +159,12 @@ export function HouseScene({ latest, weather, title, force }: { latest: Latest; 
   const place = (k: FlowKey, el: HTMLDivElement | null | undefined) => {
     if (!el) return;
     const p = pins.current;
-    if (live3d && p) { pinTo(el, k, p.pos[k], p.w, p.h); return; }
-    const r = root.current; if (!r || !r.clientWidth) return;
-    pinTo(el, k, { x: POSTER[k][0], y: POSTER[k][1], behind: false }, r.clientWidth, r.clientHeight);
+    if (live3d && p) pinTo(el, k, p.pos[k], p.w, p.h);
+    else {
+      const r = root.current; if (!r || !r.clientWidth) return;
+      pinTo(el, k, { x: POSTER[k][0], y: POSTER[k][1], behind: false }, r.clientWidth, r.clientHeight);
+    }
+    layoutRails(chips.current);
   };
   const placeRef = useRef(place); placeRef.current = place;
   const liveRef = useRef(live3d); liveRef.current = live3d;
