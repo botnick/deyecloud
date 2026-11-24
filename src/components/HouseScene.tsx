@@ -17,7 +17,7 @@ const SKY: Record<SkyPhase, [string, string]> = {
 };
 const FLOW_MIN = 30;
 // until the 3D view runs, labels sit at the poster's device positions (design/house/scene.html anchors)
-const POSTER: Record<FlowKey, [number, number]> = { pv: [40, 20], grid: [86, 24], home: [27, 44], batt: [57, 52] };
+const POSTER: Record<FlowKey, [number, number]> = { pv: [44, 33], grid: [83, 34], home: [27, 44.9], batt: [57, 51.7] };
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -37,13 +37,18 @@ const hasWebGL = () => {
   return webglOk;
 };
 type Pin = { x: number; y: number; behind: boolean };
-// stick a label to its device: one compositor transform (no left/top layout), the trailing
-// translate is the stylesheet's "chip above a stem" offset that this inline transform replaces
-const pinTo = (el: HTMLDivElement, p: Pin, w: number, h: number) => {
-  // keep the whole chip inside the card (pole label near the edge)
-  const x = (Math.max(16, Math.min(84, p.x)) * w) / 100, y = (Math.max(34, p.y) * h) / 100;
-  el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, calc(-100% - 14px))`;
-  const op = p.behind ? "0.6" : "1"; if (el.style.opacity !== op) el.style.opacity = op;
+// Deye-style label: the reading sits on a rail (top row for the roof and the pole, bottom row for
+// the house and the battery) and a dashed leader runs straight from it to the device. The pin is
+// placed on the device point with one compositor transform; --len is the leader length.
+const UP: Record<FlowKey, boolean> = { pv: true, grid: true, home: false, batt: false };
+const pinTo = (el: HTMLDivElement, k: FlowKey, p: Pin, w: number, h: number) => {
+  const x = (Math.max(6, Math.min(94, p.x)) * w) / 100, y = (Math.max(0, Math.min(100, p.y)) * h) / 100;
+  const rail = UP[k] ? Math.max(78, h * 0.2) : h - 52;
+  const len = Math.max(18, UP[k] ? y - rail : rail - y);
+  el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
+  el.style.setProperty("--len", `${len.toFixed(0)}px`);
+  el.classList.toggle("flip", x > w * 0.62);
+  const op = p.behind ? "0.55" : "1"; if (el.style.opacity !== op) el.style.opacity = op;
 };
 
 export function HouseScene({ latest, weather, title, force }: { latest: Latest; weather: Weather | null; title?: string; force?: { phase?: SkyPhase } }) {
@@ -95,12 +100,12 @@ export function HouseScene({ latest, weather, title, force }: { latest: Latest; 
           // pin each label to its device when the camera moves (DOM writes, no React render)
           onLabels: (pos, w, h) => {
             pins.current = { pos, w, h };
-            for (const k of Object.keys(pos) as FlowKey[]) { const el = chips.current[k]; if (el) pinTo(el, pos[k], w, h); }
+            for (const k of Object.keys(pos) as FlowKey[]) { const el = chips.current[k]; if (el) pinTo(el, k, pos[k], w, h); }
           },
           // GPU reset (low memory, driver crash): drop the 3D view, show the picture again
           onContextLost: () => {
             const v = view.current; view.current = null; pins.current = null; setLive3d(false);
-            for (const el of Object.values(chips.current)) if (el) { el.style.transform = ""; el.style.opacity = ""; }
+            for (const k of Object.keys(chips.current) as FlowKey[]) { const el = chips.current[k]; if (el) { el.style.opacity = ""; requestAnimationFrame(() => placeRef.current(k, el)); } }
             setTimeout(() => v?.dispose(), 0);
           },
         });
@@ -114,19 +119,34 @@ export function HouseScene({ latest, weather, title, force }: { latest: Latest; 
   useEffect(() => { view.current?.setFlows(flows); });
 
   const [skyTop, skyBot] = SKY[phase];
+  // label positions: projected device points once 3D runs, else the poster's points on the card size
+  const root = useRef<HTMLDivElement>(null);
+  const place = (k: FlowKey, el: HTMLDivElement | null | undefined) => {
+    if (!el) return;
+    const p = pins.current;
+    if (live3d && p) { pinTo(el, k, p.pos[k], p.w, p.h); return; }
+    const r = root.current; if (!r || !r.clientWidth) return;
+    pinTo(el, k, { x: POSTER[k][0], y: POSTER[k][1], behind: false }, r.clientWidth, r.clientHeight);
+  };
+  const placeRef = useRef(place); placeRef.current = place;
+  const liveRef = useRef(live3d); liveRef.current = live3d;
+  useEffect(() => {
+    const r = root.current; if (!r || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => { if (!liveRef.current) for (const k of Object.keys(chips.current) as FlowKey[]) placeRef.current(k, chips.current[k]); });
+    ro.observe(r); return () => ro.disconnect();
+  }, []);
   const chip = (k: FlowKey, label: string, value: string, extra?: React.ReactNode) => (
-    <div ref={(el) => { chips.current[k] = el; const p = pins.current; if (el && p && live3d) pinTo(el, p.pos[k], p.w, p.h); }} className="hs-pin"
-      style={live3d ? { left: 0, top: 0 } : { left: `${POSTER[k][0]}%`, top: `${POSTER[k][1]}%` }}>
-      <div className="hs-chip">
-        <span className="dot" style={{ background: k === "grid" && gridOff ? "#94a3b8" : COL[k] }} />
-        <span className="txt"><span className="lb">{label}</span><span className="vl">{value}</span></span>
-        {extra}
+    <div ref={(el) => { chips.current[k] = el; place(k, el); }} className={`hs-pin ${UP[k] ? "up" : "down"}`}>
+      <i className="ln" style={{ borderColor: k === "grid" && gridOff ? "#94a3b8" : COL[k] }} />
+      <div className="hs-lbl">
+        <span className="vl">{value}{extra}</span>
+        <span className="lb"><span className="dot" style={{ background: k === "grid" && gridOff ? "#94a3b8" : COL[k] }} />{label}</span>
       </div>
     </div>
   );
 
   return (
-    <div className={`hscene ${dim ? "dim" : ""}`} style={{ background: `linear-gradient(180deg, ${skyTop} 0%, ${skyBot} 78%)` }}>
+    <div ref={root} className={`hscene ${dim ? "dim" : ""}`} style={{ background: `linear-gradient(180deg, ${skyTop} 0%, ${skyBot} 78%)` }}>
       {cloudy && <div className="hs-haze" />}
       {night && <div className="hs-stars" />}
       {!live3d && <img className="hs-poster" src={dim ? "/hero/house-night.webp" : "/hero/house-day.webp"} alt="" draggable={false} />}
@@ -144,7 +164,7 @@ export function HouseScene({ latest, weather, title, force }: { latest: Latest; 
       {chip("grid", gridOff ? "ไฟดับ" : buying ? "ซื้อไฟ" : "ไฟย้อน", fmtPower(Math.abs(gp)))}
       {chip("home", "ใช้ไฟ", fmtPower(useW))}
       {hasBatt && chip("batt", discharging ? "แบตจ่าย" : charging ? "แบตชาร์จ" : "แบต", fmtPower(Math.abs(bp)),
-        latest.socKnown !== false ? <span className="soc"><i style={{ width: `${soc}%` }} /><b>{soc}%</b></span> : undefined)}
+        latest.socKnown !== false ? <span className="soc">{soc}%</span> : undefined)}
       {live3d && <button type="button" className="hs-hint" onClick={() => view.current?.reset()}>กลับมุมเดิม</button>}
     </div>
   );
